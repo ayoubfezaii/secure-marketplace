@@ -1,0 +1,18 @@
+# See the configuration reference at https://symfony.com/bundles/SchebTwoFactorBundle/7.x/configuration.html
+scheb_two_factor:
+    security_tokens:
+        - Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken
+        - Symfony\Component\Security\Http\Authenticator\Token\PostAuthenticationToken
+
+    # SECURITY (rule 5): a TOTP code that was already used is rejected (replay protection),
+    # e.g. a code shoulder-surfed or captured by a phishing proxy can't be used a second time.
+    code_reuse_cache: cache.app
+    code_reuse_cache_duration: 90
+
+    totp:
+        enabled: true
+        issuer: 'Secure Marketplace'
+        server_name: 'Secure Marketplace'
+        # 1 step (30 s) of clock drift tolerated, no more: a wider window makes guessing easier.
+        leeway: 1
+        template: security/2fa_form.html.twig

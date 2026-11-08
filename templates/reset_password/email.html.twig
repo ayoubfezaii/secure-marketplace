@@ -1,0 +1,12 @@
+<h1>Password reset</h1>
+
+<p>Someone (hopefully you) asked to reset the password of your Secure Marketplace account.</p>
+
+<p>To choose a new password, open this link:</p>
+
+{# Absolute URL built by the router from the trusted route, not from user input. #}
+<p><a href="{{ url('app_reset_password', {token: resetToken.token}) }}">{{ url('app_reset_password', {token: resetToken.token}) }}</a></p>
+
+<p>This link expires in 1 hour and can be used only once.</p>
+
+<p>If you didn't ask for this, you can ignore this email: your password will not change.</p>

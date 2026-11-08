@@ -3,6 +3,7 @@
 namespace App\Form;
 
 use App\Entity\User;
+use App\Security\PasswordPolicy;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\EmailType;
@@ -43,13 +44,7 @@ class RegistrationFormType extends AbstractType
                     'attr' => ['autocomplete' => 'new-password', 'minlength' => 12],
                 ],
                 // SECURITY: password policy enforced server side (rule 15). The HTML attributes above are only a convenience.
-                'constraints' => [
-                    new Assert\NotBlank(message: 'Please enter a password.'),
-                    // max 4096: Symfony's hashers reject longer input (prevents DoS through huge passwords).
-                    new Assert\Length(min: 12, max: 4096, minMessage: 'Your password must be at least {{ limit }} characters long.'),
-                    new Assert\Regex(pattern: '/\p{L}/u', message: 'Your password must contain at least one letter.'),
-                    new Assert\Regex(pattern: '/\d/', message: 'Your password must contain at least one number.'),
-                ],
+                'constraints' => PasswordPolicy::constraints(),
             ])
             // SECURITY: the choice list contains only buyer and seller. Any other submitted value
             // (e.g. "admin") fails ChoiceType validation, and the controller maps it to a role with

@@ -27,3 +27,18 @@ Rule numbers refer to `CLAUDE.md`. Comments marked `// SECURITY:` / `# SECURITY`
 - **Account lockout can be abused to lock a victim out (DoS)** for 15 minutes. Mitigated by the short duration; the rate limiter slows the attacker down.
 - **`isVerified` is not enforced at login yet**: there is no email verification flow so far.
 - **Local DB uses `root` with no password** (XAMPP dev only, `.env.local`, never committed). Production needs a dedicated least-privilege user.
+
+## Phase 2: Password reset + 2FA
+
+| Vulnerability | Where | Defense | How to test |
+|---|---|---|---|
+| User enumeration via "forgot password" | `src/Controller/ResetPasswordController.php::request()` | Same redirect + same "check your email" page whether the email exists or not, and whether the per-account throttle was hit. Mail errors only logged. | Submit a known and an unknown email: both `302 → /reset-password/check-email`, identical page. Mailpit (http://localhost:8025) shows one mail. |
+| Reset-token theft / reuse | `config/packages/reset_password.yaml`, `src/Entity/ResetPasswordRequest.php` | Token valid 1 h, single use (deleted before the password changes), only a selector + hash stored in DB, token moved from URL to session then redirected (no Referer leak). | Use a reset link twice: the second time → "invalid or has expired". |
+| Mail bombing / reset brute force | `config/packages/rate_limiter.yaml` (`password_reset_request`, `password_reset_token`), `throttle_limit: 900` | 5 requests / 15 min per IP; 1 email per account per 15 min; 10 token checks / 15 min per IP. Rule 6 | Submit the form 6 times quickly → "Too many requests". |
+| Weak new password | `src/Security/PasswordPolicy.php` | One shared policy (12+ chars, letter + digit, max 4096, `NotCompromisedPassword`) for registration and reset. Rule 15 | Reset with `password1234` → "This password has been leaked". |
+| Credential stuffing (stolen password) | `config/packages/security.yaml` (`two_factor`), `src/Entity/User.php` (TOTP), `config/packages/scheb_2fa.yaml` | Optional TOTP 2FA (RFC 6238). Half-authenticated sessions can only reach `/2fa` (`IS_AUTHENTICATED_2FA_IN_PROGRESS`). Rule 5 | Enable 2FA, log in with the password, then open `/account/security` directly → redirected to `/2fa`. |
+| 2FA code brute force | `src/EventSubscriber/TwoFactorSubscriber.php` | 5 code attempts / 5 min **per account** (not per IP/session), checked before the code. Rule 6 | Enter 5 wrong codes → "Too many invalid codes"; even the right code is then refused for 5 min. |
+| 2FA code replay | `scheb_2fa.yaml` (`code_reuse_cache`) | A code already used is rejected for 90 s. | Log in with a code, log out, log in again with the same code → "This 2FA code has already been used." |
+| Enabling 2FA with a wrong secret / disabling via stolen session | `src/Controller/SecuritySettingsController.php` | Secret kept in session until a valid code confirms it. Disabling needs current password **and** a valid code. All actions POST + CSRF. Rules 3, 5 | Disable with a wrong password → still "Enabled". `GET /account/security/2fa/disable` → 405. |
+| TOTP secret exposure | `User::__serialize()`, `SecuritySettingsController::index()` | Secret stripped from serialized session data; QR code generated server side (no third-party QR API), shown only during enrolment. | Inspect `var/sessions`: no `totpSecret` value. |
+| Login CSRF on 2FA form | `security.yaml` (`two_factor.enable_csrf`) | CSRF token on the code form. Rule 3 | Change the hidden `_csrf_token` → "Invalid CSRF token." |

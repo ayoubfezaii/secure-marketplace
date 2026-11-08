@@ -7,6 +7,9 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
+use Scheb\TwoFactorBundle\Model\Totp\TotpConfiguration;
+use Scheb\TwoFactorBundle\Model\Totp\TotpConfigurationInterface;
+use Scheb\TwoFactorBundle\Model\Totp\TwoFactorInterface;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Uid\Uuid;
@@ -17,7 +20,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 // SECURITY: the DB unique index guarantees one account per email even under concurrent registrations (rule 15).
 #[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_EMAIL', fields: ['email'])]
 #[UniqueEntity(fields: ['email'], message: 'This email address is already registered.')]
-class User implements UserInterface, PasswordAuthenticatedUserInterface
+class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFactorInterface
 {
     public const ROLE_BUYER = 'ROLE_BUYER';
     public const ROLE_SELLER = 'ROLE_SELLER';
@@ -63,6 +66,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(options: ['default' => false])]
     private bool $isVerified = false;
+
+    // SECURITY: TOTP shared secret (rule 5). Never shown again after setup and never sent to the client except
+    // inside the one-time enrolment QR code.
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $totpSecret = null;
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $totpEnabled = false;
 
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
@@ -181,6 +192,54 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    public function isTotpAuthenticationEnabled(): bool
+    {
+        return $this->totpEnabled && null !== $this->totpSecret;
+    }
+
+    public function getTotpAuthenticationUsername(): string
+    {
+        return (string) $this->email;
+    }
+
+    public function getTotpAuthenticationConfiguration(): ?TotpConfigurationInterface
+    {
+        if (null === $this->totpSecret) {
+            return null;
+        }
+
+        // SECURITY: standard RFC 6238 parameters (SHA1, 30 s, 6 digits) so every authenticator app works.
+        return new TotpConfiguration($this->totpSecret, TotpConfiguration::ALGORITHM_SHA1, 30, 6);
+    }
+
+    public function getTotpSecret(): ?string
+    {
+        return $this->totpSecret;
+    }
+
+    /**
+     * Sets a candidate secret WITHOUT enabling 2FA; enableTotp() is only called after the user proved
+     * they can generate a valid code with it.
+     */
+    public function setTotpSecret(?string $totpSecret): static
+    {
+        $this->totpSecret = $totpSecret;
+
+        return $this;
+    }
+
+    public function enableTotp(): void
+    {
+        $this->totpEnabled = true;
+    }
+
+    public function disableTotp(): void
+    {
+        // SECURITY: the secret is wiped, so re-enabling always generates a fresh one.
+        $this->totpEnabled = false;
+        $this->totpSecret = null;
+    }
+
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
@@ -195,6 +254,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         // SECURITY: store a CRC of the hash in the session instead of the hash itself;
         // a password change still invalidates other sessions.
         $data["\0".self::class."\0password"] = hash('crc32c', (string) $this->password);
+        // SECURITY: the TOTP secret never lands in session files; the user is reloaded from the DB on each request.
+        $data["\0".self::class."\0totpSecret"] = null;
 
         return $data;
     }

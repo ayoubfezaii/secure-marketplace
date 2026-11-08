@@ -1,0 +1,20 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Check your email · {{ parent() }}{% endblock %}
+
+{% block body %}
+    <div class="row justify-content-center">
+        <div class="col-md-7 col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <h1 class="h3 mb-3">Check your email</h1>
+                    {# SECURITY: identical text for existing and unknown emails (no user enumeration). #}
+                    <p>If an account matches the email you entered, a password reset link has been sent to it.
+                        The link expires in {{ tokenLifetimeMinutes }} minutes.</p>
+                    <p class="text-muted small mb-0">Nothing received? Check your spam folder or
+                        <a href="{{ path('app_forgot_password_request') }}">try again</a> in a few minutes.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

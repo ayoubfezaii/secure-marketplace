@@ -26,6 +26,7 @@
                                 {# Auto-escaped output (rule 2). #}
                                 <span class="navbar-text">{{ app.user.userIdentifier }}</span>
                             </li>
+                            <li class="nav-item"><a class="nav-link" href="{{ path('app_security_settings') }}">Security</a></li>
                             <li class="nav-item">
                                 {# SECURITY (rule 3): logout is a POST with a CSRF token, never a GET link. #}
                                 <form method="post" action="{{ path('app_logout') }}" class="d-inline">

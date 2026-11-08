@@ -1,0 +1,25 @@
+# SECURITY (rule 6): rate limiters for every endpoint that can be brute-forced or abused.
+# Login throttling is configured separately on the firewall (security.yaml, login_throttling).
+framework:
+    rate_limiter:
+        # "Forgot password" form: per client IP. Stops mass enumeration attempts and mail bombing.
+        password_reset_request:
+            policy: sliding_window
+            limit: 5
+            interval: '15 minutes'
+        # Reset-token form (/reset-password/reset/...): per IP, so token guessing is pointless.
+        password_reset_token:
+            policy: sliding_window
+            limit: 10
+            interval: '15 minutes'
+        # 2FA code entry during login: per account. 6-digit codes = 1,000,000 possibilities,
+        # 5 tries per 5 minutes makes online guessing infeasible.
+        two_factor_code:
+            policy: sliding_window
+            limit: 5
+            interval: '5 minutes'
+        # 2FA disable / confirm in "Security settings": per account.
+        two_factor_settings:
+            policy: sliding_window
+            limit: 5
+            interval: '5 minutes'

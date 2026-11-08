@@ -45,6 +45,17 @@ security:
                 max_attempts: 5
                 interval: '15 minutes'
 
+            # SECURITY (rule 5): optional TOTP second factor (scheb/2fa-bundle). After the password step the user
+            # only holds a TwoFactorToken (IS_AUTHENTICATED_2FA_IN_PROGRESS) and can't reach any protected page
+            # until a valid code is entered.
+            two_factor:
+                auth_form_path: 2fa_login
+                check_path: 2fa_login_check
+                # SECURITY (rule 3): CSRF token on the code form.
+                enable_csrf: true
+                csrf_parameter: _csrf_token
+                csrf_token_id: two_factor
+
             logout:
                 path: app_logout
                 target: app_home
@@ -60,7 +71,12 @@ security:
     # Note: Only the *first* matching rule is applied
     access_control:
         - { path: ^/(login|register)$, roles: PUBLIC_ACCESS }
-        # - { path: ^/admin, roles: ROLE_ADMIN }
+        # The logout form must work while 2FA is still pending (the "Cancel" button on the code page).
+        - { path: ^/logout$, roles: PUBLIC_ACCESS }
+        - { path: ^/reset-password, roles: PUBLIC_ACCESS }
+        # SECURITY (rule 5): the 2FA form is the only page reachable with a half-authenticated session.
+        - { path: ^/2fa, roles: IS_AUTHENTICATED_2FA_IN_PROGRESS }
+        - { path: ^/account, roles: IS_AUTHENTICATED_FULLY }
 
 when@test:
     security:
