@@ -1,11 +1,10 @@
-# Enable stateless CSRF protection for forms and logins/logouts
+# SECURITY (rule 3): session-based (stateful) CSRF tokens. Each form gets a random token stored in the
+# user's session and compared on submit. An attacker's site can't read it (same-origin policy),
+# so a forged cross-site request has no valid token.
 framework:
     form:
         csrf_protection:
-            token_id: submit
+            enabled: true
 
     csrf_protection:
-        stateless_token_ids:
-            - submit
-            - authenticate
-            - logout
+        enabled: true

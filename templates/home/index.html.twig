@@ -1,0 +1,17 @@
+{% extends 'base.html.twig' %}
+
+{% block body %}
+    <div class="p-5 bg-white rounded-3 shadow-sm">
+        <h1 class="display-6">Welcome to Secure Marketplace</h1>
+        {% if app.user %}
+            <p class="lead mb-0">
+                You are logged in as <strong>{{ app.user.userIdentifier }}</strong>
+                ({{ is_granted('ROLE_SELLER') ? 'seller' : (is_granted('ROLE_ADMIN') ? 'admin' : 'buyer') }}).
+            </p>
+        {% else %}
+            <p class="lead">Buy and sell products safely.</p>
+            <a class="btn btn-primary" href="{{ path('app_register') }}">Create an account</a>
+            <a class="btn btn-outline-secondary" href="{{ path('app_login') }}">Log in</a>
+        {% endif %}
+    </div>
+{% endblock %}

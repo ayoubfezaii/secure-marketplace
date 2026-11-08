@@ -1,5 +1,7 @@
 twig:
     file_name_pattern: '*.twig'
+    form_themes: ['bootstrap_5_layout.html.twig']
+    # SECURITY (rule 2): HTML auto-escaping is on by default (by file extension) and must not be disabled.
 
 when@test:
     twig:
