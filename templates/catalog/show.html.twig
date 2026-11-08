@@ -25,7 +25,14 @@
             <h1 class="h3 mt-2">{{ product.name }}</h1>
             {# Seller's public name, never the email address. #}
             <p class="text-muted mb-2">Sold by <strong>{{ product.seller.publicName }}</strong></p>
-            {% block rating %}{% endblock %}
+            <p class="mb-2">
+                {% if rating.count > 0 %}
+                    {% include "_partials/stars.html.twig" with {value: rating.avg} %}
+                    <a href="#reviews" class="small">{{ rating.avg }} / 5 ({{ rating.count }} review{{ rating.count > 1 ? "s" }})</a>
+                {% else %}
+                    <span class="small text-muted">No reviews yet</span>
+                {% endif %}
+            </p>
             <p class="fs-3 fw-semibold">{{ product.price|format_currency('EUR') }}</p>
             <p>
                 {% if product.stock > 0 %}
@@ -52,5 +59,47 @@
         </div>
     </div>
 
-    {% block reviews %}{% endblock %}
+    <section id="reviews" class="mt-5">
+        <h2 class="h4 mb-3">Reviews</h2>
+
+        {% if reviewForm %}
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <h3 class="h6">Write a review</h3>
+                    {# SECURITY (rule 3): CSRF token added by form_start/form_end. #}
+                    {{ form_start(reviewForm) }}
+                        <div class="row">
+                            <div class="col-md-3">{{ form_row(reviewForm.rating) }}</div>
+                            <div class="col-md-9">{{ form_row(reviewForm.comment) }}</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm">Publish review</button>
+                    {{ form_end(reviewForm) }}
+                </div>
+            </div>
+        {% elseif is_granted("ROLE_BUYER") %}
+            <p class="small text-muted">Only buyers who purchased this product can review it, once.</p>
+        {% endif %}
+
+        {% for review in reviews %}
+            <article class="border-bottom py-3">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        {% include "_partials/stars.html.twig" with {value: review.rating} %}
+                        <strong class="ms-2">{{ review.author.publicName }}</strong>
+                        <span class="small text-muted ms-2">{{ review.createdAt|date("d/m/Y") }}</span>
+                    </div>
+                    {% if is_granted("REVIEW_DELETE", review) %}
+                        <form method="post" action="{{ path("review_delete", {uuid: review.uuid}) }}" data-confirm="Delete this review?">
+                            <input type="hidden" name="_token" value="{{ csrf_token("delete-review-" ~ review.uuid) }}">
+                            <button class="btn btn-sm btn-link text-danger p-0">Delete</button>
+                        </form>
+                    {% endif %}
+                </div>
+                {# SECURITY (rule 2): stored XSS impossible. The comment is plain text, auto-escaped, never |raw. #}
+                <p class="review-comment mb-0 mt-2">{{ review.comment }}</p>
+            </article>
+        {% else %}
+            <p class="text-muted">No reviews yet.</p>
+        {% endfor %}
+    </section>
 {% endblock %}

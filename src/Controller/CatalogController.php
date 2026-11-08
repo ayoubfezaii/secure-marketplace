@@ -4,8 +4,11 @@ namespace App\Controller;
 
 use App\Dto\ProductSearchCriteria;
 use App\Entity\Product;
+use App\Form\ReviewFormType;
 use App\Repository\ProductRepository;
+use App\Repository\ReviewRepository;
 use App\Security\Voter\ProductVoter;
+use App\Security\Voter\ReviewVoter;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -34,7 +37,7 @@ class CatalogController extends AbstractController
     }
 
     #[Route('/products/{uuid}', name: 'product_show', methods: ['GET'], requirements: ['uuid' => Requirement::UUID_V4])]
-    public function show(#[MapEntity(mapping: ['uuid' => 'uuid'])] Product $product): Response
+    public function show(#[MapEntity(mapping: ['uuid' => 'uuid'])] Product $product, ReviewRepository $reviews): Response
     {
         // SECURITY (rule 4): hidden products are visible only to their owner and admins.
         // 404 rather than 403, so their existence isn't revealed.
@@ -42,6 +45,18 @@ class CatalogController extends AbstractController
             throw $this->createNotFoundException();
         }
 
-        return $this->render('catalog/show.html.twig', ['product' => $product]);
+        $reviewForm = null;
+        if ($this->isGranted(ReviewVoter::CREATE, $product)) {
+            $reviewForm = $this->createForm(ReviewFormType::class, null, [
+                'action' => $this->generateUrl('review_new', ['uuid' => $product->getUuid()]),
+            ]);
+        }
+
+        return $this->render('catalog/show.html.twig', [
+            'product' => $product,
+            'reviews' => $reviews->findForProduct($product),
+            'rating' => $reviews->getRatingSummary($product),
+            'reviewForm' => $reviewForm,
+        ]);
     }
 }

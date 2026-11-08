@@ -19,3 +19,7 @@
 .product-description { white-space: pre-line; }
 .search-hero { max-width: 560px; }
 .qty-input { width: 5rem; }
+.stars { letter-spacing: 1px; }
+.star-on { color: #f59f00; }
+.star-off { color: #dee2e6; }
+.review-comment { white-space: pre-line; }

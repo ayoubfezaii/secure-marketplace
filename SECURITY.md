@@ -89,3 +89,13 @@ Rule numbers refer to `CLAUDE.md`. Comments marked `// SECURITY:` / `# SECURITY`
 | Unauthorised / illogical status changes | `OrderVoter::ITEM_UPDATE_STATUS`, `OrderItem::advanceStatus()` | Only the item's seller; POST + per-item CSRF; strict state machine paid → shipped → delivered (no jumps, no going back). Rules 3, 4 | POST `status=delivered` on a paid item → refused; another seller → 403. |
 | Cart IDOR | `CartItemRepository`, `CartController` | Cart lines are addressed by product UUID and always looked up with the logged-in user; no cart-item id in URLs. Rule 4 | There is no parameter that designates another user's cart. |
 | CSRF on cart / checkout | `CartController::assertCsrf()`, `CheckoutFormType` | Per-action tokens (`cart-add-<uuid>`…), checkout form token. Rule 3 | POST `/cart/add/<uuid>` without `_token` → 403. |
+
+## Phase 7: Reviews
+
+| Vulnerability | Where | Defense | How to test |
+|---|---|---|---|
+| Stored XSS in reviews | `templates/catalog/show.html.twig` (reviews section), `src/Entity/Review.php` | Plain text only, auto-escaped, line breaks via CSS; no `raw`. Rule 2 | Post `<img src=x onerror=alert(1)>` → displayed as text, no popup. |
+| Fake reviews / review spam | `src/Security/Voter/ReviewVoter.php`, `ReviewRepository::hasPurchased()`, unique index `uniq_review_product_author` | Only a buyer with a non-cancelled order containing the product; once per product (voter + DB unique index for races). Checked server side, not just by hiding the form. Rule 4 | As a buyer who didn't buy the product, POST to `/products/<uuid>/reviews` → 403. Post twice → 403. |
+| Mass assignment of author/product | `src/Form/ReviewFormType.php`, `ReviewController::new()` | Form = rating + comment only; author from session, product from URL. Rule 9 | Add `review_form[author]=1` → "should not contain extra fields". |
+| Invalid rating | `ReviewFormType` (choice 1..5), `Review::$rating` (`Range`) | Whitelist + entity constraint. Rule 15 | `review_form[rating]=9` → "The selected choice is invalid". |
+| Unauthorised review deletion | `ReviewVoter::DELETE`, `ReviewController::delete()` | Author or admin; POST + per-review CSRF; moderation audit-logged (`review.deleted`, `moderation: true`). Rules 3, 4, 14 | Another buyer POSTs `/reviews/<uuid>/delete` → 403. |
