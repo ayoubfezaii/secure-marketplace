@@ -1,0 +1,16 @@
+<div class="table-responsive bg-white rounded-3 border">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light"><tr><th>Order</th><th>Date</th><th class="text-end">Items</th><th class="text-end">Total</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for order in orders %}
+            <tr>
+                <td><a href="{{ path('order_show', {uuid: order.uuid}) }}">{{ order.uuid|slice(0, 8)|upper }}</a></td>
+                <td>{{ order.createdAt|date('d/m/Y H:i') }}</td>
+                <td class="text-end">{{ order.items|length }}</td>
+                <td class="text-end">{{ order.total|format_currency('EUR') }}</td>
+                <td>{% include '_partials/status_badge.html.twig' with {status: order.status} %}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>

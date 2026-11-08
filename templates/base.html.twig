@@ -22,6 +22,16 @@
                 <div class="collapse navbar-collapse" id="mainNav">
                     <ul class="navbar-nav me-auto">
                         <li class="nav-item"><a class="nav-link" href="{{ path('product_index') }}">Products</a></li>
+                        {% if is_granted('IS_AUTHENTICATED_FULLY') %}
+                            <li class="nav-item"><a class="nav-link" href="{{ path('app_dashboard') }}">Dashboard</a></li>
+                            {% if is_granted('ROLE_BUYER') %}
+                                <li class="nav-item"><a class="nav-link" href="{{ path('cart_index') }}">Cart</a></li>
+                                <li class="nav-item"><a class="nav-link" href="{{ path('buyer_orders') }}">My orders</a></li>
+                            {% elseif is_granted('ROLE_SELLER') %}
+                                <li class="nav-item"><a class="nav-link" href="{{ path('seller_products') }}">My products</a></li>
+                                <li class="nav-item"><a class="nav-link" href="{{ path('seller_orders') }}">Orders</a></li>
+                            {% endif %}
+                        {% endif %}
                     </ul>
                     <ul class="navbar-nav ms-auto align-items-lg-center gap-2">
                         {% if app.user %}
