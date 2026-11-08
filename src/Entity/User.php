@@ -67,6 +67,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     #[ORM\Column(options: ['default' => false])]
     private bool $isVerified = false;
 
+    // Public name shown on products and reviews, so the email address is never displayed publicly.
+    #[ORM\Column(length: 60, nullable: true)]
+    #[Assert\Length(min: 2, max: 60)]
+    #[Assert\Regex(pattern: '/^[\p{L}\p{N} .\'_-]+$/u', message: 'Use letters, numbers, spaces, dots, apostrophes, dashes or underscores only.')]
+    private ?string $displayName = null;
+
     // SECURITY: TOTP shared secret (rule 5). Never shown again after setup and never sent to the client except
     // inside the one-time enrolment QR code.
     #[ORM\Column(length: 64, nullable: true)]
@@ -190,6 +196,27 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
         $this->isVerified = $isVerified;
 
         return $this;
+    }
+
+    public function getDisplayName(): ?string
+    {
+        return $this->displayName;
+    }
+
+    public function setDisplayName(?string $displayName): static
+    {
+        $displayName = null !== $displayName ? trim($displayName) : null;
+        $this->displayName = '' === $displayName ? null : $displayName;
+
+        return $this;
+    }
+
+    /**
+     * SECURITY: name safe to show to other users. Never the email (privacy, and it would help phishing/enumeration).
+     */
+    public function getPublicName(): string
+    {
+        return $this->displayName ?? 'User '.substr($this->uuid->toRfc4122(), 0, 8);
     }
 
     public function isTotpAuthenticationEnabled(): bool

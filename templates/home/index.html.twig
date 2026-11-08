@@ -1,17 +1,33 @@
 {% extends 'base.html.twig' %}
 
 {% block body %}
-    <div class="p-5 bg-white rounded-3 shadow-sm">
+    <div class="p-4 p-md-5 mb-4 bg-white rounded-3 shadow-sm">
         <h1 class="display-6">Welcome to Secure Marketplace</h1>
-        {% if app.user %}
-            <p class="lead mb-0">
-                You are logged in as <strong>{{ app.user.userIdentifier }}</strong>
-                ({{ is_granted('ROLE_SELLER') ? 'seller' : (is_granted('ROLE_ADMIN') ? 'admin' : 'buyer') }}).
-            </p>
-        {% else %}
-            <p class="lead">Buy and sell products safely.</p>
-            <a class="btn btn-primary" href="{{ path('app_register') }}">Create an account</a>
-            <a class="btn btn-outline-secondary" href="{{ path('app_login') }}">Log in</a>
+        <p class="lead">Buy and sell products safely.</p>
+        <form action="{{ path('product_index') }}" method="get" class="d-flex gap-2 search-hero" role="search">
+            <input type="search" name="q" class="form-control" placeholder="Search products..." maxlength="100" aria-label="Search products">
+            <button class="btn btn-primary" type="submit">Search</button>
+        </form>
+        {% if not app.user %}
+            <div class="mt-3">
+                <a class="btn btn-outline-primary btn-sm" href="{{ path('app_register') }}">Create an account</a>
+                <a class="btn btn-link btn-sm" href="{{ path('app_login') }}">Log in</a>
+            </div>
         {% endif %}
     </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h4 mb-0">Latest products</h2>
+        <a href="{{ path('product_index') }}">Browse all &rarr;</a>
+    </div>
+
+    {% if latest is empty %}
+        <div class="text-center text-muted py-5 bg-white rounded-3 border">No products yet.</div>
+    {% else %}
+        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
+            {% for product in latest %}
+                <div class="col">{% include '_partials/product_card.html.twig' %}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
 {% endblock %}

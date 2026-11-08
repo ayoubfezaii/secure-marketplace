@@ -3,6 +3,18 @@
 {% block title %}{{ product.name }} · {{ parent() }}{% endblock %}
 
 {% block body %}
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="{{ path('product_index') }}">Products</a></li>
+            <li class="breadcrumb-item"><a href="{{ path('product_index', {category: product.category}) }}">{{ product.categoryLabel }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ product.name }}</li>
+        </ol>
+    </nav>
+
+    {% if not product.active %}
+        <div class="alert alert-warning">This product is hidden from the catalogue. Only you{{ is_granted('ROLE_ADMIN') ? ' and other admins' }} can see it.</div>
+    {% endif %}
+
     <div class="row g-4">
         <div class="col-md-6">
             {% include '_partials/product_image.html.twig' with {product: product, class: 'product-main-img rounded border'} %}
@@ -11,9 +23,24 @@
             <span class="badge text-bg-light border">{{ product.categoryLabel }}</span>
             {# SECURITY (rule 2): auto-escaped; a name like <script> is shown as text. #}
             <h1 class="h3 mt-2">{{ product.name }}</h1>
-            <p class="fs-4 fw-semibold">{{ product.price|format_currency('EUR') }}</p>
+            {# Seller's public name, never the email address. #}
+            <p class="text-muted mb-2">Sold by <strong>{{ product.seller.publicName }}</strong></p>
+            {% block rating %}{% endblock %}
+            <p class="fs-3 fw-semibold">{{ product.price|format_currency('EUR') }}</p>
+            <p>
+                {% if product.stock > 0 %}
+                    <span class="badge text-bg-success">In stock</span> <span class="small text-muted">{{ product.stock }} available</span>
+                {% else %}
+                    <span class="badge text-bg-secondary">Out of stock</span>
+                {% endif %}
+            </p>
+            {% block buy %}{% endblock %}
+            <hr>
+            <h2 class="h6">Description</h2>
             {# SECURITY (rule 2): plain text with line breaks kept by CSS (white-space: pre-line), no |raw, no nl2br. #}
             <p class="product-description">{{ product.description }}</p>
         </div>
     </div>
+
+    {% block reviews %}{% endblock %}
 {% endblock %}

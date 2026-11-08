@@ -1,0 +1,92 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Products · {{ parent() }}{% endblock %}
+
+{% block body %}
+    <div class="row g-4">
+        <aside class="col-lg-3">
+            {# GET form: searching changes no state, so no CSRF token is needed (rule 3 covers state changes). #}
+            <form method="get" action="{{ path('product_index') }}" class="card card-body shadow-sm">
+                <div class="mb-3">
+                    <label for="q" class="form-label">Search</label>
+                    {# SECURITY (rule 2): value="" is auto-escaped, so "><script> can't break out of the attribute. #}
+                    <input type="search" id="q" name="q" value="{{ criteria.query }}" maxlength="100" class="form-control">
+                </div>
+                <div class="mb-3">
+                    <label for="category" class="form-label">Category</label>
+                    <select id="category" name="category" class="form-select">
+                        <option value="">All categories</option>
+                        {% for key, label in categories %}
+                            <option value="{{ key }}" {{ criteria.category == key ? 'selected' }}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col">
+                        <label for="min" class="form-label">Min €</label>
+                        <input type="number" id="min" name="min" value="{{ criteria.minPrice }}" min="0" max="100000" step="0.01" class="form-control">
+                    </div>
+                    <div class="col">
+                        <label for="max" class="form-label">Max €</label>
+                        <input type="number" id="max" name="max" value="{{ criteria.maxPrice }}" min="0" max="100000" step="0.01" class="form-control">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="sort" class="form-label">Sort by</label>
+                    <select id="sort" name="sort" class="form-select">
+                        {% for key, label in sorts %}
+                            <option value="{{ key }}" {{ criteria.sort == key ? 'selected' }}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Apply</button>
+                {% if criteria.hasFilters %}
+                    <a href="{{ path('product_index') }}" class="btn btn-link btn-sm mt-1">Reset filters</a>
+                {% endif %}
+            </form>
+        </aside>
+
+        <section class="col-lg-9">
+            <div class="d-flex justify-content-between align-items-baseline mb-3">
+                {% if criteria.query != '' %}
+                    {# SECURITY (rule 2): reflected search term, auto-escaped. <script>alert(1)</script> shows as text. #}
+                    <h1 class="h4 mb-0">Results for “{{ criteria.query }}”</h1>
+                {% else %}
+                    <h1 class="h4 mb-0">All products</h1>
+                {% endif %}
+                <span class="text-muted small">{{ total }} product{{ total == 1 ? '' : 's' }}</span>
+            </div>
+
+            {% if total == 0 %}
+                <div class="text-center text-muted py-5 bg-white rounded-3 border">
+                    No products match your search.
+                </div>
+            {% else %}
+                <div class="row row-cols-2 row-cols-md-3 g-3">
+                    {% for product in products %}
+                        <div class="col">{% include '_partials/product_card.html.twig' %}</div>
+                    {% endfor %}
+                </div>
+
+                {% if pages > 1 %}
+                    {% set q = criteria.toQuery %}
+                    <nav class="mt-4" aria-label="Pagination">
+                        <ul class="pagination justify-content-center flex-wrap">
+                            <li class="page-item {{ criteria.page <= 1 ? 'disabled' }}">
+                                <a class="page-link" href="{{ path('product_index', q|merge({page: criteria.page - 1})) }}">Previous</a>
+                            </li>
+                            {% for p in max(1, criteria.page - 3)..min(pages, criteria.page + 3) %}
+                                <li class="page-item {{ p == criteria.page ? 'active' }}">
+                                    <a class="page-link" href="{{ path('product_index', q|merge({page: p})) }}">{{ p }}</a>
+                                </li>
+                            {% endfor %}
+                            <li class="page-item {{ criteria.page >= pages ? 'disabled' }}">
+                                <a class="page-link" href="{{ path('product_index', q|merge({page: criteria.page + 1})) }}">Next</a>
+                            </li>
+                        </ul>
+                    </nav>
+                {% endif %}
+            {% endif %}
+        </section>
+    </div>
+{% endblock %}
