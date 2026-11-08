@@ -1,0 +1,35 @@
+{% extends 'base.html.twig' %}
+
+{# Shared dashboard layout: role sidebar + content. Links only; each target route enforces its own access rules. #}
+{% block body %}
+    <div class="row g-4">
+        <aside class="col-lg-3 col-xl-2">
+            <nav class="list-group dash-sidebar shadow-sm">
+                {% set current = app.request.attributes.get('_route') %}
+                {% if is_granted('ROLE_ADMIN') %}
+                    {% set links = [
+                        ['admin_dashboard', 'Overview'], ['admin_users', 'Users'], ['admin_products', 'Products'],
+                        ['admin_orders', 'Orders'], ['admin_reviews', 'Reviews'], ['admin_audit', 'Audit log'], ['admin_security', 'Security panel'],
+                    ] %}
+                {% elseif is_granted('ROLE_SELLER') %}
+                    {% set links = [
+                        ['seller_dashboard', 'Overview'], ['seller_products', 'My products'], ['seller_product_new', 'New product'],
+                        ['seller_orders', 'Orders'],
+                    ] %}
+                {% else %}
+                    {% set links = [
+                        ['buyer_dashboard', 'Overview'], ['cart_index', 'My cart'], ['buyer_orders', 'My orders'], ['product_index', 'Browse products'],
+                    ] %}
+                {% endif %}
+                {% for link in links %}
+                    <a href="{{ path(link[0]) }}" class="list-group-item list-group-item-action {{ current == link[0] ? 'active' }}">{{ link[1] }}</a>
+                {% endfor %}
+                <a href="{{ path('account_profile') }}" class="list-group-item list-group-item-action {{ current == 'account_profile' ? 'active' }}">Profile</a>
+                <a href="{{ path('app_security_settings') }}" class="list-group-item list-group-item-action {{ current == 'app_security_settings' ? 'active' }}">Security settings (2FA)</a>
+            </nav>
+        </aside>
+        <div class="col-lg-9 col-xl-10">
+            {% block dash_content %}{% endblock %}
+        </div>
+    </div>
+{% endblock %}

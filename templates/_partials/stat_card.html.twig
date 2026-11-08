@@ -1,0 +1,9 @@
+<div class="col">
+    <div class="card shadow-sm h-100 stat-card {{ variant is defined ? 'stat-' ~ variant }}">
+        <div class="card-body">
+            <div class="small text-muted text-uppercase">{{ label }}</div>
+            <div class="fs-3 fw-semibold">{{ value }}</div>
+            {% if hint is defined and hint %}<div class="small text-muted">{{ hint }}</div>{% endif %}
+        </div>
+    </div>
+</div>

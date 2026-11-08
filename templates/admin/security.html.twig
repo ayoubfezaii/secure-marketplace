@@ -1,0 +1,33 @@
+{% extends 'dashboard/_layout.html.twig' %}
+
+{% block title %}Security panel · Admin · {{ parent() }}{% endblock %}
+
+{% block dash_content %}
+    <h1 class="h3 mb-3">Security panel</h1>
+
+    <h2 class="h5">Currently locked accounts</h2>
+    {% if lockedUsers is empty %}
+        <div class="text-center text-muted py-3 bg-white rounded-3 border small mb-4">No locked accounts.</div>
+    {% else %}
+        <div class="list-group shadow-sm mb-4">
+            {% for u in lockedUsers %}
+                <div class="list-group-item d-flex justify-content-between">
+                    <span>{{ u.email }}</span>
+                    <span class="small">{{ u.blocked ? 'Blocked by an admin' : 'Locked until ' ~ u.lockedUntil|date('d/m H:i') }} · <a href="{{ path('admin_users', {q: u.email}) }}">Manage</a></span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <h2 class="h5">Recent failed logins</h2>
+    <div class="mb-4">{% include 'admin/_events_table.html.twig' with {events: failedLogins} %}</div>
+
+    <h2 class="h5">Lockouts & rate limiting</h2>
+    <div class="mb-4">{% include 'admin/_events_table.html.twig' with {events: lockouts} %}</div>
+
+    <h2 class="h5">Blocked SSRF & upload attempts</h2>
+    <div class="mb-4">{% include 'admin/_events_table.html.twig' with {events: blocked} %}</div>
+
+    <h2 class="h5">Access denied (possible IDOR probing) & invalid reset tokens</h2>
+    {% include 'admin/_events_table.html.twig' with {events: denied} %}
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends 'dashboard/_layout.html.twig' %}
+
+{% block title %}Orders · Admin · {{ parent() }}{% endblock %}
+
+{% block dash_content %}
+    <h1 class="h3 mb-3">Orders <span class="text-muted fs-6">({{ pager.total }})</span></h1>
+
+    <ul class="nav nav-pills mb-3">
+        <li class="nav-item"><a class="nav-link {{ status is null ? 'active' }}" href="{{ path('admin_orders') }}">All</a></li>
+        {% for s in statuses %}
+            <li class="nav-item"><a class="nav-link {{ status == s ? 'active' }}" href="{{ path('admin_orders', {status: s}) }}">{{ s|capitalize }}</a></li>
+        {% endfor %}
+    </ul>
+
+    <div class="table-responsive bg-white rounded-3 border">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light"><tr><th>Order</th><th>Date</th><th>Buyer</th><th class="text-end">Items</th><th class="text-end">Total</th><th>Status</th></tr></thead>
+            <tbody>
+            {% for o in pager.items %}
+                <tr>
+                    <td><a href="{{ path('order_show', {uuid: o.uuid}) }}">{{ o.uuid|slice(0, 8)|upper }}</a></td>
+                    <td class="small">{{ o.createdAt|date('d/m/Y H:i') }}</td>
+                    <td class="small">{{ o.buyer.email }}</td>
+                    <td class="text-end">{{ o.items|length }}</td>
+                    <td class="text-end">{{ o.total|format_currency('EUR') }}</td>
+                    <td>{% include '_partials/status_badge.html.twig' with {status: o.status} %}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No orders.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% include '_partials/pager.html.twig' with {pager: pager, route: 'admin_orders', params: params} %}
+{% endblock %}

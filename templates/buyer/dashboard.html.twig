@@ -1,7 +1,52 @@
-{% extends 'base.html.twig' %}
+{% extends 'dashboard/_layout.html.twig' %}
 
 {% block title %}Buyer dashboard · {{ parent() }}{% endblock %}
 
-{% block body %}
-    <h1 class="h3">Buyer dashboard</h1>
+{% block dash_content %}
+    <h1 class="h3 mb-3">Welcome{{ app.user.displayName ? ', ' ~ app.user.displayName }}</h1>
+
+    <div class="row row-cols-2 row-cols-md-4 g-3 mb-4">
+        {% include '_partials/stat_card.html.twig' with {label: 'Orders', value: stats.orders} %}
+        {% include '_partials/stat_card.html.twig' with {label: 'Total spent', value: stats.spent|format_currency('EUR'), variant: 'success'} %}
+        {% include '_partials/stat_card.html.twig' with {label: 'Items in cart', value: stats.cartUnits, variant: 'warning'} %}
+        {% include '_partials/stat_card.html.twig' with {label: 'Reviews written', value: stats.reviews} %}
+    </div>
+
+    {% if not app.user.totpAuthenticationEnabled %}
+        <div class="alert alert-info d-flex justify-content-between align-items-center">
+            <span>Protect your account with two-factor authentication.</span>
+            <a href="{{ path('app_security_settings') }}" class="btn btn-sm btn-primary">Enable 2FA</a>
+        </div>
+    {% endif %}
+
+    <div class="row g-4">
+        <div class="col-xl-8">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h5 mb-0">Recent orders</h2>
+                <a href="{{ path('buyer_orders') }}" class="small">All orders &rarr;</a>
+            </div>
+            {% if recentOrders is empty %}
+                <div class="text-center text-muted py-4 bg-white rounded-3 border">
+                    No orders yet. <a href="{{ path('product_index') }}">Start shopping</a>
+                </div>
+            {% else %}
+                {% include 'order/_buyer_table.html.twig' with {orders: recentOrders} %}
+            {% endif %}
+        </div>
+        <div class="col-xl-4">
+            <h2 class="h5 mb-2">Products to review</h2>
+            {% if toReview is empty %}
+                <div class="text-center text-muted py-4 bg-white rounded-3 border small">Nothing to review right now.</div>
+            {% else %}
+                <ul class="list-group shadow-sm">
+                    {% for product in toReview %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span class="text-truncate me-2">{{ product.name }}</span>
+                            <a href="{{ path('product_show', {uuid: product.uuid, _fragment: 'reviews'}) }}" class="btn btn-sm btn-outline-primary">Review</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+    </div>
 {% endblock %}

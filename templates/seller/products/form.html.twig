@@ -1,8 +1,8 @@
-{% extends 'base.html.twig' %}
+{% extends 'dashboard/_layout.html.twig' %}
 
 {% block title %}{{ product ? 'Edit product' : 'New product' }} · {{ parent() }}{% endblock %}
 
-{% block body %}
+{% block dash_content %}
     <div class="row justify-content-center">
         <div class="col-lg-9">
             <a href="{{ path('seller_products') }}" class="small">&larr; My products</a>

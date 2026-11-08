@@ -64,6 +64,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lockedUntil = null;
 
+    // SECURITY: account blocked by an administrator (separate from the temporary brute-force lockout above):
+    // refused at login AND existing sessions are ended (LockedUserSubscriber).
+    #[ORM\Column(options: ['default' => false])]
+    private bool $blocked = false;
+
     #[ORM\Column(options: ['default' => false])]
     private bool $isVerified = false;
 
@@ -173,9 +178,27 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
         return $this->lockedUntil;
     }
 
+    /** Temporary brute-force lockout OR admin block. */
     public function isLocked(): bool
     {
-        return null !== $this->lockedUntil && $this->lockedUntil > new \DateTimeImmutable();
+        return $this->blocked || (null !== $this->lockedUntil && $this->lockedUntil > new \DateTimeImmutable());
+    }
+
+    public function isBlocked(): bool
+    {
+        return $this->blocked;
+    }
+
+    public function block(): void
+    {
+        $this->blocked = true;
+    }
+
+    /** Admin unlock: lifts both the admin block and any brute-force lockout. */
+    public function unblock(): void
+    {
+        $this->blocked = false;
+        $this->resetFailedLogins();
     }
 
     /**

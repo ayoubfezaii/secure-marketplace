@@ -23,3 +23,12 @@
 .star-on { color: #f59f00; }
 .star-off { color: #dee2e6; }
 .review-comment { white-space: pre-line; }
+
+/* Dashboards */
+.dash-sidebar .list-group-item { border-left: 0; border-right: 0; }
+.stat-card { border-left: 4px solid #0d6efd; }
+.stat-card.stat-success { border-left-color: #198754; }
+.stat-card.stat-warning { border-left-color: #ffc107; }
+.stat-card.stat-danger { border-left-color: #dc3545; }
+.chart-box { position: relative; height: 280px; }
+.details-cell { max-width: 360px; font-family: var(--bs-font-monospace); font-size: .75rem; word-break: break-all; }

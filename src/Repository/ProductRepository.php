@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Dto\ProductSearchCriteria;
 use App\Entity\Product;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\ORM\Tools\Pagination\Paginator;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -73,6 +74,46 @@ class ProductRepository extends ServiceEntityRepository
             ->setMaxResults(ProductSearchCriteria::PER_PAGE);
 
         return new Paginator($qb->getQuery(), fetchJoinCollection: false);
+    }
+
+    public function countActiveBySeller(User $seller): int
+    {
+        return (int) $this->createQueryBuilder('p')
+            ->select('COUNT(p.id)')
+            ->andWhere('p.seller = :seller')->andWhere('p.isActive = true')
+            ->setParameter('seller', $seller)
+            ->getQuery()->getSingleScalarResult();
+    }
+
+    /**
+     * @return list<Product>
+     */
+    public function findLowStock(User $seller, int $threshold = 5): array
+    {
+        return $this->createQueryBuilder('p')
+            ->andWhere('p.seller = :seller')->andWhere('p.stock < :t')->andWhere('p.isActive = true')
+            ->setParameter('seller', $seller)->setParameter('t', $threshold)
+            ->orderBy('p.stock', 'ASC')
+            ->getQuery()->getResult();
+    }
+
+    /**
+     * Admin moderation list (all products, active or not).
+     */
+    public function createAdminQueryBuilder(?string $search, ?string $state): QueryBuilder
+    {
+        $qb = $this->createQueryBuilder('p')
+            ->innerJoin('p.seller', 's')->addSelect('s')
+            ->orderBy('p.createdAt', 'DESC');
+        if (null !== $search && '' !== $search) {
+            $qb->andWhere('(p.name LIKE :q OR s.email LIKE :q)')
+                ->setParameter('q', '%'.addcslashes($search, '%_\\').'%');
+        }
+        if ('active' === $state || 'hidden' === $state) {
+            $qb->andWhere('p.isActive = :active')->setParameter('active', 'active' === $state);
+        }
+
+        return $qb;
     }
 
     /**

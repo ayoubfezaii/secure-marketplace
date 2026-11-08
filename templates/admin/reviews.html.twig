@@ -1,0 +1,35 @@
+{% extends 'dashboard/_layout.html.twig' %}
+
+{% block title %}Reviews · Admin · {{ parent() }}{% endblock %}
+
+{% block dash_content %}
+    <h1 class="h3 mb-3">Reviews moderation <span class="text-muted fs-6">({{ pager.total }})</span></h1>
+
+    <div class="table-responsive bg-white rounded-3 border">
+        <table class="table align-middle mb-0">
+            <thead class="table-light"><tr><th>Date</th><th>Product</th><th>Author</th><th>Rating</th><th>Comment</th><th></th></tr></thead>
+            <tbody>
+            {% for r in pager.items %}
+                <tr>
+                    <td class="small text-nowrap">{{ r.createdAt|date('d/m/Y') }}</td>
+                    <td><a href="{{ path('product_show', {uuid: r.product.uuid}) }}">{{ r.product.name }}</a></td>
+                    <td class="small">{{ r.author.email }}</td>
+                    <td class="text-nowrap">{% include '_partials/stars.html.twig' with {value: r.rating} %}</td>
+                    {# SECURITY (rule 2): plain text, auto-escaped. #}
+                    <td class="review-comment small">{{ r.comment }}</td>
+                    <td class="text-end">
+                        <form method="post" action="{{ path('review_delete', {uuid: r.uuid}) }}" data-confirm="Delete this review?">
+                            <input type="hidden" name="_token" value="{{ csrf_token('delete-review-' ~ r.uuid) }}">
+                            <input type="hidden" name="back" value="admin">
+                            <button class="btn btn-sm btn-outline-danger">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No reviews.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% include '_partials/pager.html.twig' with {pager: pager, route: 'admin_reviews', params: params} %}
+{% endblock %}

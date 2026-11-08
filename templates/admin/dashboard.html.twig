@@ -1,7 +1,34 @@
-{% extends 'base.html.twig' %}
+{% extends 'dashboard/_layout.html.twig' %}
 
-{% block title %}Admin dashboard · {{ parent() }}{% endblock %}
+{% block title %}Admin · {{ parent() }}{% endblock %}
 
-{% block body %}
-    <h1 class="h3">Admin dashboard</h1>
+{% block dash_content %}
+    <h1 class="h3 mb-3">Administration</h1>
+
+    {% if not app.user.totpAuthenticationEnabled %}
+        <div class="alert alert-warning d-flex justify-content-between align-items-center">
+            <span><strong>Your admin account has no 2FA.</strong> Administrators should always use two-factor authentication.</span>
+            <a href="{{ path('app_security_settings') }}" class="btn btn-sm btn-warning">Enable 2FA</a>
+        </div>
+    {% endif %}
+
+    <div class="row row-cols-2 row-cols-md-3 row-cols-xl-6 g-3 mb-4">
+        {% include '_partials/stat_card.html.twig' with {label: 'Buyers', value: stats.buyers} %}
+        {% include '_partials/stat_card.html.twig' with {label: 'Sellers', value: stats.sellers} %}
+        {% include '_partials/stat_card.html.twig' with {label: 'Products', value: stats.products, hint: stats.activeProducts ~ ' active'} %}
+        {% include '_partials/stat_card.html.twig' with {label: 'Orders', value: stats.orders, variant: 'success'} %}
+        {% include '_partials/stat_card.html.twig' with {label: 'Revenue', value: stats.revenue|format_currency('EUR'), variant: 'success'} %}
+        {% include '_partials/stat_card.html.twig' with {label: 'Admins', value: stats.admins} %}
+    </div>
+    <div class="row row-cols-1 row-cols-md-3 g-3 mb-4">
+        {% include '_partials/stat_card.html.twig' with {label: 'Locked accounts', value: stats.locked, variant: stats.locked > 0 ? 'warning' : null} %}
+        {% include '_partials/stat_card.html.twig' with {label: 'Failed logins (24 h)', value: stats.failedLogins24h, variant: stats.failedLogins24h > 0 ? 'danger' : null} %}
+        {% include '_partials/stat_card.html.twig' with {label: 'Security events (24 h)', value: stats.securityEvents24h, variant: stats.securityEvents24h > 0 ? 'danger' : null} %}
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="h5 mb-0">Latest security events</h2>
+        <a href="{{ path('admin_security') }}" class="small">Security panel &rarr;</a>
+    </div>
+    {% include 'admin/_events_table.html.twig' with {events: events} %}
 {% endblock %}

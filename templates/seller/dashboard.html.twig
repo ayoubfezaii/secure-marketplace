@@ -1,7 +1,94 @@
-{% extends 'base.html.twig' %}
+{% extends 'dashboard/_layout.html.twig' %}
 
 {% block title %}Seller dashboard · {{ parent() }}{% endblock %}
 
-{% block body %}
-    <h1 class="h3">Seller dashboard</h1>
+{% block dash_content %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 mb-0">Seller dashboard</h1>
+        <a href="{{ path('seller_product_new') }}" class="btn btn-primary btn-sm">New product</a>
+    </div>
+
+    <div class="row row-cols-2 row-cols-md-3 row-cols-xxl-5 g-3 mb-4">
+        {% include '_partials/stat_card.html.twig' with {label: 'Active products', value: stats.activeProducts} %}
+        {% include '_partials/stat_card.html.twig' with {label: 'Units sold', value: stats.unitsSold, variant: 'success'} %}
+        {% include '_partials/stat_card.html.twig' with {label: 'Revenue', value: stats.revenue|format_currency('EUR'), variant: 'success'} %}
+        {% include '_partials/stat_card.html.twig' with {label: 'Pending shipments', value: stats.pendingShipments, variant: stats.pendingShipments > 0 ? 'warning' : null} %}
+        {% include '_partials/stat_card.html.twig' with {label: 'Average rating', value: stats.avgRating is not null ? stats.avgRating ~ ' / 5' : '—', hint: stats.reviewCount ~ ' review(s)'} %}
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-xl-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">Sales, last 30 days</div>
+                <div class="card-body">
+                    {# SECURITY (rules 2, 13): data handed to JS through an escaped data-* attribute (json_encode by
+                       stimulus_controller), no inline <script>. #}
+                    <div class="chart-box" {{ stimulus_controller('sales-chart', {data: chart}) }}>
+                        <p class="text-muted small">Loading chart…</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header d-flex justify-content-between">
+                    <span>Low stock alert</span>
+                    {% if lowStock is not empty %}<span class="badge text-bg-warning">{{ lowStock|length }}</span>{% endif %}
+                </div>
+                {% if lowStock is empty %}
+                    <div class="card-body text-muted small">All active products have 5 or more units.</div>
+                {% else %}
+                    <ul class="list-group list-group-flush">
+                        {% for p in lowStock %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <a href="{{ path('seller_product_edit', {uuid: p.uuid}) }}" class="text-truncate me-2">{{ p.name }}</a>
+                                <span class="badge {{ p.stock == 0 ? 'text-bg-danger' : 'text-bg-warning' }}">{{ p.stock }} left</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="h5 mb-0">Recent orders</h2>
+        <a href="{{ path('seller_orders') }}" class="small">All orders &rarr;</a>
+    </div>
+    {% if recentOrders is empty %}
+        <div class="text-center text-muted py-4 bg-white rounded-3 border mb-4">No orders yet.</div>
+    {% else %}
+        <div class="mb-4">{% include 'order/_seller_table.html.twig' with {orders: recentOrders, back: 'dashboard'} %}</div>
+    {% endif %}
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="h5 mb-0">My products</h2>
+        <a href="{{ path('seller_products') }}" class="small">Manage &rarr;</a>
+    </div>
+    {% if products is empty %}
+        <div class="text-center text-muted py-4 bg-white rounded-3 border mb-4">
+            No products yet. <a href="{{ path('seller_product_new') }}">Create your first one</a>
+        </div>
+    {% else %}
+        <div class="mb-4">{% include 'seller/products/_table.html.twig' with {products: products, back: 'dashboard'} %}</div>
+    {% endif %}
+
+    <h2 class="h5 mb-2">Latest reviews on my products</h2>
+    {% if latestReviews is empty %}
+        <div class="text-center text-muted py-4 bg-white rounded-3 border">No reviews yet.</div>
+    {% else %}
+        <div class="list-group shadow-sm">
+            {% for review in latestReviews %}
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between">
+                        <span>{% include '_partials/stars.html.twig' with {value: review.rating} %}
+                            <a href="{{ path('product_show', {uuid: review.product.uuid, _fragment: 'reviews'}) }}" class="ms-2">{{ review.product.name }}</a></span>
+                        <span class="small text-muted">{{ review.author.publicName }} · {{ review.createdAt|date('d/m/Y') }}</span>
+                    </div>
+                    {# SECURITY (rule 2): auto-escaped plain text. #}
+                    <p class="review-comment small mb-0 mt-1">{{ review.comment|length > 200 ? review.comment|slice(0, 200) ~ '…' : review.comment }}</p>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
 {% endblock %}
