@@ -73,6 +73,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     #[Assert\Regex(pattern: '/^[\p{L}\p{N} .\'_-]+$/u', message: 'Use letters, numbers, spaces, dots, apostrophes, dashes or underscores only.')]
     private ?string $displayName = null;
 
+    #[ORM\Column(length: 20, nullable: true)]
+    #[Assert\Regex(pattern: '/^\+?[0-9 ]{6,20}$/', message: 'Please enter a valid phone number.')]
+    private ?string $phone = null;
+
+    // SECURITY (rule 11): seller IBAN encrypted with libsodium (FieldEncryptor). Never stored in clear text.
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $ibanEncrypted = null;
+
+    // Last 4 characters only, to display a masked IBAN without decrypting it.
+    #[ORM\Column(length: 4, nullable: true)]
+    private ?string $ibanLast4 = null;
+
     // SECURITY: TOTP shared secret (rule 5). Never shown again after setup and never sent to the client except
     // inside the one-time enrolment QR code.
     #[ORM\Column(length: 64, nullable: true)]
@@ -219,6 +231,46 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
         return $this->displayName ?? 'User '.substr($this->uuid->toRfc4122(), 0, 8);
     }
 
+    public function getPhone(): ?string
+    {
+        return $this->phone;
+    }
+
+    public function setPhone(?string $phone): static
+    {
+        $phone = null !== $phone ? trim($phone) : null;
+        $this->phone = '' === $phone ? null : $phone;
+
+        return $this;
+    }
+
+    public function getIbanEncrypted(): ?string
+    {
+        return $this->ibanEncrypted;
+    }
+
+    /**
+     * @param string $ciphertext output of FieldEncryptor::encrypt(), never the clear IBAN
+     */
+    public function setEncryptedIban(string $ciphertext, string $last4): static
+    {
+        $this->ibanEncrypted = $ciphertext;
+        $this->ibanLast4 = $last4;
+
+        return $this;
+    }
+
+    public function removeIban(): void
+    {
+        $this->ibanEncrypted = null;
+        $this->ibanLast4 = null;
+    }
+
+    public function getMaskedIban(): ?string
+    {
+        return null !== $this->ibanLast4 ? '•••• •••• •••• '.$this->ibanLast4 : null;
+    }
+
     public function isTotpAuthenticationEnabled(): bool
     {
         return $this->totpEnabled && null !== $this->totpSecret;
@@ -283,6 +335,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
         $data["\0".self::class."\0password"] = hash('crc32c', (string) $this->password);
         // SECURITY: the TOTP secret never lands in session files; the user is reloaded from the DB on each request.
         $data["\0".self::class."\0totpSecret"] = null;
+        $data["\0".self::class."\0ibanEncrypted"] = null;
 
         return $data;
     }

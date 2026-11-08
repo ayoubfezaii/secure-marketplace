@@ -23,3 +23,8 @@ framework:
             policy: sliding_window
             limit: 5
             interval: '5 minutes'
+        # Change password: per account, limits guessing the current password from a stolen session.
+        password_change:
+            policy: sliding_window
+            limit: 5
+            interval: '15 minutes'
