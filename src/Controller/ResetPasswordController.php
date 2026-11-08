@@ -61,7 +61,7 @@ class ResetPasswordController extends AbstractController
             $user = $users->findOneByEmail($email);
 
             if ($user instanceof User) {
-                $this->sendResetEmail($user, $mailer, $mailerFrom, $request);
+                $this->sendResetEmail($user, $mailer, $mailerFrom);
             }
 
             // SECURITY: user enumeration. Same redirect and same page whether or not the email exists,
@@ -144,7 +144,7 @@ class ResetPasswordController extends AbstractController
         return $this->render('reset_password/reset.html.twig', ['resetForm' => $form]);
     }
 
-    private function sendResetEmail(User $user, MailerInterface $mailer, string $mailerFrom, Request $request): void
+    private function sendResetEmail(User $user, MailerInterface $mailer, string $mailerFrom): void
     {
         try {
             $resetToken = $this->resetPasswordHelper->generateResetToken($user);

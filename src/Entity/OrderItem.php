@@ -7,6 +7,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * One line of an order. Name and unit price are SNAPSHOTS taken inside the checkout transaction: later price
@@ -43,15 +44,19 @@ class OrderItem
     private User $seller;
 
     #[ORM\Column(length: 120)]
+    #[Assert\Length(max: 120)]
     private string $productName;
 
     #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 2)]
+    #[Assert\Positive]
     private string $unitPrice;
 
     #[ORM\Column]
+    #[Assert\Range(min: 1, max: 99)]
     private int $quantity;
 
     #[ORM\Column(length: 16)]
+    #[Assert\Choice(choices: Order::STATUSES)]
     private string $status = Order::STATUS_PAID;
 
     public function __construct(Order $order, Product $product, int $quantity)

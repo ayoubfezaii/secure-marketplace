@@ -9,6 +9,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * A placed order. Created ONLY by CheckoutService inside a DB transaction; nothing here comes from the
@@ -41,16 +42,22 @@ class Order
 
     // SECURITY: computed server side from DB prices (rule 10).
     #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 2)]
+    #[Assert\PositiveOrZero]
     private string $total = '0.00';
 
     #[ORM\Column(length: 16)]
+    // SECURITY (rule 15): whitelist of statuses.
+    #[Assert\Choice(choices: self::STATUSES)]
     private string $status = self::STATUS_PAID;
 
     #[ORM\Column(length: 100)]
+    #[Assert\NotBlank]
+    #[Assert\Length(max: 100)]
     private string $cardHolder;
 
     // SECURITY: only the last 4 digits are stored. Never the full number, never the CVV (PCI-DSS principle).
     #[ORM\Column(length: 4)]
+    #[Assert\Regex(pattern: '/^\d{4}$/')]
     private string $cardLast4;
 
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]

@@ -122,10 +122,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
         return $this->email;
     }
 
-    public function setEmail(string $email): static
+    public function setEmail(?string $email): static
     {
         // SECURITY: normalise so "Alice@x.com" and "alice@x.com" can't become two accounts.
-        $this->email = mb_strtolower(trim($email));
+        // null (empty form field) becomes '' and is then rejected by NotBlank as a normal validation error.
+        $this->email = mb_strtolower(trim((string) $email));
 
         return $this;
     }

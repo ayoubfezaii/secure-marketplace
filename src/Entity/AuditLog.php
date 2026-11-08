@@ -5,6 +5,7 @@ namespace App\Entity;
 use App\Repository\AuditLogRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * Append-only security journal (rule 14). Rows are written by App\Service\AuditLogger and never updated;
@@ -71,6 +72,8 @@ class AuditLog
     private ?User $user = null;
 
     #[ORM\Column(length: 64)]
+    #[Assert\NotBlank]
+    #[Assert\Length(max: 64)]
     private string $action;
 
     /** @var array<string, mixed> */

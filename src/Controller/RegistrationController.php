@@ -11,6 +11,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 class RegistrationController extends AbstractController
@@ -27,6 +28,7 @@ class RegistrationController extends AbstractController
         UserPasswordHasherInterface $passwordHasher,
         EntityManagerInterface $em,
         AuditLogger $audit,
+        RateLimiterFactoryInterface $registrationLimiter,
     ): Response {
         if ($this->getUser()) {
             return $this->redirectToRoute('app_dashboard');
@@ -37,6 +39,14 @@ class RegistrationController extends AbstractController
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
+            // SECURITY (rule 6): max 5 accounts per IP per hour (mass fake-account creation / spam).
+            if (!$registrationLimiter->create($request->getClientIp() ?? 'unknown')->consume()->isAccepted()) {
+                $audit->log(AuditLog::RATE_LIMITED, ['limiter' => 'registration']);
+                $this->addFlash('error', 'Too many accounts created from your network. Please try again later.');
+
+                return $this->redirectToRoute('app_register');
+            }
+
             $accountType = $form->get('accountType')->getData();
             // SECURITY: second check after form validation: an unknown value is rejected, never mapped to a role.
             if (!isset(self::ACCOUNT_TYPE_TO_ROLE[$accountType])) {

@@ -13,11 +13,17 @@ use Symfony\Component\Security\Core\User\UserInterface;
 final class UserChecker implements UserCheckerInterface
 {
     public const LOCKED_MESSAGE = 'Too many failed login attempts. Please try again later.';
+    public const BLOCKED_MESSAGE = 'This account has been blocked. Please contact support.';
 
     public function checkPreAuth(UserInterface $user): void
     {
         if (!$user instanceof User) {
             return;
+        }
+
+        // SECURITY: an account blocked by an administrator is refused, whatever the password.
+        if ($user->isBlocked()) {
+            throw new CustomUserMessageAccountStatusException(self::BLOCKED_MESSAGE);
         }
 
         // SECURITY: a locked account is rejected BEFORE the password is verified, so an attacker
