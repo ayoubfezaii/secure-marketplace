@@ -5,6 +5,7 @@ namespace App\EventSubscriber;
 use App\Entity\User;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\Session\FlashBagAwareSessionInterface;
 use Symfony\Component\HttpKernel\Event\RequestEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
@@ -44,7 +45,9 @@ final class LockedUserSubscriber implements EventSubscriberInterface
         $this->tokenStorage->setToken(null);
         $session = $event->getRequest()->getSession();
         $session->invalidate();
-        $session->getFlashBag()->add('error', 'Your account is locked. Please contact support or try again later.');
+        if ($session instanceof FlashBagAwareSessionInterface) {
+            $session->getFlashBag()->add('error', 'Your account is locked. Please contact support or try again later.');
+        }
 
         $event->setResponse(new RedirectResponse($this->urls->generate('app_login')));
     }

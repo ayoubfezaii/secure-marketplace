@@ -135,6 +135,8 @@ class ProductController extends AbstractController
 
     /**
      * Applies an uploaded file OR an imported URL. Returns false (with a form error) if the image is refused.
+     *
+     * @param FormInterface<Product> $form
      */
     private function handleImage(FormInterface $form, Product $product): bool
     {

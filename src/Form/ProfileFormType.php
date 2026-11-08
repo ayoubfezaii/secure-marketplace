@@ -13,6 +13,8 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 /**
  * SECURITY (rule 9): explicit fields, bound to ProfileDto (not to User). The IBAN fields exist only for sellers
  * (option is_seller, decided by the controller from the user's roles, never by the request).
+ *
+ * @extends AbstractType<ProfileDto>
  */
 class ProfileFormType extends AbstractType
 {

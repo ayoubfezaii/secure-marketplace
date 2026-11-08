@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Entity\AuditLog;
 use App\Entity\User;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Types\Types;
@@ -36,12 +37,11 @@ final class AuditLogger
     {
         $user ??= $this->currentUser();
         $request = $this->requestStack->getMainRequest();
-        $ip = $request?->getClientIp();
-        // SECURITY: the User-Agent is attacker-controlled: truncated to the column size, stored with a bound
-        // parameter (no SQLi) and auto-escaped when displayed (no XSS in the admin log viewer).
-        $userAgent = null !== $request ? mb_substr((string) $request->headers->get('User-Agent', ''), 0, 255) : null;
+        // SECURITY: the User-Agent is attacker-controlled: truncated by the entity, stored with a bound parameter
+        // (no SQLi) and auto-escaped when displayed (no XSS in the admin log viewer).
+        $entry = new AuditLog($action, $details, $user, $request?->getClientIp(), $request?->headers->get('User-Agent'));
 
-        $context = ['action' => $action, 'user' => $user?->getEmail(), 'ip' => $ip] + $details;
+        $context = ['action' => $action, 'user' => $user?->getEmail(), 'ip' => $entry->getIp()] + $details;
         if (in_array($action, self::WARNING_ACTIONS, true)) {
             $this->securityLogger->warning($action, $context);
         } else {
@@ -50,13 +50,14 @@ final class AuditLogger
 
         try {
             // SECURITY: parameter binding only (rule 1).
+            // The entity defines the row (truncation rules); DBAL inserts it without touching the ORM unit of work.
             $this->connection->insert('audit_log', [
-                'user_id' => $user?->getId(),
-                'action' => mb_substr($action, 0, 64),
-                'details' => $details,
-                'ip' => $ip,
-                'user_agent' => $userAgent,
-                'created_at' => new \DateTimeImmutable(),
+                'user_id' => $entry->getUser()?->getId(),
+                'action' => $entry->getAction(),
+                'details' => $entry->getDetails(),
+                'ip' => $entry->getIp(),
+                'user_agent' => $entry->getUserAgent(),
+                'created_at' => $entry->getCreatedAt(),
             ], [
                 'details' => Types::JSON,
                 'created_at' => Types::DATETIME_IMMUTABLE,

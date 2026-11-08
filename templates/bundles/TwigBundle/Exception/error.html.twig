@@ -1,0 +1,28 @@
+{% extends 'base.html.twig' %}
+
+{#
+    SECURITY (rule 16): production error page. It shows only a generic message and the status code: never the
+    exception message, stack trace, file paths, SQL or framework version. Details go to the server log only.
+    (Stack traces appear only in the dev environment, APP_ENV=dev + APP_DEBUG=1.)
+#}
+{% set titles = {
+    400: 'Bad request', 403: 'Access denied', 404: 'Page not found', 405: 'Method not allowed',
+    422: 'Invalid request', 429: 'Too many requests', 500: 'Something went wrong', 503: 'Service unavailable'
+} %}
+{% set messages = {
+    403: 'You don\'t have permission to access this page.',
+    404: 'The page you are looking for doesn\'t exist or has been moved.',
+    429: 'You have made too many requests. Please wait a moment and try again.',
+    500: 'An unexpected error occurred. The team has been notified. Please try again later.'
+} %}
+
+{% block title %}{{ titles[status_code] ?? 'Error' }} · Secure Marketplace{% endblock %}
+
+{% block body %}
+    <div class="text-center py-5">
+        <p class="display-3 fw-bold text-muted mb-0">{{ status_code }}</p>
+        <h1 class="h3">{{ titles[status_code] ?? 'Error' }}</h1>
+        <p class="text-muted">{{ messages[status_code] ?? 'The request could not be completed.' }}</p>
+        <a href="{{ path('app_home') }}" class="btn btn-primary mt-2">Back to the home page</a>
+    </div>
+{% endblock %}

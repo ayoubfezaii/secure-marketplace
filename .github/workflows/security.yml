@@ -1,0 +1,61 @@
+# SECURITY: continuous checks on every push / pull request.
+#  - composer audit:   known vulnerabilities (CVEs) in PHP dependencies (OWASP A06 "vulnerable components")
+#  - importmap:audit:  known vulnerabilities in the JS packages served by AssetMapper
+#  - PHPStan level 6:  type errors and dead code paths that often hide security bugs
+#  - lint:twig/yaml/container: broken templates or config never reach production
+name: Security checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: dev
+      APP_SECRET: ci-not-a-secret
+      # Dummy values: lint commands boot the kernel but never connect or decrypt anything.
+      DATABASE_URL: 'mysql://ci:ci@127.0.0.1:3306/ci?serverVersion=10.4.32-MariaDB&charset=utf8mb4'
+      APP_ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+      MAILER_DSN: 'null://null'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: ctype, iconv, intl, sodium, gd, pdo_mysql, zip
+          coverage: none
+          tools: composer:v2
+
+      - name: Validate composer.json
+        run: composer validate --no-check-publish
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Composer audit (known vulnerabilities)
+        run: composer audit --no-interaction
+
+      - name: Importmap audit (JS vulnerabilities)
+        run: php bin/console importmap:audit
+
+      - name: Warm up container (needed by PHPStan's Symfony extension)
+        run: php bin/console cache:warmup
+
+      - name: PHPStan (level 6)
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+
+      - name: Lint Twig
+        run: php bin/console lint:twig templates
+
+      - name: Lint YAML
+        run: php bin/console lint:yaml config --parse-tags
+
+      - name: Lint container
+        run: php bin/console lint:container

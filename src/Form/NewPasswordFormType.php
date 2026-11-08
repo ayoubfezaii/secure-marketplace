@@ -11,6 +11,8 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 
 /**
  * New password + confirmation, used by the password-reset flow.
+ *
+ * @extends AbstractType<mixed>
  */
 class NewPasswordFormType extends AbstractType
 {

@@ -2,11 +2,31 @@
 framework:
     secret: '%env(APP_SECRET)%'
 
-    # Note that the session will be started ONLY if you read or write from it.
-    session: true
+    # SECURITY: no "_method" override from a POST body; DELETE/PUT can't be smuggled through forms.
+    http_method_override: false
+
+    # SECURITY (rules 5, 13): session cookie hardening.
+    #  - cookie_secure: sent only over HTTPS ('auto' = Secure whenever the request is HTTPS; forced true in prod)
+    #  - cookie_httponly: JavaScript can't read the session id (an XSS can't steal it)
+    #  - cookie_samesite: lax, the cookie isn't sent on cross-site POSTs (extra CSRF layer)
+    # The session id is also regenerated at login (security.yaml, session_fixation_strategy: migrate).
+    session:
+        cookie_secure: auto
+        cookie_httponly: true
+        cookie_samesite: lax
+        # Idle sessions end after 1 hour of inactivity (garbage-collected server side).
+        gc_maxlifetime: 3600
 
     #esi: true
     #fragments: true
+
+when@prod:
+    framework:
+        session:
+            cookie_secure: true
+            # "__Host-" prefix: the browser only accepts it with Secure, Path=/ and no Domain (no subdomain can
+            # overwrite it).
+            name: '__Host-SMSESSID'
 
 when@test:
     framework:

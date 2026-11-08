@@ -79,7 +79,8 @@ class ReviewController extends AbstractController
         }
 
         $product = $review->getProduct();
-        $isModeration = $review->getAuthor()->getId() !== $this->getUser()?->getId();
+        $me = $this->getUser();
+        $isModeration = !$me instanceof User || $review->getAuthor()->getId() !== $me->getId();
         $this->audit->log(AuditLog::REVIEW_DELETED, [
             'review' => (string) $review->getUuid(),
             'product' => (string) $product->getUuid(),

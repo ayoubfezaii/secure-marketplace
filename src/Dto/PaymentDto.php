@@ -46,8 +46,8 @@ final class PaymentDto
 
     public function getCvv(): ?string
     {
-        // Never re-displayed: the form field is a PasswordType and is always rendered empty.
-        return null;
+        // Used by the validator/form only. Never re-displayed: the form field is a PasswordType (always_empty).
+        return $this->cvv;
     }
 
     public function setCvv(#[\SensitiveParameter] ?string $cvv): void

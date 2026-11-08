@@ -11,6 +11,8 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 
 /**
  * SECURITY (rule 9): only rating + comment. Author, product and date are set by the server.
+ *
+ * @extends AbstractType<Review>
  */
 class ReviewFormType extends AbstractType
 {

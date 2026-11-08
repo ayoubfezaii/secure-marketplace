@@ -8,10 +8,13 @@
         {% block stylesheets %}{% endblock %}
         {# Bootstrap is served from this app through AssetMapper, not a CDN, so the future CSP can stay at 'self' (rule 13). #}
         {% block javascripts %}
-            {% block importmap %}{{ importmap('app') }}{% endblock %}
+            {# SECURITY (rule 13): the importmap's inline <script> tags carry a random per-response CSP nonce;
+               any other inline script (e.g. injected by XSS) has no nonce and is blocked by the browser. #}
+            {% block importmap %}{{ importmap('app', {nonce: csp_nonce('script')}) }}{% endblock %}
         {% endblock %}
     </head>
-    <body class="bg-light d-flex flex-column min-vh-100">
+    {# Turbo Drive disabled: plain page loads keep the CSP nonce model simple and predictable. #}
+    <body class="bg-light d-flex flex-column min-vh-100" data-turbo="false">
         <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
             <div class="container">
                 <a class="navbar-brand" href="{{ path('app_home') }}">Secure Marketplace</a>

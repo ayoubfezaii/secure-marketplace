@@ -1,0 +1,67 @@
+# SECURITY (rule 13): HTTP security headers on every response.
+nelmio_security:
+    # Clickjacking: the site can never be displayed in a frame (legacy header; CSP frame-ancestors below too).
+    clickjacking:
+        paths:
+            '^/.*': DENY
+
+    # X-Content-Type-Options: nosniff. The browser must trust our Content-Type (uploads can't be sniffed as HTML/JS).
+    content_type:
+        nosniff: true
+
+    # Referrer-Policy: full URL for same-origin requests, only the origin cross-site, nothing on HTTPS -> HTTP.
+    # Prevents leaking paths/query strings (e.g. a reset token) to other sites.
+    referrer_policy:
+        enabled: true
+        policies:
+            - 'strict-origin-when-cross-origin'
+
+    # Permissions-Policy: the app needs none of these powerful browser features.
+    permissions_policy:
+        enabled: true
+        policies:
+            camera: []
+            microphone: []
+            geolocation: []
+            payment: []
+            usb: []
+
+    # Content-Security-Policy: the main defense-in-depth against XSS. Even if an injection slipped through
+    # auto-escaping, the browser would refuse inline scripts, scripts from other origins, inline event handlers
+    # (onclick=...), javascript: URLs, plugins and framing.
+    # - Every JS/CSS file is served by this app (AssetMapper/importmap): no CDN, so 'self' is enough.
+    # - The importmap's own inline <script> tags get a per-response random nonce (templates/base.html.twig).
+    # - Chart.js data comes from a data-* attribute, not an inline script.
+    csp:
+        enabled: true
+        hosts: []
+        content_types: []
+        enforce:
+            level1_fallback: false
+            browser_adaptive:
+                enabled: false
+            default-src: ["'self'"]
+            script-src: ["'self'"]
+            style-src: ["'self'"]
+            img-src: ["'self'", 'data:']
+            font-src: ["'self'", 'data:']
+            connect-src: ["'self'"]
+            object-src: ["'none'"]
+            base-uri: ["'self'"]
+            form-action: ["'self'"]
+            frame-ancestors: ["'none'"]
+            upgrade-insecure-requests: true
+            block-all-mixed-content: false
+
+    # HSTS: browsers remember to use HTTPS only for 1 year (protects against SSL stripping).
+    # forced_ssl also redirects any http:// request to https://.
+    forced_ssl:
+        enabled: true
+        hsts_max_age: 31536000
+        hsts_subdomains: true
+        hsts_preload: false
+
+when@test:
+    nelmio_security:
+        forced_ssl:
+            enabled: false

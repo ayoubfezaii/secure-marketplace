@@ -104,7 +104,8 @@ class UserController extends AbstractController
             throw $this->createAccessDeniedException('Invalid CSRF token.');
         }
         // SECURITY: no action on yourself (can't remove your own admin role or lock yourself out)...
-        if ($target->getId() === $this->getUser()?->getId()) {
+        $me = $this->getUser();
+        if ($me instanceof User && $target->getId() === $me->getId()) {
             throw $this->createAccessDeniedException('You cannot change your own account here.');
         }
         // ...nor on other administrators (see class comment).

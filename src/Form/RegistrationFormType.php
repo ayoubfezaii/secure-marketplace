@@ -16,6 +16,8 @@ use Symfony\Component\Validator\Constraints as Assert;
 /**
  * SECURITY: mass assignment (rule 9). The form has exactly three fields. roles, isVerified,
  * failedAttempts and lockedUntil are not fields, so a request can't set them.
+ *
+ * @extends AbstractType<User>
  */
 class RegistrationFormType extends AbstractType
 {

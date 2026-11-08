@@ -86,8 +86,17 @@ class AuditLog
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
-    public function __construct()
+    /**
+     * @param array<string, mixed> $details
+     */
+    public function __construct(string $action, array $details = [], ?User $user = null, ?string $ip = null, ?string $userAgent = null)
     {
+        $this->action = mb_substr($action, 0, 64);
+        $this->details = $details;
+        $this->user = $user;
+        $this->ip = null !== $ip ? mb_substr($ip, 0, 45) : null;
+        // SECURITY: attacker-controlled header, truncated to the column size (and auto-escaped when displayed).
+        $this->userAgent = null !== $userAgent ? mb_substr($userAgent, 0, 255) : null;
         $this->createdAt = new \DateTimeImmutable();
     }
 

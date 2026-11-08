@@ -21,6 +21,8 @@ use Symfony\Component\Validator\Constraints as Assert;
  * SECURITY (rule 9, mass assignment): explicit field list. "seller", "uuid", "createdAt" and "imageFilename"
  * are NOT fields: the owner is set from the session in the controller, the image name by ImageStorage.
  * Any extra submitted field makes the form invalid ("This form should not contain extra fields").
+ *
+ * @extends AbstractType<Product>
  */
 class ProductFormType extends AbstractType
 {

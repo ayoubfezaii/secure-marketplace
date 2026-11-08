@@ -13,6 +13,8 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  * SECURITY (rule 10, price tampering): the checkout form contains ONLY payment fields. There is no price,
  * total, quantity or product field: everything the order is made of is re-read from the database by
  * CheckoutService. Extra submitted fields (e.g. checkout_form[total]=0.01) make the form invalid.
+ *
+ * @extends AbstractType<PaymentDto>
  */
 class CheckoutFormType extends AbstractType
 {

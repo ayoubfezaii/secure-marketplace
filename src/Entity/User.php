@@ -44,7 +44,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     #[Assert\NotBlank]
     #[Assert\Email(mode: Assert\Email::VALIDATION_MODE_STRICT)]
     #[Assert\Length(max: 180)]
-    private ?string $email = null;
+    private string $email = '';
 
     /**
      * @var list<string>
@@ -56,7 +56,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
      * Argon2id hash only, never the plain password.
      */
     #[ORM\Column]
-    private ?string $password = null;
+    private string $password = '';
 
     #[ORM\Column(options: ['default' => 0])]
     private int $failedAttempts = 0;
@@ -117,7 +117,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
         return $this->uuid;
     }
 
-    public function getEmail(): ?string
+    public function getEmail(): string
     {
         return $this->email;
     }
@@ -156,7 +156,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
         return $this;
     }
 
-    public function getPassword(): ?string
+    public function getPassword(): string
     {
         return $this->password;
     }

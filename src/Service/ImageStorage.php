@@ -43,6 +43,9 @@ final class ImageStorage
     ) {
     }
 
+    /**
+     * @throws ImageRejectedException
+     */
     public function storeUploadedFile(UploadedFile $file): string
     {
         if (!$file->isValid()) {
@@ -54,6 +57,8 @@ final class ImageStorage
 
     /**
      * @return string the random stored filename
+     *
+     * @throws ImageRejectedException when the file is refused (message safe to show to the user)
      */
     public function validateAndStore(string $tmpPath): string
     {
