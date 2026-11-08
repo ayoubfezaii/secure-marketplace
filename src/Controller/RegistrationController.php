@@ -5,7 +5,8 @@ namespace App\Controller;
 use App\Entity\User;
 use App\Form\RegistrationFormType;
 use Doctrine\ORM\EntityManagerInterface;
-use Psr\Log\LoggerInterface;
+use App\Entity\AuditLog;
+use App\Service\AuditLogger;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -25,10 +26,10 @@ class RegistrationController extends AbstractController
         Request $request,
         UserPasswordHasherInterface $passwordHasher,
         EntityManagerInterface $em,
-        LoggerInterface $securityLogger,
+        AuditLogger $audit,
     ): Response {
         if ($this->getUser()) {
-            return $this->redirectToRoute('app_home');
+            return $this->redirectToRoute('app_dashboard');
         }
 
         $user = new User();
@@ -49,7 +50,7 @@ class RegistrationController extends AbstractController
             $em->persist($user);
             $em->flush();
 
-            $securityLogger->info('User registered', ['email' => $user->getEmail(), 'role' => $user->getRoles()[0]]);
+            $audit->log(AuditLog::REGISTER, ['email' => $user->getEmail(), 'role' => $user->getRoles()[0]], $user);
 
             $this->addFlash('success', 'Your account has been created. You can now log in.');
 

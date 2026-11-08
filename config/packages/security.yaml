@@ -35,7 +35,9 @@ security:
                 enable_csrf: true
                 csrf_parameter: _csrf_token
                 csrf_token_id: authenticate
-                default_target_path: app_home
+                # SECURITY (rule 12): open redirect protection. The handler only follows internal paths
+                # (App\Security\SafeRedirect) and otherwise sends each role to its own dashboard.
+                success_handler: App\Security\LoginSuccessHandler
                 # SECURITY (rule 12): never redirect to the Referer header after login.
                 use_referer: false
 
@@ -55,6 +57,7 @@ security:
                 enable_csrf: true
                 csrf_parameter: _csrf_token
                 csrf_token_id: two_factor
+                success_handler: App\Security\LoginSuccessHandler
 
             logout:
                 path: app_logout
@@ -68,6 +71,13 @@ security:
     # SECURITY (rule 5): after login Symfony migrates the session (new session id) to prevent session fixation.
     session_fixation_strategy: migrate
 
+    # SECURITY (rule 4): least privilege. Roles do NOT inherit each other: an admin is not a buyer or a seller
+    # (can't buy or sell), a seller is not a buyer. Admin powers on objects (moderation) come from the Voters.
+    role_hierarchy:
+        ROLE_BUYER: [ROLE_USER]
+        ROLE_SELLER: [ROLE_USER]
+        ROLE_ADMIN: [ROLE_USER]
+
     # Note: Only the *first* matching rule is applied
     access_control:
         - { path: ^/(login|register)$, roles: PUBLIC_ACCESS }
@@ -76,7 +86,12 @@ security:
         - { path: ^/reset-password, roles: PUBLIC_ACCESS }
         # SECURITY (rule 5): the 2FA form is the only page reachable with a half-authenticated session.
         - { path: ^/2fa, roles: IS_AUTHENTICATED_2FA_IN_PROGRESS }
-        - { path: ^/account, roles: IS_AUTHENTICATED_FULLY }
+        # SECURITY (rule 4): every area is protected by role at the firewall level, as a first layer;
+        # controllers add #[IsGranted] and Voters check each object.
+        - { path: ^/admin, roles: ROLE_ADMIN }
+        - { path: ^/seller, roles: ROLE_SELLER }
+        - { path: ^/buyer, roles: ROLE_BUYER }
+        - { path: ^/(account|dashboard), roles: IS_AUTHENTICATED_FULLY }
 
 when@test:
     security:

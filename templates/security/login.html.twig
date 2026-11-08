@@ -28,6 +28,11 @@
 
                         {# SECURITY (rule 3): login CSRF token, checked by form_login (enable_csrf: true). #}
                         <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+                        {# SECURITY (rule 12): passed through but validated server side (LoginSuccessHandler + SafeRedirect);
+                           auto-escaped here, so it can't break out of the attribute (rule 2). #}
+                        {% if app.request.query.get('_target_path') %}
+                            <input type="hidden" name="_target_path" value="{{ app.request.query.get('_target_path') }}">
+                        {% endif %}
 
                         <button class="btn btn-primary w-100" type="submit">Log in</button>
                     </form>

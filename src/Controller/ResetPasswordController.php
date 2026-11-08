@@ -7,7 +7,8 @@ use App\Form\NewPasswordFormType;
 use App\Form\ResetPasswordRequestFormType;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
-use Psr\Log\LoggerInterface;
+use App\Entity\AuditLog;
+use App\Service\AuditLogger;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -31,7 +32,7 @@ class ResetPasswordController extends AbstractController
     public function __construct(
         private readonly ResetPasswordHelperInterface $resetPasswordHelper,
         private readonly EntityManagerInterface $em,
-        private readonly LoggerInterface $securityLogger,
+        private readonly AuditLogger $audit,
     ) {
     }
 
@@ -50,7 +51,7 @@ class ResetPasswordController extends AbstractController
             // SECURITY: per-IP rate limit on the "forgot password" form (rule 6).
             $limit = $passwordResetRequestLimiter->create($request->getClientIp() ?? 'unknown')->consume();
             if (!$limit->isAccepted()) {
-                $this->securityLogger->warning('Password reset rate limit hit', ['ip' => $request->getClientIp()]);
+                $this->audit->log(AuditLog::RATE_LIMITED, ['limiter' => 'password_reset_request']);
                 $this->addFlash('error', 'Too many requests. Please try again later.');
 
                 return $this->redirectToRoute('app_forgot_password_request');
@@ -113,7 +114,7 @@ class ResetPasswordController extends AbstractController
             /** @var User $user */
             $user = $this->resetPasswordHelper->validateTokenAndFetchUser($token);
         } catch (ResetPasswordExceptionInterface) {
-            $this->securityLogger->warning('Invalid or expired password reset token used', ['ip' => $request->getClientIp()]);
+            $this->audit->log(AuditLog::PASSWORD_RESET_INVALID, ['reason' => 'invalid_or_expired']);
             $this->addFlash('error', 'This reset link is invalid or has expired. Please request a new one.');
 
             return $this->redirectToRoute('app_forgot_password_request');
@@ -134,7 +135,7 @@ class ResetPasswordController extends AbstractController
             $this->em->flush();
 
             $this->cleanSessionAfterReset();
-            $this->securityLogger->info('Password reset completed', ['email' => $user->getEmail(), 'ip' => $request->getClientIp()]);
+            $this->audit->log(AuditLog::PASSWORD_RESET_DONE, [], $user);
             $this->addFlash('success', 'Your password has been changed. You can now log in.');
 
             return $this->redirectToRoute('app_login');
@@ -149,7 +150,7 @@ class ResetPasswordController extends AbstractController
             $resetToken = $this->resetPasswordHelper->generateResetToken($user);
         } catch (ResetPasswordExceptionInterface $e) {
             // Throttled (a request was made less than 15 min ago). Silently ignored: see enumeration note above.
-            $this->securityLogger->notice('Password reset throttled', ['email' => $user->getEmail(), 'reason' => $e->getReason()]);
+            $this->audit->log(AuditLog::PASSWORD_RESET_REQUESTED, ['throttled' => true], $user);
 
             return;
         }
@@ -165,11 +166,11 @@ class ResetPasswordController extends AbstractController
             $mailer->send($email);
         } catch (TransportExceptionInterface $e) {
             // SECURITY: no difference visible to the client; the error is only logged.
-            $this->securityLogger->error('Password reset email could not be sent', ['error' => $e->getMessage()]);
+            $this->audit->log(AuditLog::PASSWORD_RESET_REQUESTED, ['mail_error' => $e->getMessage()], $user);
 
             return;
         }
 
-        $this->securityLogger->info('Password reset requested', ['email' => $user->getEmail(), 'ip' => $request->getClientIp()]);
+        $this->audit->log(AuditLog::PASSWORD_RESET_REQUESTED, [], $user);
     }
 }

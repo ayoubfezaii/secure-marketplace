@@ -2,7 +2,9 @@
 
 namespace App\EventSubscriber;
 
-use Psr\Log\LoggerInterface;
+use App\Entity\AuditLog;
+use App\Entity\User;
+use App\Service\AuditLogger;
 use Scheb\TwoFactorBundle\Security\TwoFactor\Event\TwoFactorAuthenticationEvent;
 use Scheb\TwoFactorBundle\Security\TwoFactor\Event\TwoFactorAuthenticationEvents;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -17,7 +19,7 @@ final class TwoFactorSubscriber implements EventSubscriberInterface
 {
     public function __construct(
         private readonly RateLimiterFactoryInterface $twoFactorCodeLimiter,
-        private readonly LoggerInterface $securityLogger,
+        private readonly AuditLogger $audit,
     ) {
     }
 
@@ -37,10 +39,7 @@ final class TwoFactorSubscriber implements EventSubscriberInterface
         $limit = $this->twoFactorCodeLimiter->create('2fa_'.$event->getToken()->getUserIdentifier())->consume();
 
         if (!$limit->isAccepted()) {
-            $this->securityLogger->warning('2FA rate limit hit', [
-                'email' => $event->getToken()->getUserIdentifier(),
-                'ip' => $event->getRequest()->getClientIp(),
-            ]);
+            $this->audit->log(AuditLog::RATE_LIMITED, ['limiter' => '2fa_code'], self::user($event));
 
             // Turned into an authentication failure by the authenticator: the code isn't even checked.
             throw new CustomUserMessageAuthenticationException('Too many invalid codes. Please wait a few minutes and try again.');
@@ -49,17 +48,18 @@ final class TwoFactorSubscriber implements EventSubscriberInterface
 
     public function onFailure(TwoFactorAuthenticationEvent $event): void
     {
-        $this->securityLogger->warning('2FA code rejected', [
-            'email' => $event->getToken()->getUserIdentifier(),
-            'ip' => $event->getRequest()->getClientIp(),
-        ]);
+        $this->audit->log(AuditLog::TWO_FA_FAILURE, [], self::user($event));
     }
 
     public function onSuccess(TwoFactorAuthenticationEvent $event): void
     {
-        $this->securityLogger->info('2FA code accepted', [
-            'email' => $event->getToken()->getUserIdentifier(),
-            'ip' => $event->getRequest()->getClientIp(),
-        ]);
+        $this->audit->log(AuditLog::TWO_FA_SUCCESS, [], self::user($event));
+    }
+
+    private static function user(TwoFactorAuthenticationEvent $event): ?User
+    {
+        $user = $event->getToken()->getUser();
+
+        return $user instanceof User ? $user : null;
     }
 }

@@ -1,0 +1,129 @@
+<?php
+
+namespace App\Entity;
+
+use App\Repository\AuditLogRepository;
+use Doctrine\DBAL\Types\Types;
+use Doctrine\ORM\Mapping as ORM;
+
+/**
+ * Append-only security journal (rule 14). Rows are written by App\Service\AuditLogger and never updated;
+ * there is no edit/delete feature anywhere in the application, admins can only read them.
+ */
+#[ORM\Entity(repositoryClass: AuditLogRepository::class, readOnly: true)]
+#[ORM\Index(name: 'idx_audit_action', columns: ['action'])]
+#[ORM\Index(name: 'idx_audit_created', columns: ['created_at'])]
+class AuditLog
+{
+    // Authentication
+    public const LOGIN_SUCCESS = 'login.success';
+    public const LOGIN_FAILURE = 'login.failure';
+    public const LOGIN_BLOCKED = 'login.blocked';
+    public const ACCOUNT_LOCKED = 'account.locked';
+    public const LOGOUT = 'logout';
+    public const REGISTER = 'user.register';
+    public const PASSWORD_RESET_REQUESTED = 'password.reset_requested';
+    public const PASSWORD_RESET_DONE = 'password.reset_done';
+    public const PASSWORD_RESET_INVALID = 'password.reset_invalid_token';
+    public const PASSWORD_CHANGED = 'password.changed';
+    public const TWO_FA_ENABLED = '2fa.enabled';
+    public const TWO_FA_DISABLED = '2fa.disabled';
+    public const TWO_FA_SUCCESS = '2fa.success';
+    public const TWO_FA_FAILURE = '2fa.failure';
+    public const RATE_LIMITED = 'rate_limited';
+    // Admin
+    public const ADMIN_CREATED = 'admin.created';
+    public const ROLE_CHANGED = 'user.role_changed';
+    public const USER_LOCKED = 'user.locked';
+    public const USER_UNLOCKED = 'user.unlocked';
+    // Business
+    public const PRODUCT_CREATED = 'product.created';
+    public const PRODUCT_UPDATED = 'product.updated';
+    public const PRODUCT_DELETED = 'product.deleted';
+    public const PRODUCT_DEACTIVATED = 'product.deactivated';
+    public const PRODUCT_REACTIVATED = 'product.reactivated';
+    public const ORDER_PLACED = 'order.placed';
+    public const ORDER_STATUS_CHANGED = 'order.status_changed';
+    public const REVIEW_POSTED = 'review.posted';
+    public const REVIEW_DELETED = 'review.deleted';
+    public const PROFILE_UPDATED = 'profile.updated';
+    public const IBAN_UPDATED = 'profile.iban_updated';
+    // Attacks blocked
+    public const UPLOAD_REJECTED = 'upload.rejected';
+    public const SSRF_BLOCKED = 'ssrf.blocked';
+    public const ACCESS_DENIED = 'access.denied';
+
+    /** Actions shown in the admin "Security" panel. */
+    public const SECURITY_EVENTS = [
+        self::LOGIN_FAILURE, self::LOGIN_BLOCKED, self::ACCOUNT_LOCKED, self::TWO_FA_FAILURE,
+        self::RATE_LIMITED, self::UPLOAD_REJECTED, self::SSRF_BLOCKED, self::PASSWORD_RESET_INVALID,
+        self::ACCESS_DENIED,
+    ];
+
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column]
+    private ?int $id = null;
+
+    // SECURITY: SET NULL keeps the history when a user is deleted (logs must survive the account).
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $user = null;
+
+    #[ORM\Column(length: 64)]
+    private string $action;
+
+    /** @var array<string, mixed> */
+    #[ORM\Column(type: Types::JSON)]
+    private array $details = [];
+
+    #[ORM\Column(length: 45, nullable: true)]
+    private ?string $ip = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $userAgent = null;
+
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
+    private \DateTimeImmutable $createdAt;
+
+    public function __construct()
+    {
+        $this->createdAt = new \DateTimeImmutable();
+    }
+
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function getUser(): ?User
+    {
+        return $this->user;
+    }
+
+    public function getAction(): string
+    {
+        return $this->action;
+    }
+
+    /** @return array<string, mixed> */
+    public function getDetails(): array
+    {
+        return $this->details;
+    }
+
+    public function getIp(): ?string
+    {
+        return $this->ip;
+    }
+
+    public function getUserAgent(): ?string
+    {
+        return $this->userAgent;
+    }
+
+    public function getCreatedAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
+}

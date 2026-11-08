@@ -6,7 +6,8 @@ use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Writer\SvgWriter;
-use Psr\Log\LoggerInterface;
+use App\Entity\AuditLog;
+use App\Service\AuditLogger;
 use Scheb\TwoFactorBundle\Security\TwoFactor\Provider\Totp\TotpAuthenticatorInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -30,7 +31,7 @@ class SecuritySettingsController extends AbstractController
     public function __construct(
         private readonly TotpAuthenticatorInterface $totp,
         private readonly EntityManagerInterface $em,
-        private readonly LoggerInterface $securityLogger,
+        private readonly AuditLogger $audit,
     ) {
     }
 
@@ -104,7 +105,7 @@ class SecuritySettingsController extends AbstractController
         $this->em->flush();
         $session->remove(self::PENDING_SECRET_KEY);
 
-        $this->securityLogger->info('2FA enabled', ['email' => $user->getEmail(), 'ip' => $request->getClientIp()]);
+        $this->audit->log(AuditLog::TWO_FA_ENABLED);
         $this->addFlash('success', 'Two-factor authentication is now enabled. You will need a code at every login.');
 
         return $this->redirectToRoute('app_security_settings');
@@ -141,7 +142,7 @@ class SecuritySettingsController extends AbstractController
         // SECURITY: re-authentication with BOTH factors. A stolen session (XSS, unlocked computer) is not
         // enough to remove 2FA from the account.
         if (!$passwordHasher->isPasswordValid($user, $password) || null === $code || !$this->totp->checkCode($user, $code)) {
-            $this->securityLogger->warning('2FA disable rejected: wrong password or code', ['email' => $user->getEmail(), 'ip' => $request->getClientIp()]);
+            $this->audit->log(AuditLog::TWO_FA_FAILURE, ['context' => 'disable_rejected']);
             $this->addFlash('error', 'Wrong password or code. Two-factor authentication is still enabled.');
 
             return $this->redirectToRoute('app_security_settings');
@@ -150,7 +151,7 @@ class SecuritySettingsController extends AbstractController
         $user->disableTotp();
         $this->em->flush();
 
-        $this->securityLogger->info('2FA disabled', ['email' => $user->getEmail(), 'ip' => $request->getClientIp()]);
+        $this->audit->log(AuditLog::TWO_FA_DISABLED);
         $this->addFlash('success', 'Two-factor authentication has been disabled.');
 
         return $this->redirectToRoute('app_security_settings');
