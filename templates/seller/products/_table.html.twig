@@ -1,0 +1,50 @@
+{# Seller's own products, with edit / toggle / delete. Every action is a POST with a per-object CSRF token. #}
+<div class="table-responsive bg-white rounded-3 border">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th class="col-thumb"></th>
+                <th>Name</th>
+                <th>Category</th>
+                <th class="text-end">Price</th>
+                <th class="text-end">Stock</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for product in products %}
+            <tr>
+                <td>{% include '_partials/product_image.html.twig' with {product: product, class: 'thumb-sm rounded'} %}</td>
+                <td>
+                    {% if product.active %}
+                        <a href="{{ path('product_show', {uuid: product.uuid}) }}">{{ product.name }}</a>
+                    {% else %}
+                        {{ product.name }}
+                    {% endif %}
+                </td>
+                <td>{{ product.categoryLabel }}</td>
+                <td class="text-end">{{ product.price|format_currency('EUR') }}</td>
+                <td class="text-end">
+                    {% if product.stock < 5 %}<span class="badge text-bg-warning">{{ product.stock }}</span>{% else %}{{ product.stock }}{% endif %}
+                </td>
+                <td>
+                    {% if product.active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-secondary">Hidden</span>{% endif %}
+                </td>
+                <td class="text-end text-nowrap">
+                    <a href="{{ path('seller_product_edit', {uuid: product.uuid}) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                    <form method="post" action="{{ path('seller_product_toggle', {uuid: product.uuid}) }}" class="d-inline">
+                        <input type="hidden" name="_token" value="{{ csrf_token('toggle-product-' ~ product.uuid) }}">
+                        <input type="hidden" name="back" value="{{ back|default('products') }}">
+                        <button class="btn btn-sm btn-outline-secondary">{{ product.active ? 'Hide' : 'Show' }}</button>
+                    </form>
+                    <form method="post" action="{{ path('seller_product_delete', {uuid: product.uuid}) }}" class="d-inline" data-confirm="Delete this product permanently?">
+                        <input type="hidden" name="_token" value="{{ csrf_token('delete-product-' ~ product.uuid) }}">
+                        <button class="btn btn-sm btn-outline-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>

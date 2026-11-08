@@ -1,0 +1,9 @@
+{# Product image or a neutral placeholder. Images are served by MediaController (stored outside public/). #}
+{% if product.imageFilename %}
+    <img src="{{ path('media_product', {filename: product.imageFilename}) }}" alt="{{ product.name }}"
+         class="{{ class|default('img-fluid') }}" loading="lazy">
+{% else %}
+    <div class="product-placeholder {{ class|default('') }}" role="img" aria-label="No image">
+        <span>No image</span>
+    </div>
+{% endif %}
