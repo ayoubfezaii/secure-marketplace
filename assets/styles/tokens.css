@@ -1,0 +1,69 @@
+/*
+ * Maison Secure: design tokens. Single source of truth for colours, type, radii and shadows.
+ * Bootstrap 5.3 reads its own --bs-* variables, so mapping them here re-themes every Bootstrap component.
+ */
+:root {
+    /* Palette */
+    --ink: #141414;
+    --ink-soft: #2a2a2a;
+    --cream: #F7F3EE;
+    --sand: #EDE6DC;
+    --sand-deep: #E2D8CB;
+    --taupe: #6F645B;       /* muted text: darkened from #8B7E74 to reach WCAG AA (4.5:1) on cream */
+    --taupe-light: #8B7E74; /* decorative only (borders, icons), never body text */
+    --white: #FFFFFF;
+    --accent: #E8701A;      /* sale badges, promos, highlights only */
+    --accent-ink: #A94E0D;  /* accent used as TEXT (AA on cream/white) */
+    --success: #2E7D5B;
+    --danger: #C0392B;
+    --warning: #D4A017;
+    --info: #3B6E8F;
+    --line: #E4DCD1;
+
+    /* Typography */
+    --font-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+    --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+
+    /* Shape */
+    --radius-sm: 8px;
+    --radius: 12px;
+    --radius-lg: 16px;
+    --radius-pill: 999px;
+    --shadow-sm: 0 1px 2px rgba(20, 20, 20, .06), 0 1px 3px rgba(20, 20, 20, .04);
+    --shadow: 0 6px 20px rgba(20, 20, 20, .07);
+    --shadow-lg: 0 18px 40px rgba(20, 20, 20, .12);
+    --focus-ring: 0 0 0 3px rgba(232, 112, 26, .45);
+    --transition: 180ms cubic-bezier(.2, .7, .3, 1);
+
+    /* Bootstrap mapping */
+    --bs-body-font-family: var(--font-sans);
+    --bs-body-color: var(--ink);
+    --bs-body-color-rgb: 20, 20, 20;
+    --bs-body-bg: var(--cream);
+    --bs-body-bg-rgb: 247, 243, 238;
+    --bs-secondary-color: var(--taupe);
+    --bs-tertiary-bg: var(--sand);
+    --bs-emphasis-color: var(--ink);
+    --bs-border-color: var(--line);
+    --bs-border-radius: var(--radius);
+    --bs-border-radius-sm: var(--radius-sm);
+    --bs-border-radius-lg: var(--radius-lg);
+    --bs-border-radius-xl: 20px;
+    --bs-border-radius-pill: var(--radius-pill);
+    --bs-link-color: var(--ink);
+    --bs-link-color-rgb: 20, 20, 20;
+    --bs-link-hover-color: var(--accent-ink);
+    --bs-link-hover-color-rgb: 169, 78, 13;
+    --bs-primary: var(--ink);
+    --bs-primary-rgb: 20, 20, 20;
+    --bs-success: var(--success);
+    --bs-success-rgb: 46, 125, 91;
+    --bs-danger: var(--danger);
+    --bs-danger-rgb: 192, 57, 43;
+    --bs-warning: var(--warning);
+    --bs-warning-rgb: 212, 160, 23;
+    --bs-info: var(--info);
+    --bs-info-rgb: 59, 110, 143;
+    --bs-focus-ring-color: rgba(232, 112, 26, .45);
+    --bs-heading-color: var(--ink);
+}

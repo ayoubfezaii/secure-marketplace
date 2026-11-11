@@ -1,0 +1,30 @@
+{# Storefront header (first version; extended with categories, wishlist and offcanvas menu in phase R2). #}
+<header class="site-header sticky-top">
+    <nav class="navbar navbar-expand-lg py-3" aria-label="Main">
+        <div class="container gap-3">
+            {% include '_ui/logo.html.twig' %}
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+                <i class="bi bi-list fs-3" aria-hidden="true"></i>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item"><a class="nav-link" href="{{ path('app_home') }}">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ path('product_index') }}">Shop</a></li>
+                </ul>
+                <div class="d-flex align-items-center gap-2">
+                    {% if app.user %}
+                        <a class="btn btn-light btn-sm" href="{{ path('app_dashboard') }}"><i class="bi bi-person" aria-hidden="true"></i> My account</a>
+                        {# SECURITY (rule 3): logout is a POST with a CSRF token, never a GET link. #}
+                        <form method="post" action="{{ path('app_logout') }}" class="d-inline">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
+                            <button type="submit" class="btn btn-outline-dark btn-sm">Log out</button>
+                        </form>
+                    {% else %}
+                        <a class="btn btn-light btn-sm" href="{{ path('app_login') }}">Log in</a>
+                        <a class="btn btn-primary btn-sm" href="{{ path('app_register') }}">Create account</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+</header>

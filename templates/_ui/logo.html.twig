@@ -1,0 +1,14 @@
+{# Maison Secure logo: a shield holding a shopping bag with a check mark. Original artwork, inline SVG (no external
+   request; SVG presentation attributes are not inline styles, so the CSP style-src 'self' is respected). #}
+{% set size = size|default(36) %}
+<a href="{{ path('app_home') }}" class="brand {{ class|default('') }}" aria-label="Maison Secure, home">
+    <svg width="{{ size }}" height="{{ size }}" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+        <path d="M20 2 35 7v12c0 9.5-6.5 16.5-15 19C11.5 35.5 5 28.5 5 19V7Z" fill="{{ invert|default(false) ? '#F7F3EE' : '#141414' }}"/>
+        <path d="M16.5 17.5v-2a3.5 3.5 0 0 1 7 0v2" fill="none" stroke="{{ invert|default(false) ? '#141414' : '#F7F3EE' }}" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M12.8 17.5h14.4l-1.1 11.5H13.9Z" fill="{{ invert|default(false) ? '#141414' : '#F7F3EE' }}"/>
+        <path d="m17 23.4 2.1 2.1 4.1-4.2" fill="none" stroke="#E8701A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    {% if not (compact|default(false)) %}
+        <span class="brand-name">Maison Secure<small>Shop beautifully. Shop safely.</small></span>
+    {% endif %}
+</a>

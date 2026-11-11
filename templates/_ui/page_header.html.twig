@@ -1,0 +1,15 @@
+{#
+    Page header with actions. Usage:
+    {% embed '_ui/page_header.html.twig' with {title: 'Products', subtitle: '...', crumbs: [['Home', path('app_home')], ['Products', null]]} %}
+        {% block actions %}<a class="btn btn-primary" href="...">New</a>{% endblock %}
+    {% endembed %}
+#}
+{% import '_ui/macros.html.twig' as ui %}
+<header class="page-header d-flex flex-wrap align-items-end justify-content-between gap-3">
+    <div class="min-w-0">
+        {{ ui.breadcrumbs(crumbs|default([])) }}
+        <h1>{{ title }}</h1>
+        {% if subtitle|default(null) %}<p class="text-muted mb-0 mt-1">{{ subtitle }}</p>{% endif %}
+    </div>
+    <div class="d-flex flex-wrap gap-2">{% block actions %}{% endblock %}</div>
+</header>

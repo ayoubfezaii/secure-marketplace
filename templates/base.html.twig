@@ -3,75 +3,32 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{% block title %}Secure Marketplace{% endblock %}</title>
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>🛒</text></svg>">
+        <meta name="color-scheme" content="light">
+        <title>{% block title %}Maison Secure · Shop beautifully. Shop safely.{% endblock %}</title>
+        <meta name="description" content="{% block meta_description %}Maison Secure: curated pieces made to last, from independent sellers. Secure checkout, free shipping, easy returns.{% endblock %}">
+        <link rel="icon" type="image/svg+xml" href="{{ asset('images/favicon.svg') }}">
         {% block stylesheets %}{% endblock %}
-        {# Bootstrap is served from this app through AssetMapper, not a CDN, so the future CSP can stay at 'self' (rule 13). #}
         {% block javascripts %}
-            {# SECURITY (rule 13): the importmap's inline <script> tags carry a random per-response CSP nonce;
-               any other inline script (e.g. injected by XSS) has no nonce and is blocked by the browser. #}
+            {# SECURITY (rule 13): the importmap's inline <script> tags carry a random per-response CSP nonce; any other
+               inline script (e.g. injected by XSS) has no nonce and is blocked by the browser. All CSS, fonts and icons
+               are served by this app (AssetMapper): no CDN, so the CSP stays at 'self'. #}
             {% block importmap %}{{ importmap('app', {nonce: csp_nonce('script')}) }}{% endblock %}
         {% endblock %}
     </head>
-    {# Turbo Drive disabled: plain page loads keep the CSP nonce model simple and predictable. #}
-    <body class="bg-light d-flex flex-column min-vh-100" data-turbo="false">
-        <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-            <div class="container">
-                <a class="navbar-brand" href="{{ path('app_home') }}">Secure Marketplace</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
-                        aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="mainNav">
-                    <ul class="navbar-nav me-auto">
-                        <li class="nav-item"><a class="nav-link" href="{{ path('product_index') }}">Products</a></li>
-                        {% if is_granted('IS_AUTHENTICATED_FULLY') %}
-                            <li class="nav-item"><a class="nav-link" href="{{ path('app_dashboard') }}">Dashboard</a></li>
-                            {% if is_granted('ROLE_BUYER') %}
-                                <li class="nav-item"><a class="nav-link" href="{{ path('cart_index') }}">Cart</a></li>
-                                <li class="nav-item"><a class="nav-link" href="{{ path('buyer_orders') }}">My orders</a></li>
-                            {% elseif is_granted('ROLE_SELLER') %}
-                                <li class="nav-item"><a class="nav-link" href="{{ path('seller_products') }}">My products</a></li>
-                                <li class="nav-item"><a class="nav-link" href="{{ path('seller_orders') }}">Orders</a></li>
-                            {% endif %}
-                        {% endif %}
-                    </ul>
-                    <ul class="navbar-nav ms-auto align-items-lg-center gap-2">
-                        {% if app.user %}
-                            <li class="nav-item">
-                                {# Auto-escaped output (rule 2). #}
-                                <span class="navbar-text">{{ app.user.userIdentifier }}</span>
-                            </li>
-                            <li class="nav-item"><a class="nav-link" href="{{ path('account_profile') }}">Profile</a></li>
-                            <li class="nav-item"><a class="nav-link" href="{{ path('app_security_settings') }}">Security</a></li>
-                            <li class="nav-item">
-                                {# SECURITY (rule 3): logout is a POST with a CSRF token, never a GET link. #}
-                                <form method="post" action="{{ path('app_logout') }}" class="d-inline">
-                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
-                                    <button type="submit" class="btn btn-outline-light btn-sm">Log out</button>
-                                </form>
-                            </li>
-                        {% else %}
-                            <li class="nav-item"><a class="nav-link" href="{{ path('app_login') }}">Log in</a></li>
-                            <li class="nav-item"><a class="btn btn-primary btn-sm" href="{{ path('app_register') }}">Register</a></li>
-                        {% endif %}
-                    </ul>
-                </div>
-            </div>
-        </nav>
+    {# Turbo Drive disabled: plain page loads keep the CSP nonce model simple and predictable.
+       The "confirm" controller turns <form data-confirm="..."> into an accessible confirmation modal. #}
+    <body class="{% block body_class %}{% endblock %}" data-turbo="false" {{ stimulus_controller('confirm') }}>
+        <a class="skip-link" href="#main">Skip to content</a>
 
-        <main class="container py-4 flex-grow-1">
-            {% for type, messages in app.flashes %}
-                {% for message in messages %}
-                    <div class="alert alert-{{ type == 'error' ? 'danger' : type }}" role="alert">{{ message }}</div>
-                {% endfor %}
-            {% endfor %}
+        {% block shell %}
+            {% include 'layouts/_store_header.html.twig' %}
+            <main id="main" class="{% block main_class %}container py-4{% endblock %}" tabindex="-1">
+                {% block body %}{% endblock %}
+            </main>
+            {% include 'layouts/_store_footer.html.twig' %}
+        {% endblock %}
 
-            {% block body %}{% endblock %}
-        </main>
-
-        <footer class="py-3 text-center text-muted small border-top">
-            Secure Marketplace: university cybersecurity project
-        </footer>
+        {% include 'layouts/_toasts.html.twig' %}
+        {% include 'layouts/_confirm_modal.html.twig' %}
     </body>
 </html>

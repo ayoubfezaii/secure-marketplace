@@ -1,0 +1,158 @@
+{#
+    Maison Secure UI kit: reusable Twig macros.
+    Usage: {% import '_ui/macros.html.twig' as ui %} then {{ ui.rating_stars(4.5) }}.
+
+    SECURITY (rule 2): every value printed here goes through Twig auto-escaping ({{ }}), including inside
+    attributes. No macro uses |raw on data, so a product name, review or user name can never inject markup.
+    Class names that depend on data come from fixed maps (status -> class), never from the value itself.
+#}
+
+{# ---------- Star rating (0..5, halves supported). Numbers only, no user text. ---------- #}
+{% macro rating_stars(value, count = null, size = '') %}
+    {% set v = (value ?? 0) * 1 %}
+    <span class="stars {{ size == 'lg' ? 'stars-lg' }}" role="img" aria-label="Rated {{ v|number_format(1) }} out of 5">
+        {%- for i in 1..5 -%}
+            {%- if v >= i -%}<i class="bi bi-star-fill" aria-hidden="true"></i>
+            {%- elseif v >= i - 0.5 -%}<i class="bi bi-star-half" aria-hidden="true"></i>
+            {%- else -%}<i class="bi bi-star" aria-hidden="true"></i>{%- endif -%}
+        {%- endfor -%}
+    </span>
+    {%- if count is not null %} <span class="small text-muted">({{ count }})</span>{% endif %}
+{% endmacro %}
+
+{# ---------- Status badge. Unknown values fall back to a neutral style. ---------- #}
+{% macro status_badge(status) %}
+    {% set known = ['paid', 'shipped', 'delivered', 'cancelled', 'refunded', 'pending', 'approved', 'rejected', 'active', 'inactive', 'locked'] %}
+    {% set labels = {paid: 'Paid', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled', refunded: 'Refunded', pending: 'Pending', approved: 'Approved', rejected: 'Rejected', active: 'Active', inactive: 'Inactive', locked: 'Locked'} %}
+    <span class="badge status-badge {{ status in known ? 'status-' ~ status : 'badge-soft' }}">{{ labels[status] ?? status|capitalize }}</span>
+{% endmacro %}
+
+{# ---------- Role badge ---------- #}
+{% macro role_badge(roles) %}
+    {% if 'ROLE_ADMIN' in roles %}<span class="badge role-badge role-admin">Admin</span>
+    {% elseif 'ROLE_SELLER' in roles %}<span class="badge role-badge role-seller">Seller</span>
+    {% else %}<span class="badge role-badge role-buyer">Buyer</span>{% endif %}
+{% endmacro %}
+
+{# ---------- Dashboard stat card ---------- #}
+{% macro stat_card(label, value, icon = 'graph-up', tone = '', delta = null, hint = null) %}
+    <div class="stat-card {{ tone ? 'tone-' ~ tone }}">
+        <span class="icon" aria-hidden="true"><i class="bi bi-{{ icon }}"></i></span>
+        <div class="min-w-0">
+            <div class="label">{{ label }}</div>
+            <div class="value">{{ value }}</div>
+            {% if delta is not null %}
+                <div class="delta {{ delta >= 0 ? 'up' : 'down' }}">
+                    <i class="bi bi-arrow-{{ delta >= 0 ? 'up' : 'down' }}-right" aria-hidden="true"></i>
+                    {{ delta >= 0 ? '+' }}{{ delta|number_format(1) }}% <span class="text-muted fw-normal">vs last month</span>
+                </div>
+            {% elseif hint %}
+                <div class="small text-muted">{{ hint }}</div>
+            {% endif %}
+        </div>
+    </div>
+{% endmacro %}
+
+{# ---------- Empty state with illustration + call to action ---------- #}
+{% macro empty_state(title, text = null, cta_label = null, cta_url = null, icon = 'bag') %}
+    <div class="empty-state">
+        <div class="empty-illus" aria-hidden="true"><i class="bi bi-{{ icon }}"></i></div>
+        <h2>{{ title }}</h2>
+        {% if text %}<p>{{ text }}</p>{% endif %}
+        {% if cta_label and cta_url %}<a href="{{ cta_url }}" class="btn btn-primary">{{ cta_label }}</a>{% endif %}
+    </div>
+{% endmacro %}
+
+{# ---------- Breadcrumbs: list of [label, url|null] ---------- #}
+{% macro breadcrumbs(items) %}
+    {% if items is not empty %}
+        <nav aria-label="Breadcrumb">
+            <ol class="breadcrumb">
+                {% for item in items %}
+                    {% if loop.last or item[1] is null %}
+                        <li class="breadcrumb-item active" {% if loop.last %}aria-current="page"{% endif %}>{{ item[0] }}</li>
+                    {% else %}
+                        <li class="breadcrumb-item"><a href="{{ item[1] }}">{{ item[0] }}</a></li>
+                    {% endif %}
+                {% endfor %}
+            </ol>
+        </nav>
+    {% endif %}
+{% endmacro %}
+
+{# ---------- Page header (title, subtitle, breadcrumbs). Actions: use the _ui/page_header.html.twig embed. ---------- #}
+{% macro page_header(title, subtitle = null, crumbs = []) %}
+    <header class="page-header">
+        {{ _self.breadcrumbs(crumbs) }}
+        <h1>{{ title }}</h1>
+        {% if subtitle %}<p class="text-muted mb-0 mt-1">{{ subtitle }}</p>{% endif %}
+    </header>
+{% endmacro %}
+
+{#
+    ---------- POST form protected by CSRF + confirmation modal ----------
+    SECURITY (rule 3): state changes are never links. This renders a POST form with a per-object CSRF token
+    (token_id must include the object's UUID, e.g. 'delete-product-' ~ product.uuid) and opens the confirm modal.
+    extra: hidden fields (name => value), always escaped.
+#}
+{% macro confirm_delete_form(action, token_id, label = 'Delete', message = 'This cannot be undone.', btn_class = 'btn btn-sm btn-outline-danger', icon = 'trash3', extra = {}, confirm_button = null, title = null, variant = 'danger') %}
+    <form method="post" action="{{ action }}" class="d-inline"
+          data-confirm="{{ message }}" data-confirm-button="{{ confirm_button ?? label }}"
+          data-confirm-title="{{ title ?? label ~ '?' }}" data-confirm-variant="{{ variant }}">
+        <input type="hidden" name="_token" value="{{ csrf_token(token_id) }}">
+        {% for name, value in extra %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+        <button type="submit" class="{{ btn_class }}">{% if icon %}<i class="bi bi-{{ icon }}" aria-hidden="true"></i> {% endif %}{{ label }}</button>
+    </form>
+{% endmacro %}
+
+{# ---------- Avatar with initials (computed from a public display name; escaped) ---------- #}
+{% macro avatar(name, size = '', tone = '') %}
+    {% set parts = (name ?? '?')|trim|split(' ') %}
+    {% set initials = (parts|first|first) ~ (parts|length > 1 ? parts|last|first : '') %}
+    <span class="avatar {{ size ? 'avatar-' ~ size }} {{ tone ? 'avatar-' ~ tone }}" aria-hidden="true">{{ initials|upper }}</span>
+{% endmacro %}
+
+{# ---------- Price with optional old price ---------- #}
+{% macro price(price, old = null) %}
+    <span class="price">{{ price|format_currency('EUR') }}</span>
+    {%- if old and old > price %}<span class="price-old"><span class="visually-hidden">was </span>{{ old|format_currency('EUR') }}</span>{% endif %}
+{% endmacro %}
+
+{# ---------- Product image (served by MediaController from outside public/) ---------- #}
+{% macro product_image(filename, alt, class = '', lazy = true) %}
+    {% if filename %}
+        <img src="{{ path('media_product', {filename: filename}) }}" alt="{{ alt }}" class="{{ class }}" {% if lazy %}loading="lazy"{% endif %} decoding="async">
+    {% else %}
+        <div class="product-placeholder {{ class }}" role="img" aria-label="{{ alt }}: no image"><i class="bi bi-image" aria-hidden="true"></i></div>
+    {% endif %}
+{% endmacro %}
+
+{# ---------- Product card ---------- #}
+{% macro product_card(product, options = {}) %}
+    {% set img = product.mainImageFilename %}
+    {% set old = product.compareAtPrice %}
+    {% set is_new = product.createdAt > date('-14 days') %}
+    <article class="product-card">
+        <div class="media">
+            <div class="badges">
+                {% if old and old > product.price %}
+                    <span class="badge badge-sale">-{{ ((1 - product.price / old) * 100)|round }}%</span>
+                {% endif %}
+                {% if is_new %}<span class="badge badge-new">New</span>{% endif %}
+                {% if product.stock == 0 %}<span class="badge badge-outline">Sold out</span>{% endif %}
+            </div>
+            {% if options.wishlist_form is defined and options.wishlist_form %}
+                <div class="wish-btn">{{ options.wishlist_form }}</div>
+            {% endif %}
+            {{ _self.product_image(img, product.name) }}
+        </div>
+        <div class="body">
+            <span class="meta">{{ product.categoryLabel }}</span>
+            <a class="title" href="{{ path('product_show', {uuid: product.uuid}) }}">{{ product.name }}</a>
+            {% if product.ratingCount > 0 %}
+                <div>{{ _self.rating_stars(product.ratingAverage, product.ratingCount) }}</div>
+            {% endif %}
+            <div class="mt-auto pt-1">{{ _self.price(product.price, old) }}</div>
+        </div>
+    </article>
+{% endmacro %}

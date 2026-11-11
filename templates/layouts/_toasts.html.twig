@@ -1,0 +1,17 @@
+{# Flash messages as toasts. Messages are auto-escaped (rule 2); the type maps to a FIXED set of styles/icons. #}
+{% set icons = {success: 'check-circle-fill', error: 'exclamation-octagon-fill', danger: 'exclamation-octagon-fill', warning: 'exclamation-triangle-fill', info: 'info-circle-fill'} %}
+{% set flashes = app.flashes %}
+<div class="toast-stack" {{ stimulus_controller('toast') }} aria-live="polite" aria-atomic="false">
+    {% for type, messages in flashes %}
+        {% set t = type in icons|keys ? type : 'info' %}
+        {% for message in messages %}
+            <div class="toast show toast-{{ t }}" role="{{ t in ['error', 'danger'] ? 'alert' : 'status' }}" aria-atomic="true">
+                <div class="toast-body d-flex align-items-start gap-2">
+                    <i class="bi bi-{{ icons[t] }} toast-icon" aria-hidden="true"></i>
+                    <div class="flex-grow-1">{{ message }}</div>
+                    <button type="button" class="btn-close btn-sm" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        {% endfor %}
+    {% endfor %}
+</div>

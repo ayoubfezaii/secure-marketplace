@@ -23,7 +23,7 @@
                 <div class="card-body">
                     {# SECURITY (rules 2, 13): data handed to JS through an escaped data-* attribute (json_encode by
                        stimulus_controller), no inline <script>. #}
-                    <div class="chart-box" {{ stimulus_controller('sales-chart', {data: chart}) }}>
+                    <div class="chart-box" {{ stimulus_controller('chart', {config: {type: 'line', title: 'Sales, last 30 days', labels: chart.labels, datasets: [{label: 'Revenue (€)', data: chart.revenue}, {label: 'Units sold', data: chart.units, axis: 'y1'}]}}) }}>
                         <p class="text-muted small">Loading chart…</p>
                     </div>
                 </div>

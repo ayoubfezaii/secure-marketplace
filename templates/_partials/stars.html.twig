@@ -1,3 +1,2 @@
-{# Star rating (value 0..5). Rendered from an integer, no user text involved. #}
-{% set full = value|default(0)|round %}
-<span class="stars" aria-label="{{ value|default(0) }} out of 5">{% for i in 1..5 %}<span class="{{ i <= full ? 'star-on' : 'star-off' }}">★</span>{% endfor %}</span>
+{# Kept for backwards compatibility: delegates to the UI kit macro. #}
+{% import '_ui/macros.html.twig' as ui %}{{ ui.rating_stars(value|default(0)) }}

@@ -1,3 +1,2 @@
-{# Status values come from a server-side whitelist (Order::STATUSES); the class map below is fixed. #}
-{% set colors = {paid: 'primary', shipped: 'info', delivered: 'success', cancelled: 'secondary'} %}
-<span class="badge text-bg-{{ colors[status] ?? 'light' }}">{{ status|capitalize }}</span>
+{# Kept for backwards compatibility: delegates to the UI kit macro (fixed status -> class map). #}
+{% import '_ui/macros.html.twig' as ui %}{{ ui.status_badge(status) }}

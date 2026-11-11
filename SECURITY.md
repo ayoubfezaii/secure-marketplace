@@ -39,7 +39,7 @@ Rule numbers refer to `CLAUDE.md`. Each defensive line in the code carries a `//
 | 18 | **User enumeration** | `src/Controller/ResetPasswordController.php:67`, login default (`Invalid credentials.`) | Forgot-password: identical redirect + page whether the email exists or not, throttling hidden, mail errors only logged; login: same message for unknown email and wrong password. | Request a reset for `buyer1@shop.test` and for `nobody@shop.test`; log in with an unknown email and with a wrong password | Identical responses in both pairs. (Known limits below.) |
 | 19 | **Reset-token theft / reuse** | `src/Controller/ResetPasswordController.php:96`, `config/packages/reset_password.yaml` | Token valid 1 h, single use, only selector + HMAC hash stored (keyed with `APP_SECRET`), moved from URL to session then redirected (no Referer leak). | Use a reset link from Mailpit (http://localhost:8025) twice | 2nd time: "invalid or has expired" |
 | 20 | **Session not ended for blocked users / stale roles** | `src/EventSubscriber/LockedUserSubscriber.php:41` | Admin block ends live sessions on the next request; role changes force re-login (Symfony compares roles). The automatic brute-force lockout deliberately doesn't kill live sessions (else an attacker could kick a victim out). Rule 4 | Browser A: log in as buyer3. Browser B: admin blocks buyer3. Click in A | A is sent to `/login` with "Your account is locked" |
-| 21 | **XSS via chart data** | `assets/controllers/sales_chart_controller.js:14`, `templates/seller/dashboard.html.twig:25` | Data passed as escaped JSON in a `data-*` attribute, no inline script; Chart.js served locally. Rules 2, 13 | View source of `/seller` | `data-sales-chart-data-value="{&quot;labels&quot;…"`; no inline `<script>` with data |
+| 21 | **XSS via chart data** | `assets/controllers/chart_controller.js:17`, every `stimulus_controller('chart', …)` call | Data passed as escaped JSON in a `data-*` attribute, no inline script; Chart.js served locally. Rules 2, 13 | View source of `/seller` | `data-chart-config-value="{&quot;type&quot;…"`; no inline `<script>` with data |
 
 ---
 
@@ -90,3 +90,12 @@ The committed `.env` / `.env.dev` contain no real secret values. Note: an older 
 - **Demo fixtures** use one known password for every account: dev/demo only, never load them in production.
 - **Local DB uses `root` without password** (XAMPP dev). Production needs a dedicated least-privilege user.
 - **The web profiler (dev only)** relaxes the CSP (`'unsafe-inline'` is ignored by browsers when a nonce is present) and records submitted form data, including the fake card number. It is not installed in prod.
+
+---
+
+## 5. Redesign (phases R1–R10) additions
+
+| # | Vulnerability | Where prevented (file) | Defense | How to test | Expected result |
+|---|---|---|---|---|---|
+| R1 | **CSP bypass through the new design** (inline styles/scripts, CDN fonts) | `assets/styles/*.css`, `assets/styles/fonts.css`, `assets/styles/vendor/bootstrap-icons.css`, `assets/controllers/*_controller.js`, `templates/base.html.twig` | Fonts (Playfair Display, Inter) and Bootstrap Icons are self-hosted through AssetMapper; no `style=""`, no `<style>`, no `on*=` handler in any template: every behaviour is a Stimulus controller (`script-src 'self'`); data-dependent widths use `<progress>`/`<meter>`, not inline styles. Rules 2, 13 | `grep -rnE 'style="\|onclick=\|<script>' templates` ; open any page with DevTools console | No match; no CSP violation in the console |
+| R1b | **Confirm dialogs weakening CSRF** | `assets/controllers/confirm_controller.js`, `templates/_ui/macros.html.twig` (`confirm_delete_form`) | The modal only intercepts the submit event; the form remains a POST carrying its per-object CSRF token, checked on the server. Texts set with `textContent`. Rules 3, 2 | Delete a product, cancel the modal, then confirm; replay the POST without `_token` in Burp | Cancel = nothing sent; replay without token → 403 |
