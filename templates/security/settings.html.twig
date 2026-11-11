@@ -16,6 +16,7 @@
                     {# SECURITY (rules 3, 5, 6): CSRF token; the CURRENT password is required (a hijacked session alone
                        can't change it); rate limited; every session is ended after the change. #}
                     {{ form_start(passwordForm, {attr: {novalidate: 'novalidate'}}) }}
+                        {{ form_errors(passwordForm) }}
                         {{ f.password(passwordForm.currentPassword) }}
                         {{ f.password(passwordForm.newPassword.first, true) }}
                         {{ f.password(passwordForm.newPassword.second) }}

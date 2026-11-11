@@ -9,6 +9,8 @@
 parameters:
     app.mailer_from: '%env(default:app.mailer_from_default:MAILER_FROM)%'
     app.mailer_from_default: 'no-reply@shop.test'
+    # SECURITY (rule 7): uploads live OUTSIDE public/ and are only served by MediaController.
+    app.upload_dir: '%kernel.project_dir%/var/uploads/products'
 
 services:
     # default configuration for services in *this* file
@@ -23,3 +25,8 @@ services:
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+
+when@test:
+    parameters:
+        # Tests (and their fixtures) use their own folder, so they never purge the dev images.
+        app.upload_dir: '%kernel.project_dir%/var/uploads/test/products'

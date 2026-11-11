@@ -37,7 +37,7 @@ final class ImageStorage
     public const FILENAME_PATTERN = '[a-f0-9]{32}\.(?:jpg|png|webp)';
 
     public function __construct(
-        #[Autowire('%kernel.project_dir%/var/uploads/products')]
+        #[Autowire('%app.upload_dir%')]
         private readonly string $uploadDir,
         private readonly Filesystem $filesystem = new Filesystem(),
     ) {

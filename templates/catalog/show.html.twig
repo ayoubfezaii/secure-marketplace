@@ -165,6 +165,7 @@
                                     <h3 class="h5">Your review</h3>
                                     {# SECURITY (rule 3): CSRF token added by form_start/form_end. #}
                                     {{ form_start(reviewForm) }}
+                                        {{ form_errors(reviewForm) }}
                                         <div class="row">
                                             <div class="col-md-4">{{ form_row(reviewForm.rating) }}</div>
                                             <div class="col-md-8">{{ form_row(reviewForm.comment) }}</div>

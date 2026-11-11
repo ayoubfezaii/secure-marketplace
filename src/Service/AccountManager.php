@@ -53,7 +53,7 @@ final class AccountManager
     /**
      * Admin switch buyer <-> seller.
      *
-     * @param 'buyer'|'seller' $target
+     * @param string $target 'buyer' or 'seller' (anything else is refused)
      */
     public function switchRole(User $user, string $target): void
     {

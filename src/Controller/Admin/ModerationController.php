@@ -58,7 +58,7 @@ class ModerationController extends AbstractController
         $qb = $products->createAdminQueryBuilder($list->q, $state, $category, $seller);
         $list->applySort($qb)->addOrderBy('p.id', 'DESC');
         $pager = Pagination::fromQueryBuilder($qb, $request, 20);
-        $rows = iterator_to_array($pager->items);
+        $rows = array_values(iterator_to_array($pager->items));
         $products->preloadImages($rows);
 
         $filters = array_filter(['state' => $state, 'category' => $category?->getSlug(), 'seller' => $seller ? (string) $seller->getUuid() : null, 'q' => $list->q]);

@@ -73,7 +73,8 @@ class Product
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'RESTRICT')]
     #[Assert\NotNull(message: 'Please choose a category.')]
-    private ?Category $category = null;
+    // Not initialised until the seller picks one (the validator reports an uninitialised property as null).
+    private Category $category;
 
     /** @var Collection<int, ProductImage> */
     #[ORM\OneToMany(targetEntity: ProductImage::class, mappedBy: 'product', cascade: ['persist', 'remove'], orphanRemoval: true)]
@@ -247,19 +248,22 @@ class Product
 
     public function getCategory(): ?Category
     {
-        return $this->category;
+        return $this->category ?? null;
     }
 
     public function setCategory(?Category $category): static
     {
-        $this->category = $category;
+        // An empty submission keeps the current category (NotNull reports it on a new product).
+        if (null !== $category) {
+            $this->category = $category;
+        }
 
         return $this;
     }
 
     public function getCategoryLabel(): string
     {
-        return $this->category?->getName() ?? 'Other';
+        return $this->getCategory()?->getName() ?? 'Other';
     }
 
     /** @return Collection<int, ProductImage> */

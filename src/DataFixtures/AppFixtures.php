@@ -134,7 +134,7 @@ final class AppFixtures extends Fixture
     public function __construct(
         private readonly UserPasswordHasherInterface $hasher,
         private readonly PlaceholderImageGenerator $generator,
-        #[Autowire('%kernel.project_dir%/var/uploads/products')]
+        #[Autowire('%app.upload_dir%')]
         private readonly string $uploadDir,
     ) {
     }

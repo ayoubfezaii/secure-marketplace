@@ -7,7 +7,14 @@
         <title>{% block title %}Maison Secure · Shop beautifully. Shop safely.{% endblock %}</title>
         <meta name="description" content="{% block meta_description %}Maison Secure: curated pieces made to last, from independent sellers. Secure checkout, free shipping, easy returns.{% endblock %}">
         <link rel="icon" type="image/svg+xml" href="{{ asset('images/favicon.svg') }}">
-        {% block stylesheets %}{% endblock %}
+        {% block stylesheets %}
+            {# Served by this app through AssetMapper (versioned URLs), allowed by style-src / font-src 'self'. #}
+            <link rel="stylesheet" href="{{ asset('vendor/bootstrap/dist/css/bootstrap.min.css') }}">
+            <link rel="stylesheet" href="{{ asset('styles/vendor/bootstrap-icons.css') }}">
+            <link rel="stylesheet" href="{{ asset('styles/fonts.css') }}">
+            <link rel="stylesheet" href="{{ asset('styles/tokens.css') }}">
+            <link rel="stylesheet" href="{{ asset('styles/app.css') }}">
+        {% endblock %}
         {% block javascripts %}
             {# SECURITY (rule 13): the importmap's inline <script> tags carry a random per-response CSP nonce; any other
                inline script (e.g. injected by XSS) has no nonce and is blocked by the browser. All CSS, fonts and icons

@@ -69,7 +69,7 @@ class ProductController extends AbstractController
         $list->applySort($qb)->addOrderBy('p.id', 'DESC');
 
         $pager = Pagination::fromQueryBuilder($qb, $request, 12);
-        $rows = iterator_to_array($pager->items);
+        $rows = array_values(iterator_to_array($pager->items));
         $products->preloadImages($rows);
 
         return $this->render('seller/products/index.html.twig', [

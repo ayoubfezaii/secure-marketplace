@@ -20,6 +20,8 @@
                 are kept. The CVV field is a password field, never re-rendered with its value.
             #}
             {{ form_start(form, {attr: {autocomplete: 'on'}}) }}
+                {# Form-level errors, e.g. "This form should not contain extra fields" when a request was tampered with. #}
+                {{ form_errors(form) }}
                 {{ form_row(form.cardHolder) }}
                 {{ form_row(form.cardNumber) }}
                 <div class="row g-2">

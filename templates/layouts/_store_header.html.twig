@@ -19,13 +19,13 @@
 <header class="site-header sticky-top">
     <nav class="py-3" aria-label="Main">
         <div class="container d-flex align-items-center gap-3">
-            <button class="btn btn-icon btn-light d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu" aria-controls="mobileMenu" aria-label="Open menu">
+            <button class="btn btn-icon btn-light d-xl-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu" aria-controls="mobileMenu" aria-label="Open menu">
                 <i class="bi bi-list fs-5" aria-hidden="true"></i>
             </button>
 
             {% include '_ui/logo.html.twig' %}
 
-            <ul class="nav d-none d-lg-flex ms-3 gap-1">
+            <ul class="nav d-none d-xl-flex flex-nowrap ms-3 gap-1">
                 <li class="nav-item"><a class="nav-link {{ route == 'app_home' ? 'active' }}" href="{{ path('app_home') }}" {% if route == 'app_home' %}aria-current="page"{% endif %}>Home</a></li>
                 <li class="nav-item"><a class="nav-link {{ route == 'product_index' and not app.request.query.has('deals') ? 'active' }}" href="{{ path('product_index') }}">Shop</a></li>
                 <li class="nav-item dropdown">

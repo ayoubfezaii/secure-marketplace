@@ -35,6 +35,7 @@
                         <h3 class="h6 mb-3">New address</h3>
                         {# SECURITY (rule 9): explicit fields only (AddressFormType); the owner comes from the session. #}
                         {{ form_start(form) }}
+                            {{ form_errors(form) }}
                             <div class="row g-2">
                                 <div class="col-md-4">{{ form_row(form.label) }}</div>
                                 <div class="col-md-8">{{ form_row(form.fullName) }}</div>

@@ -37,6 +37,7 @@
                     <div class="panel-body">
                         {# SECURITY (rules 3, 9): CSRF token; only shop name + description; applicant/status set by the server. #}
                         {{ form_start(form, {attr: {novalidate: 'novalidate'}}) }}
+                            {{ form_errors(form) }}
                             {{ form_row(form.shopName) }}
                             {{ form_row(form.description) }}
                             {{ form_row(form.agreeSellerTerms) }}

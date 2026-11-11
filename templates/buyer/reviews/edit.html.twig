@@ -15,6 +15,7 @@
         <div class="panel-body">
             {# SECURITY (rules 3, 9): CSRF token; only rating + comment can change. #}
             {{ form_start(form) }}
+                {{ form_errors(form) }}
                 {{ form_row(form.rating) }}
                 {{ form_row(form.comment) }}
                 <div class="d-flex gap-2">

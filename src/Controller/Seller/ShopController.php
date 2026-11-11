@@ -49,6 +49,7 @@ class ShopController extends AbstractController
         if ($form->isSubmitted() && $form->isValid()) {
             /** @var UploadedFile|null $file */
             $file = $form->get('logoFile')->getData();
+            $logoOk = true;
             try {
                 if (null !== $file) {
                     // SECURITY (rule 7): same validation pipeline as product images.
@@ -57,11 +58,12 @@ class ShopController extends AbstractController
                     $shop->setLogoFilename(null);
                 }
             } catch (ImageRejectedException $e) {
-                $this->audit->log(AuditLog::UPLOAD_REJECTED, ['source' => 'shop_logo', 'client_name' => mb_substr((string) $file?->getClientOriginalName(), 0, 200), 'reason' => $e->getMessage()]);
+                $this->audit->log(AuditLog::UPLOAD_REJECTED, ['source' => 'shop_logo', 'client_name' => mb_substr($file->getClientOriginalName(), 0, 200), 'reason' => $e->getMessage()]);
                 $form->get('logoFile')->addError(new FormError($e->getMessage()));
+                $logoOk = false;
             }
 
-            if ($form->isValid()) {
+            if ($logoOk) {
                 $this->em->flush();
                 if ($oldLogo !== $shop->getLogoFilename()) {
                     $images->delete($oldLogo);

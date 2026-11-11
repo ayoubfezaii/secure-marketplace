@@ -308,11 +308,9 @@ class ProductRepository extends ServiceEntityRepository
     /**
      * Loads the images of many products in ONE query (avoids N+1 queries when rendering product cards).
      *
-     * @template T of list<Product>
+     * @param list<Product> $products
      *
-     * @param T $products
-     *
-     * @return T
+     * @return list<Product>
      */
     public function preloadImages(array $products): array
     {
