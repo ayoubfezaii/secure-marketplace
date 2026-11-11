@@ -1,21 +1,18 @@
-{% extends 'base.html.twig' %}
+{% extends 'layouts/auth.html.twig' %}
+{% import '_ui/forms.html.twig' as f %}
 
-{% block title %}Choose a new password · {{ parent() }}{% endblock %}
+{% block title %}Choose a new password · Maison Secure{% endblock %}
 
 {% block body %}
-    <div class="row justify-content-center">
-        <div class="col-md-6 col-lg-5">
-            <div class="card shadow-sm">
-                <div class="card-body p-4">
-                    <h1 class="h3 mb-3">Choose a new password</h1>
-                    {{ form_start(resetForm) }}
-                        {{ form_errors(resetForm) }}
-                        {{ form_row(resetForm.plainPassword.first) }}
-                        {{ form_row(resetForm.plainPassword.second) }}
-                        <button class="btn btn-primary w-100" type="submit">Change password</button>
-                    {{ form_end(resetForm) }}
-                </div>
-            </div>
-        </div>
-    </div>
+    <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-sand mb-3 icon-badge"><i class="bi bi-shield-lock fs-4" aria-hidden="true"></i></span>
+    <h1 class="mb-2">Choose a new password</h1>
+    <p class="text-muted mb-4">Use at least 12 characters with letters and numbers. Passwords found in known data breaches are refused.</p>
+    {# SECURITY (rules 3, 5, 15): CSRF token; same server-side password policy as registration; the single-use token
+       was moved from the URL to the session before this page was shown. #}
+    {{ form_start(resetForm, {attr: {novalidate: 'novalidate'}}) }}
+        {{ form_errors(resetForm) }}
+        {{ f.password(resetForm.plainPassword.first, true) }}
+        {{ f.password(resetForm.plainPassword.second) }}
+        <button class="btn btn-primary btn-lg w-100" type="submit">Change password</button>
+    {{ form_end(resetForm) }}
 {% endblock %}

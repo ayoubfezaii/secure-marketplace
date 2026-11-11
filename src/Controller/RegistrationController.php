@@ -16,12 +16,6 @@ use Symfony\Component\Routing\Attribute\Route;
 
 class RegistrationController extends AbstractController
 {
-    // SECURITY: fixed whitelist from the form choice to a role; ROLE_ADMIN can't be reached from here (rule 9).
-    private const ACCOUNT_TYPE_TO_ROLE = [
-        RegistrationFormType::ACCOUNT_BUYER => User::ROLE_BUYER,
-        RegistrationFormType::ACCOUNT_SELLER => User::ROLE_SELLER,
-    ];
-
     #[Route('/register', name: 'app_register', methods: ['GET', 'POST'])]
     public function register(
         Request $request,
@@ -47,13 +41,9 @@ class RegistrationController extends AbstractController
                 return $this->redirectToRoute('app_register');
             }
 
-            $accountType = $form->get('accountType')->getData();
-            // SECURITY: second check after form validation: an unknown value is rejected, never mapped to a role.
-            if (!isset(self::ACCOUNT_TYPE_TO_ROLE[$accountType])) {
-                throw $this->createAccessDeniedException();
-            }
-
-            $user->setRoles([self::ACCOUNT_TYPE_TO_ROLE[$accountType]]);
+            // SECURITY (rules 4, 9): every self-registered account is a BUYER, set by the server. Sellers are promoted
+            // only after an administrator approves their application; ROLE_ADMIN only via app:create-admin.
+            $user->setRoles([User::ROLE_BUYER]);
             // SECURITY: Argon2id hash ("auto" in security.yaml, rule 5); the plain password is never stored.
             $user->setPassword($passwordHasher->hashPassword($user, $form->get('plainPassword')->getData()));
 

@@ -399,3 +399,4 @@ meter.bar:-moz-meter-sub-sub-optimum::-moz-meter-bar { background: var(--danger)
 .confirm-check { width: 64px; height: 64px; }
 .wish-btn form { margin: 0; }
 .object-fit-cover { object-fit: cover; }
+.icon-badge { width: 56px; height: 56px; }

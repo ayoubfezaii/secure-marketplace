@@ -1,0 +1,43 @@
+{#
+    Form helpers. Usage: {% import '_ui/forms.html.twig' as f %} {{ f.password(form.plainPassword.first, true) }}
+
+    password(): password input with a show/hide toggle and an optional strength meter (Stimulus controllers;
+    no inline JS, rule 13). The meter is UX only: the policy is enforced server side (PasswordPolicy, rule 15).
+#}
+{% macro password(field, strength = false) %}
+    <div class="mb-3" {% if strength %}{{ stimulus_controller('password-strength') }}{% endif %}>
+        {{ form_label(field) }}
+        <div class="password-field" {{ stimulus_controller('password-toggle') }}>
+            {% set attr = {'data-password-toggle-target': 'input'} %}
+            {% if strength %}
+                {% set attr = attr|merge({'data-password-strength-target': 'input', 'data-action': 'input->password-strength#update'}) %}
+            {% endif %}
+            {{ form_widget(field, {attr: attr}) }}
+            <button type="button" class="toggle" aria-label="Show password" aria-pressed="false"
+                    {{ stimulus_target('password-toggle', 'button') }} {{ stimulus_action('password-toggle', 'toggle') }}>
+                <i class="bi bi-eye" aria-hidden="true" {{ stimulus_target('password-toggle', 'icon') }}></i>
+            </button>
+        </div>
+        {% if strength %}
+            <div class="strength" data-score="0" aria-hidden="true" {{ stimulus_target('password-strength', 'meter') }}><span></span><span></span><span></span><span></span></div>
+            <div class="form-text" aria-live="polite" {{ stimulus_target('password-strength', 'label') }}>At least 12 characters, with letters and numbers.</div>
+        {% else %}
+            {{ form_help(field) }}
+        {% endif %}
+        {{ form_errors(field) }}
+    </div>
+{% endmacro %}
+
+{# Raw (non-Symfony-form) password input with the toggle, for the login and settings forms. #}
+{% macro raw_password(id, name, label, autocomplete = 'current-password', extra = '') %}
+    <div class="mb-3">
+        <label for="{{ id }}" class="form-label">{{ label }}</label>
+        <div class="password-field" {{ stimulus_controller('password-toggle') }}>
+            <input type="password" name="{{ name }}" id="{{ id }}" class="form-control" autocomplete="{{ autocomplete }}" required {{ stimulus_target('password-toggle', 'input') }}>
+            <button type="button" class="toggle" aria-label="Show password" aria-pressed="false"
+                    {{ stimulus_target('password-toggle', 'button') }} {{ stimulus_action('password-toggle', 'toggle') }}>
+                <i class="bi bi-eye" aria-hidden="true" {{ stimulus_target('password-toggle', 'icon') }}></i>
+            </button>
+        </div>
+    </div>
+{% endmacro %}

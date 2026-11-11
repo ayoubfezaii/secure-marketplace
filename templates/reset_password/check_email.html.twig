@@ -1,20 +1,12 @@
-{% extends 'base.html.twig' %}
+{% extends 'layouts/auth.html.twig' %}
 
-{% block title %}Check your email · {{ parent() }}{% endblock %}
+{% block title %}Check your email · Maison Secure{% endblock %}
 
 {% block body %}
-    <div class="row justify-content-center">
-        <div class="col-md-7 col-lg-6">
-            <div class="card shadow-sm">
-                <div class="card-body p-4">
-                    <h1 class="h3 mb-3">Check your email</h1>
-                    {# SECURITY: identical text for existing and unknown emails (no user enumeration). #}
-                    <p>If an account matches the email you entered, a password reset link has been sent to it.
-                        The link expires in {{ tokenLifetimeMinutes }} minutes.</p>
-                    <p class="text-muted small mb-0">Nothing received? Check your spam folder or
-                        <a href="{{ path('app_forgot_password_request') }}">try again</a> in a few minutes.</p>
-                </div>
-            </div>
-        </div>
-    </div>
+    <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-sand mb-3 icon-badge"><i class="bi bi-envelope-check fs-4" aria-hidden="true"></i></span>
+    <h1 class="mb-2">Check your email</h1>
+    {# SECURITY: identical text for existing and unknown emails (no user enumeration). #}
+    <p class="text-muted">If an account matches the address you entered, a password reset link is on its way. The link expires in <strong class="text-body">{{ tokenLifetimeMinutes }} minutes</strong> and works only once.</p>
+    <div class="surface p-3 small d-flex gap-2 mt-4"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Nothing received after a few minutes? Check your spam folder or <a href="{{ path('app_forgot_password_request') }}">request a new link</a>. For security, a new link can be sent only every 15 minutes.</span></div>
+    <a class="btn btn-primary btn-lg w-100 mt-4" href="{{ path('app_login') }}">Back to log in</a>
 {% endblock %}

@@ -1,0 +1,36 @@
+{% extends 'base.html.twig' %}
+
+{#
+    Split-screen layout for authentication pages: a warm art panel (CSS gradients + inline SVG, no photo) on the
+    left, the form on the right. On mobile only the form is shown, with the logo on top.
+#}
+{% block body_class %}auth-page{% endblock %}
+
+{% block shell %}
+    <div class="auth-shell">
+        <aside class="auth-art" aria-hidden="true">
+            {% include '_ui/logo.html.twig' with {invert: true} %}
+            <svg class="art-svg" viewBox="0 0 400 400" focusable="false">
+                <circle cx="230" cy="170" r="120" fill="none" stroke="#F7F3EE" stroke-opacity=".18" stroke-width="1.5"/>
+                <circle cx="230" cy="170" r="80" fill="none" stroke="#F7F3EE" stroke-opacity=".12" stroke-width="1.5"/>
+                <path d="M150 330V200a80 80 0 0 1 160 0v130Z" fill="#F7F3EE" fill-opacity=".06" stroke="#F7F3EE" stroke-opacity=".25"/>
+                <circle cx="300" cy="90" r="26" fill="#E8701A"/>
+                <path d="M195 250h70l7 70h-84Z" fill="#F7F3EE" fill-opacity=".9"/>
+                <path d="M212 250v-12a18 18 0 0 1 36 0v12" fill="none" stroke="#F7F3EE" stroke-opacity=".9" stroke-width="5" stroke-linecap="round"/>
+                <path d="m217 283 9 9 17-17" fill="none" stroke="#E8701A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M90 120l5 11 11 5-11 5-5 11-5-11-11-5 11-5Z" fill="#F7F3EE" fill-opacity=".7"/>
+            </svg>
+            <div class="position-relative">
+                <blockquote class="mb-3">{% block quote %}“Beautiful things deserve a safe home, and so do the people who buy them.”{% endblock %}</blockquote>
+                <p class="small text-white-50 mb-0">Argon2id passwords · Two-factor authentication · Encrypted payouts</p>
+            </div>
+        </aside>
+        <main id="main" class="auth-form-wrap" tabindex="-1">
+            <div class="auth-card">
+                <div class="d-lg-none mb-4">{% include '_ui/logo.html.twig' %}</div>
+                {% block body %}{% endblock %}
+                <p class="small text-muted mt-5 mb-0"><a class="text-muted" href="{{ path('app_home') }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the shop</a></p>
+            </div>
+        </main>
+    </div>
+{% endblock %}
