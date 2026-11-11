@@ -86,8 +86,10 @@ final class LoginLockoutSubscriber implements EventSubscriberInterface
         // SECURITY: a successful password check resets the failure counter, so lockout only follows consecutive failures.
         if (0 !== $user->getFailedAttempts() || null !== $user->getLockedUntil()) {
             $user->resetFailedLogins();
-            $this->em->flush();
         }
+        // "Last login" column of the admin user list (the full history stays in the audit log).
+        $user->recordLogin();
+        $this->em->flush();
 
         $this->audit->log(AuditLog::LOGIN_SUCCESS, ['email' => $user->getEmail(), '2fa_pending' => $user->isTotpAuthenticationEnabled()], $user);
     }

@@ -33,6 +33,7 @@ class UserController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly AuditLogger $audit,
+        private readonly \App\Service\AccountManager $accounts,
     ) {
     }
 
@@ -85,13 +86,9 @@ class UserController extends AbstractController
             throw $this->createAccessDeniedException('Invalid role.');
         }
 
-        $from = $target->getRoles();
-        $target->setRoles([self::ASSIGNABLE_ROLES[$key]]);
-        $this->em->flush();
-
-        // SECURITY: Symfony notices the role change on the target's next request and logs them out, so their
-        // session never keeps the old privileges.
-        $this->audit->log(AuditLog::ROLE_CHANGED, ['target' => $target->getEmail(), 'from' => $from, 'to' => $target->getRoles()]);
+        // SECURITY: AccountManager keeps roles exclusive (creates the shop / hides the products) and audit-logs the
+        // change. Symfony notices the role change on the target's next request and logs them out.
+        $this->accounts->switchRole($target, $key);
         $this->addFlash('success', sprintf('%s is now a %s.', $target->getEmail(), $key));
 
         return $this->redirectToRoute('admin_users', $this->listParams($request));
@@ -103,15 +100,8 @@ class UserController extends AbstractController
         if (!$this->isCsrfTokenValid('admin-user-'.$action.'-'.$target->getUuid(), $request->request->getString('_token'))) {
             throw $this->createAccessDeniedException('Invalid CSRF token.');
         }
-        // SECURITY: no action on yourself (can't remove your own admin role or lock yourself out)...
-        $me = $this->getUser();
-        if ($me instanceof User && $target->getId() === $me->getId()) {
-            throw $this->createAccessDeniedException('You cannot change your own account here.');
-        }
-        // ...nor on other administrators (see class comment).
-        if (in_array(User::ROLE_ADMIN, $target->getRoles(), true)) {
-            throw $this->createAccessDeniedException('Administrator accounts are managed from the console.');
-        }
+        // SECURITY: UserManagementVoter: never on yourself (no self-lockout / self-demotion), never on another admin.
+        $this->denyAccessUnlessGranted(\App\Security\Voter\UserManagementVoter::MANAGE, $target);
     }
 
     /**

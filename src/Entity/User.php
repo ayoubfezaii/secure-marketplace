@@ -101,6 +101,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $lastLoginAt = null;
+
     // Public shop of a seller (null for buyers and admins). Created by the server on seller approval (rule 9).
     #[ORM\OneToOne(mappedBy: 'owner')]
     private ?Shop $shop = null;
@@ -156,6 +159,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
      */
     public function setRoles(array $roles): static
     {
+        // SECURITY (rule 4): roles are EXCLUSIVE. An account is exactly one of BUYER, SELLER or ADMIN; anything else
+        // (no role, two roles, an unknown role) is refused here, whoever the caller is.
+        $roles = array_values(array_unique($roles));
+        if (1 !== count($roles) || !in_array($roles[0], [self::ROLE_BUYER, self::ROLE_SELLER, self::ROLE_ADMIN], true)) {
+            throw new \InvalidArgumentException('A user must have exactly one role: buyer, seller or admin.');
+        }
         $this->roles = $roles;
 
         return $this;
@@ -350,6 +359,22 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function getLastLoginAt(): ?\DateTimeImmutable
+    {
+        return $this->lastLoginAt;
+    }
+
+    public function recordLogin(): void
+    {
+        $this->lastLoginAt = new \DateTimeImmutable();
+    }
+
+    /** Fixtures only. */
+    public function backdate(\DateTimeImmutable $createdAt): void
+    {
+        $this->createdAt = $createdAt;
     }
 
     public function getShop(): ?Shop

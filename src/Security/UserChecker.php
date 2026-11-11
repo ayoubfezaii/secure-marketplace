@@ -21,6 +21,12 @@ final class UserChecker implements UserCheckerInterface
             return;
         }
 
+        // SECURITY (rule 4): exclusive roles. A tampered row (e.g. roles edited in the DB to buyer+admin) is refused.
+        $known = array_intersect($user->getRoles(), [User::ROLE_BUYER, User::ROLE_SELLER, User::ROLE_ADMIN]);
+        if (1 !== count($known)) {
+            throw new CustomUserMessageAccountStatusException('This account is misconfigured. Please contact support.');
+        }
+
         // SECURITY: an account blocked by an administrator is refused, whatever the password.
         if ($user->isBlocked()) {
             throw new CustomUserMessageAccountStatusException(self::BLOCKED_MESSAGE);

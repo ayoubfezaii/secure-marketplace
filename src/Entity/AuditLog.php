@@ -37,6 +37,15 @@ class AuditLog
     public const ROLE_CHANGED = 'user.role_changed';
     public const USER_LOCKED = 'user.locked';
     public const USER_UNLOCKED = 'user.unlocked';
+    public const USER_2FA_RESET = 'user.2fa_reset';
+    public const USER_PASSWORD_RESET_FORCED = 'user.password_reset_forced';
+    public const APPLICATION_SUBMITTED = 'seller_application.submitted';
+    public const APPLICATION_APPROVED = 'seller_application.approved';
+    public const APPLICATION_REJECTED = 'seller_application.rejected';
+    public const CATEGORY_CREATED = 'category.created';
+    public const CATEGORY_UPDATED = 'category.updated';
+    public const CATEGORY_DELETED = 'category.deleted';
+    public const AUDIT_EXPORTED = 'audit.exported';
     // Business
     public const PRODUCT_CREATED = 'product.created';
     public const PRODUCT_UPDATED = 'product.updated';
@@ -45,8 +54,17 @@ class AuditLog
     public const PRODUCT_REACTIVATED = 'product.reactivated';
     public const ORDER_PLACED = 'order.placed';
     public const ORDER_STATUS_CHANGED = 'order.status_changed';
+    public const ORDER_CANCELLED = 'order.cancelled';
+    public const ORDER_REFUNDED = 'order.refunded';
     public const REVIEW_POSTED = 'review.posted';
     public const REVIEW_DELETED = 'review.deleted';
+    public const REVIEW_UPDATED = 'review.updated';
+    public const REVIEW_REPLIED = 'review.replied';
+    public const REVIEW_REPLY_DELETED = 'review.reply_deleted';
+    public const SHOP_UPDATED = 'shop.updated';
+    public const ADDRESS_CREATED = 'address.created';
+    public const ADDRESS_UPDATED = 'address.updated';
+    public const ADDRESS_DELETED = 'address.deleted';
     public const PROFILE_UPDATED = 'profile.updated';
     public const IBAN_UPDATED = 'profile.iban_updated';
     // Attacks blocked

@@ -27,6 +27,7 @@ class ReviewRepository extends ServiceEntityRepository
     {
         return $this->createQueryBuilder('r')
             ->innerJoin('r.author', 'a')->addSelect('a')
+            ->leftJoin('r.reply', 'rep')->addSelect('rep')
             ->andWhere('r.product = :product')
             ->setParameter('product', $product)
             ->orderBy('r.createdAt', 'DESC')

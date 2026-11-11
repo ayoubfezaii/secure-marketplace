@@ -48,6 +48,13 @@ class Review
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $updatedAt = null;
+
+    // The seller's public answer (at most one, see ReviewReply).
+    #[ORM\OneToOne(mappedBy: 'review', cascade: ['remove'])]
+    private ?ReviewReply $reply = null;
+
     public function __construct(Product $product, User $author)
     {
         $this->uuid = Uuid::v4();
@@ -103,5 +110,31 @@ class Review
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function getUpdatedAt(): ?\DateTimeImmutable
+    {
+        return $this->updatedAt;
+    }
+
+    public function markEdited(): void
+    {
+        $this->updatedAt = new \DateTimeImmutable();
+    }
+
+    public function getReply(): ?ReviewReply
+    {
+        return $this->reply;
+    }
+
+    public function setReply(?ReviewReply $reply): void
+    {
+        $this->reply = $reply;
+    }
+
+    /** Fixtures only. */
+    public function backdate(\DateTimeImmutable $createdAt): void
+    {
+        $this->createdAt = $createdAt;
     }
 }

@@ -11,10 +11,11 @@ use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 /**
  * Object-level access control for products (rule 4, IDOR).
  *
- * VIEW:   anyone if active; otherwise only the owner or an admin.
- * EDIT:   owner only (an admin moderates, but never rewrites a seller's listing).
- * DELETE: owner only.
- * TOGGLE: owner (hide/show own listing) or admin (moderation).
+ * VIEW:     anyone if active; otherwise only the owner or an admin.
+ * EDIT:     owner seller only (an admin moderates, but never rewrites a seller's listing).
+ * DELETE:   owner seller, or admin (moderation).
+ * TOGGLE:   owner seller (hide/show own listing) or admin (deactivate/reactivate).
+ * MODERATE: admin only (admin product list actions).
  *
  * @extends Voter<string, Product>
  */
@@ -24,10 +25,11 @@ final class ProductVoter extends Voter
     public const EDIT = 'PRODUCT_EDIT';
     public const DELETE = 'PRODUCT_DELETE';
     public const TOGGLE = 'PRODUCT_TOGGLE';
+    public const MODERATE = 'PRODUCT_MODERATE';
 
     protected function supports(string $attribute, mixed $subject): bool
     {
-        return in_array($attribute, [self::VIEW, self::EDIT, self::DELETE, self::TOGGLE], true) && $subject instanceof Product;
+        return in_array($attribute, [self::VIEW, self::EDIT, self::DELETE, self::TOGGLE, self::MODERATE], true) && $subject instanceof Product;
     }
 
     protected function voteOnAttribute(string $attribute, mixed $subject, TokenInterface $token, ?Vote $vote = null): bool
@@ -36,14 +38,16 @@ final class ProductVoter extends Voter
         $product = $subject;
         $user = $token->getUser();
         $isUser = $user instanceof User;
-        // SECURITY: ownership compared on the database id of the logged-in user, never on a request value.
-        $isOwner = $isUser && $product->getSeller()->getId() === $user->getId() && in_array(User::ROLE_SELLER, $user->getRoles(), true);
-        $isAdmin = $isUser && in_array(User::ROLE_ADMIN, $user->getRoles(), true);
+        // SECURITY: ownership compared on the database id of the logged-in user, never on a request value, and the
+        // user must STILL be a seller (a demoted seller can't manage old listings).
+        $isOwner = $isUser && $user->isSeller() && $product->getSeller()->getId() === $user->getId();
+        $isAdmin = $isUser && $user->isAdmin();
 
         return match ($attribute) {
             self::VIEW => $product->isActive() || $isOwner || $isAdmin,
-            self::EDIT, self::DELETE => $isOwner,
-            self::TOGGLE => $isOwner || $isAdmin,
+            self::EDIT => $isOwner,
+            self::DELETE, self::TOGGLE => $isOwner || $isAdmin,
+            self::MODERATE => $isAdmin,
             default => false,
         };
     }

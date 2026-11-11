@@ -192,6 +192,14 @@
                                 </div>
                                 {# SECURITY (rule 2): stored XSS impossible. The comment is plain text, auto-escaped, never |raw. #}
                                 <p class="pre-line mb-0 mt-3">{{ review.comment }}</p>
+                                {% if review.reply %}
+                                    {# Seller's public answer: plain text, auto-escaped (rule 2). #}
+                                    <div class="seller-reply">
+                                        <div class="d-flex justify-content-between gap-2"><strong class="small"><i class="bi bi-reply-fill" aria-hidden="true"></i> Response from {{ product.shop ? product.shop.name : 'the seller' }}</strong><span class="small text-muted">{{ review.reply.createdAt|date('d M Y') }}</span></div>
+                                        <p class="pre-line mb-0 mt-1">{{ review.reply.body }}</p>
+                                    </div>
+                                {% endif %}
+                                {% if review.updatedAt %}<p class="small text-muted mt-2 mb-0">Edited {{ review.updatedAt|date('d M Y') }}</p>{% endif %}
                             </article>
                         {% else %}
                             {{ ui.empty_state('No reviews yet', 'Reviews come only from verified buyers. Be the first once your order arrives.', null, null, 'chat-heart') }}

@@ -91,6 +91,9 @@ security:
         - { path: ^/admin, roles: ROLE_ADMIN }
         - { path: ^/seller, roles: ROLE_SELLER }
         - { path: ^/buyer, roles: ROLE_BUYER }
+        # Buying is reserved to buyers (role matrix, phase R5): sellers and admins can't use the cart or checkout.
+        - { path: ^/(cart|checkout|wishlist), roles: ROLE_BUYER }
+        - { path: ^/orders, roles: IS_AUTHENTICATED_FULLY }
         - { path: ^/(account|dashboard), roles: IS_AUTHENTICATED_FULLY }
 
 when@test:

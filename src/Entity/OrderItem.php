@@ -121,6 +121,15 @@ class OrderItem
         return $this->status;
     }
 
+    /** Whole-order cancellation / refund (called by Order::markCancelled() / markRefunded() only). */
+    public function forceStatus(string $status): void
+    {
+        if (!in_array($status, [Order::STATUS_CANCELLED, Order::STATUS_REFUNDED], true)) {
+            throw new \DomainException('Invalid status.');
+        }
+        $this->status = $status;
+    }
+
     public function getNextStatus(): ?string
     {
         return self::TRANSITIONS[$this->status] ?? null;

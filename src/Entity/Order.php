@@ -24,8 +24,12 @@ class Order
     public const STATUS_SHIPPED = 'shipped';
     public const STATUS_DELIVERED = 'delivered';
     public const STATUS_CANCELLED = 'cancelled';
+    public const STATUS_REFUNDED = 'refunded';
 
-    public const STATUSES = [self::STATUS_PAID, self::STATUS_SHIPPED, self::STATUS_DELIVERED, self::STATUS_CANCELLED];
+    public const STATUSES = [self::STATUS_PAID, self::STATUS_SHIPPED, self::STATUS_DELIVERED, self::STATUS_CANCELLED, self::STATUS_REFUNDED];
+
+    /** Statuses that count as a real sale (revenue, best sellers, "has purchased"). */
+    public const SOLD_STATUSES = [self::STATUS_PAID, self::STATUS_SHIPPED, self::STATUS_DELIVERED];
 
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -113,8 +117,9 @@ class Order
         $this->status = match (true) {
             [] === $statuses => self::STATUS_PAID,
             [self::STATUS_CANCELLED] === array_values($statuses) => self::STATUS_CANCELLED,
-            [] === array_diff($statuses, [self::STATUS_DELIVERED, self::STATUS_CANCELLED]) => self::STATUS_DELIVERED,
-            [] === array_diff($statuses, [self::STATUS_SHIPPED, self::STATUS_DELIVERED, self::STATUS_CANCELLED]) => self::STATUS_SHIPPED,
+            [self::STATUS_REFUNDED] === array_values($statuses) => self::STATUS_REFUNDED,
+            [] === array_diff($statuses, [self::STATUS_DELIVERED, self::STATUS_CANCELLED, self::STATUS_REFUNDED]) => self::STATUS_DELIVERED,
+            [] === array_diff($statuses, [self::STATUS_SHIPPED, self::STATUS_DELIVERED, self::STATUS_CANCELLED, self::STATUS_REFUNDED]) => self::STATUS_SHIPPED,
             default => self::STATUS_PAID,
         };
     }
@@ -178,6 +183,43 @@ class Order
     public function hasSeller(User $seller): bool
     {
         return [] !== $this->getItemsForSeller($seller);
+    }
+
+    /** A buyer may cancel only while nothing has shipped yet. */
+    public function isCancellable(): bool
+    {
+        return self::STATUS_PAID === $this->status;
+    }
+
+    /** Admin (simulated) refund: any order that is not already cancelled or refunded. */
+    public function isRefundable(): bool
+    {
+        return in_array($this->status, self::SOLD_STATUSES, true);
+    }
+
+    /**
+     * SECURITY: state machine. Only called by OrderManager, inside the DB transaction that also restores the stock.
+     */
+    public function markCancelled(): void
+    {
+        if (!$this->isCancellable()) {
+            throw new \DomainException('Only a paid order that has not shipped yet can be cancelled.');
+        }
+        foreach ($this->items as $item) {
+            $item->forceStatus(self::STATUS_CANCELLED);
+        }
+        $this->status = self::STATUS_CANCELLED;
+    }
+
+    public function markRefunded(): void
+    {
+        if (!$this->isRefundable()) {
+            throw new \DomainException('This order cannot be refunded.');
+        }
+        foreach ($this->items as $item) {
+            $item->forceStatus(self::STATUS_REFUNDED);
+        }
+        $this->status = self::STATUS_REFUNDED;
     }
 
     public function setShippingAddress(Address $address): void

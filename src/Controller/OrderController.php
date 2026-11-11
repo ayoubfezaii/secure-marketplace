@@ -56,6 +56,30 @@ class OrderController extends AbstractController
         ]);
     }
 
+    /**
+     * Buyer cancels their own order while it is still "paid". Stock is restored in the same transaction.
+     */
+    #[IsGranted('ROLE_BUYER')]
+    #[Route('/buyer/orders/{uuid}/cancel', name: 'buyer_order_cancel', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
+    public function cancel(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] Order $order, \App\Service\OrderManager $orders): Response
+    {
+        // SECURITY (rule 3): POST + per-order CSRF token.
+        if (!$this->isCsrfTokenValid('order-cancel-'.$order->getUuid(), $request->request->getString('_token'))) {
+            throw $this->createAccessDeniedException('Invalid CSRF token.');
+        }
+        // SECURITY (rule 4): own order only (IDOR), and only while nothing has shipped.
+        $this->denyAccessUnlessGranted(OrderVoter::CANCEL, $order);
+
+        try {
+            $orders->cancel($order, 'buyer');
+            $this->addFlash('success', 'Your order has been cancelled. You will not be charged.');
+        } catch (\DomainException $e) {
+            $this->addFlash('error', $e->getMessage());
+        }
+
+        return $this->redirectToRoute('order_show', ['uuid' => $order->getUuid()]);
+    }
+
     #[IsGranted('ROLE_SELLER')]
     #[Route('/seller/order-items/{uuid}/status', name: 'seller_order_item_status', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function updateItemStatus(
