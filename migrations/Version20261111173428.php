@@ -53,12 +53,22 @@ final class Version20261111173428 extends AbstractMigration
 
     public function down(Schema $schema): void
     {
-        // this down() migration is auto-generated, please modify it to your needs
+        // Reverse data migration (hand-written): the category slug and the first image are copied back into the
+        // old product columns BEFORE the new tables are dropped. Slugs that didn't exist in the old whitelist fall
+        // back to "other".
+        $this->addSql('ALTER TABLE product ADD category VARCHAR(32) DEFAULT NULL, ADD image_filename VARCHAR(64) DEFAULT NULL');
+        $this->addSql("UPDATE product p SET p.category = COALESCE((SELECT c.slug FROM category c WHERE c.id = p.category_id AND c.slug IN ('electronics', 'books', 'clothing', 'home', 'sports', 'toys', 'other')), 'other')");
+        $this->addSql('UPDATE product p SET p.image_filename = (SELECT i.filename FROM product_image i WHERE i.product_id = p.id ORDER BY i.position ASC LIMIT 1)');
+        $this->addSql('ALTER TABLE product MODIFY category VARCHAR(32) NOT NULL');
+
         $this->addSql('ALTER TABLE address DROP FOREIGN KEY FK_D4E6F81A76ED395');
         $this->addSql('ALTER TABLE product_image DROP FOREIGN KEY FK_64617F034584665A');
         $this->addSql('ALTER TABLE shop DROP FOREIGN KEY FK_AC6A4CA27E3C61F9');
         $this->addSql('ALTER TABLE wishlist_item DROP FOREIGN KEY FK_6424F4E8A76ED395');
         $this->addSql('ALTER TABLE wishlist_item DROP FOREIGN KEY FK_6424F4E84584665A');
+        $this->addSql('ALTER TABLE product DROP FOREIGN KEY FK_D34A04AD12469DE2');
+        $this->addSql('DROP INDEX IDX_D34A04AD12469DE2 ON product');
+        $this->addSql('ALTER TABLE product DROP compare_at_price, DROP rating_average, DROP rating_count, DROP category_id');
         $this->addSql('DROP TABLE address');
         $this->addSql('DROP TABLE category');
         $this->addSql('DROP TABLE newsletter_subscriber');
@@ -66,8 +76,5 @@ final class Version20261111173428 extends AbstractMigration
         $this->addSql('DROP TABLE shop');
         $this->addSql('DROP TABLE wishlist_item');
         $this->addSql('ALTER TABLE orders DROP shipping_name, DROP shipping_line1, DROP shipping_line2, DROP shipping_postal_code, DROP shipping_city, DROP shipping_country');
-        $this->addSql('ALTER TABLE product DROP FOREIGN KEY FK_D34A04AD12469DE2');
-        $this->addSql('DROP INDEX IDX_D34A04AD12469DE2 ON product');
-        $this->addSql('ALTER TABLE product ADD category VARCHAR(32) NOT NULL, ADD image_filename VARCHAR(64) DEFAULT NULL, DROP compare_at_price, DROP rating_average, DROP rating_count, DROP category_id');
     }
 }

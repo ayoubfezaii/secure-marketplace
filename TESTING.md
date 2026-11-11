@@ -1,132 +1,116 @@
-# TESTING.md — End-to-end checklist
+# TESTING.md — End-to-end checklist (Maison Secure)
 
 Tick each box while testing. Security attack tests (Burp, curl) are in `SECURITY.md`; this file checks that every
-feature works for every role.
+feature works for every role, and that each role is refused outside its own area.
 
 ## 0. Preparation
 
 - [ ] XAMPP MySQL/MariaDB running, Mailpit running (UI http://localhost:8025)
-- [ ] `composer install`
-- [ ] `.env.local` contains `DATABASE_URL`, `MAILER_DSN=smtp://localhost:1025`, `APP_SECRET`, `APP_ENCRYPTION_KEY` (see README section in the final summary / `SECURITY.md` §3)
+- [ ] `composer install` (also downloads the importmap vendor files into `assets/vendor/`)
+- [ ] `.env.local` contains `DATABASE_URL`, `MAILER_DSN=smtp://localhost:1025`, `APP_SECRET`, `APP_ENCRYPTION_KEY` (see `SECURITY.md` §3)
 - [ ] `php bin/console doctrine:migrations:migrate -n`
-- [ ] `php bin/console doctrine:fixtures:load -n` → prints the demo accounts
-- [ ] `symfony server:start -d --port=8001` → open https://127.0.0.1:8001
-- [ ] All demo passwords: `Password2026!`
+- [ ] `php bin/console doctrine:fixtures:load -n` → prints the demo accounts (about 10 s, generates ~100 product images)
+- [ ] `symfony serve -d` → open https://127.0.0.1:8000
+- [ ] Use a normal window + a private window to be logged in as two users at once.
 
-Tip: use a normal window + a private window to be logged in as two users at once.
+### Demo accounts (password for all: `Password2026!`)
+
+| Role | Email | Notes |
+|---|---|---|
+| Admin | `admin@shop.test` | Only admin (admins are created with `php bin/console app:create-admin <email>`) |
+| Seller | `seller1@shop.test` | Atelier Lumière (clothing, bags), orders to ship, reviews to answer |
+| Seller | `seller2@shop.test` | Maison Argile (ceramics, home) |
+| Seller | `seller3@shop.test` | Papeterie Nord (books, beauty), one hidden product |
+| Seller | `seller4@shop.test` | Sonic Craft (tech, jewellery), **2FA ON**, TOTP secret `JBSWY3DPEHPK3PXP` (add it to any authenticator app) |
+| Buyer | `buyer1@shop.test` | Cart with 2 items, 2 orders still "paid" (cancel demo), wishlist, 2 addresses |
+| Buyer | `buyer2@shop.test` – `buyer7@shop.test` | Order histories; buyer3, buyer6, buyer7 have a **pending** seller application |
+| Buyer | `buyer5@shop.test` | **Rejected** seller application (reason visible) |
+| Buyer | `buyer8@shop.test` | **Blocked** by the admin: login refused |
+
+### Automated tests
+
+- [ ] `php bin/phpunit` → `OK (81 tests)`. The bootstrap creates `secure_marketplace_test`, migrates it and loads the
+      fixtures (needs `.env.test.local` with the `DATABASE_URL`, git-ignored). Test uploads go to `var/uploads/test/`.
 
 ---
 
 ## 1. Visitor (not logged in)
 
-- [ ] Home page shows the 8 latest products with images
-- [ ] **Products** page: 29 visible products (one is hidden), 12 per page, pagination works
-- [ ] Search `headphones` → "Results for “headphones”"
-- [ ] Category filter (Books), min/max price (10 → 40), each sort option changes the order
-- [ ] Product page: image, seller name (not an email), rating stars, reviews, "Log in as a buyer to purchase"
-- [ ] `/cart`, `/buyer`, `/seller`, `/admin`, `/account/profile` → redirected to the login page
-- [ ] Login with a wrong password → "Invalid credentials."; with an unknown email → same message
-- [ ] Unknown URL (e.g. `/nothing`) → custom 404 page
+- [ ] Home: announcement bar, hero, category circles + tiles, best sellers, promo banner with a **live countdown**, stats, reviews carousel (arrows scroll), newsletter, FAQ accordion
+- [ ] Header: Categories dropdown, Deals, About, search; on a phone width (DevTools device mode) the ☰ button opens the offcanvas menu
+- [ ] Footer: 4 columns, newsletter, generic payment icons
+- [ ] Newsletter: subscribe → "Thank you!" toast; same address again → same message (no enumeration); 6th try within an hour → "Too many requests"
+- [ ] **Shop** `/products`: filters category / price / rating / in stock / on sale, sort select (auto-submits), grid/list toggle (remembered), result count, removable filter chips, pagination, empty state with a nonsense search
+- [ ] Product page: gallery thumbnails switch the image, NEW / -xx% badges, old price struck through, stock status, rating summary with distribution bars, tabs, seller box → **Visit shop**, "You may also like"
+- [ ] Shop page `/shop/atelier-lumiere`: banner, rating, products, sort
+- [ ] `/cart`, `/checkout`, `/buyer`, `/seller`, `/admin`, `/account/profile` → redirected to the login page
+- [ ] Login with a wrong password → "Invalid credentials."; with an unknown email → same message; eye icon shows/hides the password
+- [ ] Unknown URL → custom 404 page (in dev, preview the prod pages at `/_error/404`, `/_error/403`, `/_error/500`)
 
-## 2. Registration & password reset
+## 2. Registration, password reset, 2FA
 
-- [ ] Register as **buyer** with `abc` as password → policy errors; with `password1234` → "leaked in a data breach" (needs internet)
-- [ ] Register `newbuyer@shop.test` with a strong password → redirected to login with a success message → log in → lands on `/buyer`
-- [ ] Register with an existing email → "already registered"
-- [ ] Login page → **Forgot password?** → enter `buyer2@shop.test` → "Check your email" page
-- [ ] Same with `nobody@shop.test` → exactly the same page
-- [ ] Mailpit shows ONE email (for buyer2); click the link → choose a new password → log in with it
-- [ ] Click the same link again → "invalid or has expired"
+- [ ] Register: name, email, password (strength meter fills while typing), repeat, terms → redirected to login; the new account is a **buyer**
+- [ ] Weak password (`password1234`) → refused (breach list / policy); mismatched passwords → error
+- [ ] Forgot password with an existing and an unknown email → same "Check your email" page; the link in Mailpit works once only
+- [ ] Log in as `seller4@shop.test` → 2FA page; wrong code → error; correct code from the app → seller dashboard
 
 ## 3. Buyer (`buyer1@shop.test`)
 
+### Shopping
+- [ ] Heart on a product card → toast + filled heart; header wishlist counter updates
+- [ ] Add to cart with the +/− stepper; header cart counter updates
+- [ ] Cart: +/− updates the quantity automatically, Remove, order summary, empty state after removing everything
+- [ ] Checkout step 1 **Address**: pick a saved address or add a new one (max 5) → step 2
+- [ ] Step 2 **Payment**: `4242 4242 4242 4242`, `12/30`, `123`; a wrong number (`4242 4242 4242 4241`) → "not valid"; expired date → error
+- [ ] Step 3 **Review**: address + "Card ending in 4242" → **Place order** → confirmation page with an order number `MS-…`
+- [ ] Browser Back + resubmit the "Place order" form → no second order (payment token is single use)
+
 ### Dashboard (`/buyer`)
-- [ ] 4 stat cards: orders, total spent, items in cart (3), reviews written
-- [ ] "Enable 2FA" banner
-- [ ] Recent orders table with status badges; click an order → order detail
-- [ ] "Products to review" list → **Review** button goes to the product's review form
-- [ ] Sidebar: Overview, My cart, My orders, Browse products, Profile, Security settings
-
-### Cart & checkout
-- [ ] Cart shows the 2 fixture items with DB prices and a total
-- [ ] Change a quantity → Update → total recalculated; Remove a line
-- [ ] On a product page: Add to cart (quantity 2) → flash message, cart updated
-- [ ] Add more than the stock → quantity capped with a warning
-- [ ] Out-of-stock product ("Wi-Fi 6 Router") has no Add to cart button
-- [ ] Checkout: summary matches the cart; pay with name `Alice Martin`, card `4242 4242 4242 4242`, expiry `12/30`, CVV `123`
-- [ ] Invalid card `4242 4242 4242 4241` → "not valid"; expiry `01/20` → "expired"; after an error the CVV field is empty
-- [ ] Successful payment → order page "Paid by card •••• 4242", cart is empty, product stock decreased
-
-### Orders & reviews
-- [ ] **My orders** lists all orders, newest first
-- [ ] Review a purchased product (rating + comment) → appears on the product page with your display name
-- [ ] The review form is gone for that product (one review per product)
-- [ ] A product you never bought shows "Only buyers who purchased this product can review it"
-- [ ] Delete your own review → removed
-
-### Profile & security
-- [ ] **Profile**: change display name and phone → saved; no IBAN field for buyers
-- [ ] **Change password**: wrong current password → error; correct → logged out, log in with the new one
-- [ ] **Security settings** → Set up 2FA → scan the QR code (Google Authenticator / Aegis / 1Password) → enter the code → "Enabled"
-- [ ] Log out / log in → asked for the 6-digit code → correct code → dashboard
-- [ ] Wrong code 5 times → "Too many invalid codes"
-- [ ] Disable 2FA with password + current code → "Disabled"
+- [ ] Overview: 4 stat cards, recent orders, products to review, recommendations
+- [ ] **My orders**: status chips filter the list; order detail shows the timeline, items, totals, address, masked card
+- [ ] A **paid** order has **Cancel order** → confirm modal → status Cancelled, stock restored; shipped/delivered orders have no cancel button
+- [ ] **Wishlist**: Move to cart, remove
+- [ ] **Addresses**: add, edit, set default, delete (confirm modal); a 6th address is refused
+- [ ] **My reviews**: edit (rating + text, "edited" mark), delete; on the product page "Write a review" appears only for products you bought and haven't reviewed
+- [ ] **Become a seller**: submit an application → status *Pending*; the form disappears (one pending application max)
+- [ ] **Profile**: change display name / phone → avatar initials update
+- [ ] **Security**: change password (wrong current password → error; success → logged out); enable 2FA (scan QR, confirm code); login history lists recent sign-ins with IPs
+- [ ] `/seller`, `/admin`, another buyer's order URL → 403
 
 ## 4. Seller (`seller1@shop.test`)
 
-### Dashboard (`/seller`)
-- [ ] 5 stat cards: active products, units sold, revenue, pending shipments, average rating
-- [ ] Sales chart (last 30 days, bars = revenue, line = units) renders
-- [ ] Low stock alert lists products with stock < 5 (4K Webcam, Hardware Security Key, Wi-Fi 6 Router)
-- [ ] Recent orders table with "Mark shipped" / "Mark delivered" buttons
-- [ ] My products table with Edit / Hide / Delete
-- [ ] Latest reviews on my products
-
-### Products
-- [ ] **New product**: name, description, price, stock, category, upload a JPG/PNG/WebP < 2 MB → created, image visible
-- [ ] Upload a `.gif` or a text file renamed `.jpg` → error message, product not created
-- [ ] Edit a product → **import image from URL** with a public `https://…` image → image replaced
-- [ ] Import `http://example.com/a.png` → "Only https:// URLs are allowed"; `https://127.0.0.1/x.png` → "This URL is not allowed"
-- [ ] Hide a product → disappears from the catalogue, still visible to you with a "hidden" banner; Show it again
-- [ ] Delete a product (confirmation prompt) → removed; existing orders still show its name
-
-### Orders
-- [ ] **Orders** lists only your items; open an order → only your lines, no card information
-- [ ] Mark an item **shipped**, then **delivered** → buyer's order status follows
-- [ ] Profile: add IBAN `FR76 3000 6000 0112 3456 7890 189` → shows `•••• •••• •••• 0189`; invalid IBAN → error; "Remove my IBAN" works
-- [ ] As seller2, open seller1's product edit URL → 403
+- [ ] Overview: revenue this month with % vs last month, units, pending shipments, active products, rating, **30-day chart renders**, top 5, low stock, orders to ship, latest reviews; notification bell lists items to ship / low stock / reviews to answer
+- [ ] Sidebar collapse button (desktop) is remembered; ☰ opens the sidebar on mobile
+- [ ] **Products**: search, status / stock filters, sortable columns, sales count, click the status badge to hide/show, delete with confirm modal
+- [ ] New / edit product: **live preview** updates while typing (name, price, sale badge); upload up to 4 images, import one from an `https://` URL, tick "Remove" on an image; a 5th image → error
+- [ ] **Orders**: status chips; detail shows only my items + shipping name/address (no buyer email/phone/card); **Mark as shipped → Mark as delivered**
+- [ ] **Reviews**: rating / "awaiting reply" filters; publish a reply → visible on the product page; the reply form disappears (one reply per review)
+- [ ] **Analytics**: 7d / 30d / 90d buttons, revenue bar chart, category doughnut, best-sellers table with share bars
+- [ ] **My shop**: change name / address (slug) / description / logo; a taken slug → error; "Open public page"
+- [ ] **Payouts**: save an IBAN (`FR76 3000 6000 0112 3456 7890 189`) → shown as `•••• 0189`; payout history by month
+- [ ] `/cart`, `/checkout`, `/buyer`, `/admin`, another seller's product edit URL → 403
 
 ## 5. Admin (`admin@shop.test`)
 
-### Dashboard (`/admin`)
-- [ ] Warning banner "Your admin account has no 2FA"
-- [ ] Stat cards: buyers, sellers, products, orders, revenue, admins, locked accounts, failed logins 24 h, security events 24 h
-- [ ] Latest security events table
-
-### Users
-- [ ] Search `buyer`, filter by role, pagination
-- [ ] Change a buyer to seller → their open session is logged out; they now land on `/seller`
-- [ ] Block a buyer → their open session ends on the next click; they can't log in ("This account has been blocked…"); Unlock → they can log in
-- [ ] Your own row and other admins show "Managed from the console" (no actions)
-
-### Moderation
-- [ ] **Products**: deactivate a product → hidden from the catalogue; reactivate
-- [ ] **Orders**: filter by status (paid / shipped / delivered); open any order (full details visible)
-- [ ] **Reviews**: delete a review → gone from the product page; logged as moderation
-
-### Logs
-- [ ] **Audit log**: filter by action, user email, date range; pagination; User-Agent column shown
-- [ ] **Security panel**: failed logins, lockouts & rate limiting, blocked SSRF/uploads, access denied (from the 403 tests above)
-
-### Admin creation
-- [ ] `php bin/console app:create-admin admin2@shop.test` in **cmd or PowerShell** → hidden password prompt (twice) → success
-- [ ] Same command with `-n` → "must be run interactively"; with an existing email → refused
+- [ ] Overview: 8 stat cards, orders & revenue line chart, users-by-role doughnut, orders-per-day bars, latest security and audit events
+- [ ] **Users**: search, role / status / 2FA filters, sortable columns; detail page shows orders, products, login history, masked IBAN for sellers (never the full IBAN, password or 2FA secret)
+- [ ] On `buyer3`: Lock (a session of buyer3 in another window is ended on the next click), Unlock, Switch to seller (shop created) and back (products hidden), Force password reset (old password stops working, link in Mailpit), Reset 2FA (only shown when enabled)
+- [ ] On your own account: no action buttons ("cannot change your own account")
+- [ ] **Seller applications**: pending first; approve one (applicant becomes a seller with a shop); reject another without a reason → refused, with a reason → status Rejected, reason visible to the applicant
+- [ ] **Products**: filters by seller / category / status, deactivate / reactivate, delete
+- [ ] **Categories**: create (slug, icon list, position), edit; delete is disabled for categories with products
+- [ ] **Orders**: filters status / seller / dates / buyer; detail → cancel (paid) or refund (paid/shipped/delivered) → stock restored, audit entry
+- [ ] **Reviews**: rating filter, search, delete a review, delete a seller reply
+- [ ] **Audit log**: filters action / user / IP / dates, pagination, **Export CSV** (cells starting with `= + - @` are prefixed with `'`)
+- [ ] **Security center**: failed logins 24h / 7d chart, top IPs (documentation IPs `203.0.113.x`), locked accounts with Unlock, blocked SSRF and uploads, users without 2FA, headers checklist
+- [ ] `/buyer`, `/cart`, `/seller` → 403
 
 ## 6. Hardening checks
 
-- [ ] `curl -skI https://127.0.0.1:8001/` shows CSP, HSTS, X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy, no X-Powered-By
-- [ ] DevTools console on any page: no CSP violation errors (Bootstrap menu, delete confirmations and the seller chart all work)
+- [ ] `curl -skI https://127.0.0.1:8000/` shows CSP, HSTS, X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy, no X-Powered-By
+- [ ] DevTools console on any page: **no CSP violation**; charts, dropdowns, modals, toasts and the countdown all work
+- [ ] `grep -rnE 'style="|onclick=|<script' templates` → no inline style / handler / script in pages
 - [ ] Session cookie flags: Secure, HttpOnly, SameSite=Lax
-- [ ] `/_error/403`, `/_error/404`, `/_error/500` (dev preview of prod pages) → generic messages, no stack trace
+- [ ] Every page at 390 px width (DevTools device mode): no horizontal scrollbar, tables turn into cards
 - [ ] `composer audit`, `php bin/console importmap:audit`, `vendor/bin/phpstan analyse` → all clean
 - [ ] `php bin/console lint:twig templates`, `lint:yaml config`, `lint:container` → OK
