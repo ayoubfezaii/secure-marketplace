@@ -1,0 +1,43 @@
+{% extends 'checkout/_layout.html.twig' %}
+{% set step = 3 %}
+
+{% block step %}
+    <section class="panel">
+        <div class="panel-head"><h2>Review and place your order</h2></div>
+        <div class="panel-body">
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="d-flex justify-content-between"><h3 class="h6 mb-2">Ship to</h3><a class="small" href="{{ path('checkout') }}">Change</a></div>
+                        <address class="small text-muted mb-0">{% for l in address.lines %}{{ l }}<br>{% endfor %}</address>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="surface p-3 h-100">
+                        <div class="d-flex justify-content-between"><h3 class="h6 mb-2">Pay with</h3><a class="small" href="{{ path('checkout_payment') }}">Change</a></div>
+                        {# Only the masked card is available here: the full number was never kept (rule 11). #}
+                        <p class="small text-muted mb-0"><i class="bi bi-credit-card" aria-hidden="true"></i> Card ending in <strong class="text-body">{{ payment.last4 }}</strong><br>{{ payment.holder }} · exp. {{ payment.expiry }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="h6">Items</h3>
+            <ul class="list-unstyled small mb-4">
+                {% for line in lines %}
+                    <li class="d-flex justify-content-between py-1 border-bottom"><span>{{ line.quantity }} × {{ line.product.name }}</span><span>{{ line.lineTotal|format_currency('EUR') }}</span></li>
+                {% endfor %}
+            </ul>
+
+            {#
+                SECURITY (rules 3, 10): the form carries only a CSRF token and the single-use payment token issued to this
+                session. No price, no quantity, no product: the server re-reads everything from the database.
+            #}
+            <form method="post" action="{{ path('checkout_place') }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('checkout-place') }}">
+                <input type="hidden" name="payment_token" value="{{ payment.token }}">
+                <button class="btn btn-primary btn-lg w-100" type="submit"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i> Place order · {{ summary.total|format_currency('EUR') }}</button>
+            </form>
+            <p class="small text-muted mt-3 mb-0 text-center">By placing your order you agree to our terms. You can cancel it yourself until it ships.</p>
+        </div>
+    </section>
+{% endblock %}

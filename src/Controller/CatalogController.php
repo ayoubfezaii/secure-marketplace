@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Dto\ProductSearchCriteria;
 use App\Entity\Product;
 use App\Form\ReviewFormType;
+use App\Repository\CategoryRepository;
 use App\Repository\ProductRepository;
 use App\Repository\ReviewRepository;
 use App\Security\Voter\ProductVoter;
@@ -19,25 +20,35 @@ use Symfony\Component\Routing\Requirement\Requirement;
 class CatalogController extends AbstractController
 {
     #[Route('/products', name: 'product_index', methods: ['GET'])]
-    public function index(Request $request, ProductRepository $products): Response
+    public function index(Request $request, ProductRepository $products, CategoryRepository $categories): Response
     {
         // SECURITY (rules 1, 15): raw query-string values never reach the query; they are normalised first.
         $criteria = ProductSearchCriteria::fromRequest($request);
-        $results = $products->search($criteria);
+        // SECURITY: the slug is resolved to an existing category (bound parameter); unknown = no filter.
+        $category = null !== $criteria->category ? $categories->findOneBySlug($criteria->category) : null;
+        if (null === $category && null !== $criteria->category) {
+            $criteria = $criteria->withCategory(null);
+        }
+
+        $results = $products->search($criteria, $category);
         $total = count($results);
 
         return $this->render('catalog/index.html.twig', [
             'criteria' => $criteria,
+            'category' => $category,
             'products' => $results,
             'total' => $total,
             'pages' => max(1, (int) ceil($total / ProductSearchCriteria::PER_PAGE)),
-            'categories' => Product::CATEGORIES,
+            'categories' => $categories->findAllOrdered(),
+            'categoryCounts' => $categories->countProducts(true),
+            'priceBounds' => $products->priceBounds(),
             'sorts' => ProductSearchCriteria::SORT_LABELS,
+            'ratings' => ProductSearchCriteria::RATINGS,
         ]);
     }
 
     #[Route('/products/{uuid}', name: 'product_show', methods: ['GET'], requirements: ['uuid' => Requirement::UUID_V4])]
-    public function show(#[MapEntity(mapping: ['uuid' => 'uuid'])] Product $product, ReviewRepository $reviews): Response
+    public function show(#[MapEntity(mapping: ['uuid' => 'uuid'])] Product $product, ReviewRepository $reviews, ProductRepository $products): Response
     {
         // SECURITY (rule 4): hidden products are visible only to their owner and admins.
         // 404 rather than 403, so their existence isn't revealed.
@@ -56,7 +67,9 @@ class CatalogController extends AbstractController
             'product' => $product,
             'reviews' => $reviews->findForProduct($product),
             'rating' => $reviews->getRatingSummary($product),
+            'distribution' => $reviews->getDistribution($product),
             'reviewForm' => $reviewForm,
+            'similar' => $products->findSimilar($product, 4),
         ]);
     }
 }

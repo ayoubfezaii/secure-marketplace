@@ -1,33 +1,225 @@
 {% extends 'base.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% block title %}Maison Secure · Discover pieces made to last{% endblock %}
+{% block main_class %}{% endblock %}
 
 {% block body %}
-    <div class="p-4 p-md-5 mb-4 bg-white rounded-3 shadow-sm">
-        <h1 class="display-6">Welcome to Secure Marketplace</h1>
-        <p class="lead">Buy and sell products safely.</p>
-        <form action="{{ path('product_index') }}" method="get" class="d-flex gap-2 search-hero" role="search">
-            <input type="search" name="q" class="form-control" placeholder="Search products..." maxlength="100" aria-label="Search products">
-            <button class="btn btn-primary" type="submit">Search</button>
-        </form>
-        {% if not app.user %}
-            <div class="mt-3">
-                <a class="btn btn-outline-primary btn-sm" href="{{ path('app_register') }}">Create an account</a>
-                <a class="btn btn-link btn-sm" href="{{ path('app_login') }}">Log in</a>
+    {# ---------- Hero ---------- #}
+    <section class="hero">
+        <div class="container">
+            <div class="row align-items-center g-5">
+                <div class="col-lg-6">
+                    <p class="eyebrow mb-3">New season · Independent makers</p>
+                    <h1 class="display-hero mb-4">Discover pieces <em>made to last</em></h1>
+                    <p class="lead text-muted mb-4">Thoughtfully designed objects, clothing and books from small shops we trust. Fair prices, honest reviews from verified buyers, and a checkout built with security first.</p>
+                    <div class="d-flex flex-wrap gap-2 mb-5">
+                        <a class="btn btn-primary btn-lg" href="{{ path('product_index') }}">Shop the collection <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i></a>
+                        <a class="btn btn-outline-dark btn-lg" href="{{ path('product_index', {deals: 1}) }}">See the deals</a>
+                    </div>
+                    <div class="trust-row">
+                        <div class="trust-item"><i class="bi bi-truck" aria-hidden="true"></i><span><strong class="d-block">Free shipping</strong><span class="text-muted small">On every order</span></span></div>
+                        <div class="trust-item"><i class="bi bi-arrow-repeat" aria-hidden="true"></i><span><strong class="d-block">Easy returns</strong><span class="text-muted small">30 days, no questions</span></span></div>
+                        <div class="trust-item"><i class="bi bi-shield-check" aria-hidden="true"></i><span><strong class="d-block">Secure payment</strong><span class="text-muted small">Card data never stored</span></span></div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="hero-art">{% include 'home/_hero_art.html.twig' %}</div>
+                </div>
             </div>
-        {% endif %}
-    </div>
-
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="h4 mb-0">Latest products</h2>
-        <a href="{{ path('product_index') }}">Browse all &rarr;</a>
-    </div>
-
-    {% if latest is empty %}
-        <div class="text-center text-muted py-5 bg-white rounded-3 border">No products yet.</div>
-    {% else %}
-        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
-            {% for product in latest %}
-                <div class="col">{% include '_partials/product_card.html.twig' %}</div>
-            {% endfor %}
         </div>
+    </section>
+
+    {# ---------- Shop by category (round icons) ---------- #}
+    <section class="section-sm" aria-labelledby="catTitle">
+        <div class="container">
+            <div class="section-title">
+                <h2 id="catTitle">Shop by category</h2>
+                <a class="btn btn-link" href="{{ path('product_index') }}">View all <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            </div>
+            <div class="cat-circles">
+                {% for c in categories %}
+                    <a class="cat-circle" href="{{ path('product_index', {category: c.slug}) }}">
+                        <span class="ring"><i class="bi bi-{{ c.icon }}" aria-hidden="true"></i></span>
+                        <span>{{ c.name }}</span>
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    {# ---------- Category tiles ---------- #}
+    {% if categories|length >= 4 %}
+        <section class="section-sm" aria-label="Featured categories">
+            <div class="container">
+                <div class="row g-3">
+                    {% for c in categories|slice(0, 4) %}
+                        <div class="col-sm-6 col-lg-3">
+                            <a class="category-tile {{ loop.first ? 'tone-dark' : 'tone-' ~ loop.index }}" href="{{ path('product_index', {category: c.slug}) }}">
+                                <i class="bi bi-{{ c.icon }} tile-icon" aria-hidden="true"></i>
+                                <span class="eyebrow {{ loop.first ? 'text-white-50' }}">{{ categoryCounts[c.id] ?? 0 }} pieces</span>
+                                <h3>{{ c.name }}</h3>
+                                <span class="small">{{ c.tagline ?? 'Explore the selection' }} <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
     {% endif %}
+
+    {# ---------- Best sellers ---------- #}
+    <section class="section" aria-labelledby="bestTitle">
+        <div class="container">
+            <div class="section-title">
+                <div>
+                    <p class="eyebrow mb-1">Loved by our customers</p>
+                    <h2 id="bestTitle">Best sellers</h2>
+                </div>
+                <a class="btn btn-outline-dark" href="{{ path('product_index', {sort: 'rating'}) }}">Shop best rated</a>
+            </div>
+            {% if bestSellers is empty %}
+                {{ ui.empty_state('The shelves are being filled', 'Our sellers are adding their first pieces. Come back very soon!', null, null, 'shop') }}
+            {% else %}
+                <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3 g-lg-4">
+                    {% for product in bestSellers %}<div class="col">{{ ui.product_card(product) }}</div>{% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </section>
+
+    {# ---------- Promo banner with countdown ---------- #}
+    <section class="section-sm" aria-labelledby="promoTitle">
+        <div class="container">
+            <div class="promo-banner">
+                <span class="glow" aria-hidden="true"></span>
+                <div class="row align-items-center g-4 position-relative">
+                    <div class="col-lg-7">
+                        <span class="badge badge-sale mb-3">Weekly private sale</span>
+                        <h2 id="promoTitle" class="text-white display-6 mb-3">Up to 30% off selected pieces</h2>
+                        <p class="text-white-50 mb-4">Hand-picked deals from our shops, refreshed every Monday. Prices are always confirmed from our catalogue at checkout.</p>
+                        <a class="btn btn-cream" href="{{ path('product_index', {deals: 1}) }}">Shop the sale</a>
+                    </div>
+                    <div class="col-lg-5">
+                        <p class="small text-white-50 mb-2">Ends in</p>
+                        <div class="countdown" {{ stimulus_controller('countdown', {end: promoEnd|date('c')}) }} role="timer" aria-label="Time left in the sale">
+                            {% set left = promoEnd.timestamp - 'now'|date('U') %}
+                            <span class="unit"><span class="num" {{ stimulus_target('countdown', 'days') }}>{{ '%02d'|format(left // 86400) }}</span><span class="lbl">Days</span></span>
+                            <span class="unit"><span class="num" {{ stimulus_target('countdown', 'hours') }}>{{ '%02d'|format((left % 86400) // 3600) }}</span><span class="lbl">Hours</span></span>
+                            <span class="unit"><span class="num" {{ stimulus_target('countdown', 'minutes') }}>{{ '%02d'|format((left % 3600) // 60) }}</span><span class="lbl">Min</span></span>
+                            <span class="unit"><span class="num" {{ stimulus_target('countdown', 'seconds') }}>{{ '%02d'|format(left % 60) }}</span><span class="lbl">Sec</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {# ---------- Why shop with us ---------- #}
+    <section class="section" aria-labelledby="whyTitle">
+        <div class="container">
+            <div class="row align-items-end g-4 mb-4">
+                <div class="col-lg-6">
+                    <p class="eyebrow mb-1">Why shop with us</p>
+                    <h2 id="whyTitle" class="mb-0">Beautiful things, bought safely</h2>
+                </div>
+                <div class="col-lg-6 text-muted">Every review comes from a verified buyer, every payout IBAN is encrypted, and every account can be protected with two-factor authentication.</div>
+            </div>
+            <div class="row g-3">
+                <div class="col-6 col-lg-3"><div class="surface p-4 h-100"><div class="stat-figure">{{ stats.customers|number_format }}</div><p class="mb-0 mt-2 text-muted">happy customers</p></div></div>
+                <div class="col-6 col-lg-3"><div class="surface p-4 h-100"><div class="stat-figure">{{ stats.products|number_format }}</div><p class="mb-0 mt-2 text-muted">pieces available</p></div></div>
+                <div class="col-6 col-lg-3"><div class="surface p-4 h-100"><div class="stat-figure">{{ stats.positive }}%</div><p class="mb-0 mt-2 text-muted">positive reviews</p></div></div>
+                <div class="col-6 col-lg-3"><div class="surface p-4 h-100 bg-ink"><div class="stat-figure text-white">7/7</div><p class="mb-0 mt-2 text-white-50">customer support</p></div></div>
+            </div>
+        </div>
+    </section>
+
+    {# ---------- Latest reviews carousel ---------- #}
+    {% if latestReviews is not empty %}
+        <section class="section-sm" aria-labelledby="reviewsTitle" {{ stimulus_controller('scroller') }}>
+            <div class="container">
+                <div class="section-title">
+                    <h2 id="reviewsTitle">What our customers say</h2>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-icon btn-light" type="button" {{ stimulus_action('scroller', 'prev') }} aria-label="Previous reviews"><i class="bi bi-arrow-left" aria-hidden="true"></i></button>
+                        <button class="btn btn-icon btn-light" type="button" {{ stimulus_action('scroller', 'next') }} aria-label="Next reviews"><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+                    </div>
+                </div>
+                <div class="scroller" {{ stimulus_target('scroller', 'track') }} tabindex="0" aria-label="Customer reviews">
+                    {% for review in latestReviews %}
+                        <figure class="quote-card m-0 d-flex flex-column">
+                            {{ ui.rating_stars(review.rating) }}
+                            {# SECURITY (rule 2): review text is auto-escaped; author shown by public name only. #}
+                            <blockquote class="mt-3 mb-3 flex-grow-1 text-truncate-2 pre-line">“{{ review.comment|length > 180 ? review.comment|slice(0, 180) ~ '…' : review.comment }}”</blockquote>
+                            <figcaption class="d-flex align-items-center gap-2">
+                                {{ ui.avatar(review.author.publicName, 'sm') }}
+                                <span class="small"><strong class="d-block">{{ review.author.publicName }}</strong>
+                                <a class="text-muted" href="{{ path('product_show', {uuid: review.product.uuid}) }}">on {{ review.product.name }}</a></span>
+                            </figcaption>
+                        </figure>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+    {% endif %}
+
+    {# ---------- Newsletter ---------- #}
+    <section class="section-sm" id="newsletter" aria-labelledby="newsTitle">
+        <div class="container">
+            <div class="newsletter">
+                <div class="row align-items-center g-4">
+                    <div class="col-lg-6">
+                        <h2 id="newsTitle" class="mb-2">Join the Maison Secure letter</h2>
+                        <p class="text-muted mb-0">New arrivals, private sales and stories from our makers. One email a week, unsubscribe any time. We only keep your email address.</p>
+                    </div>
+                    <div class="col-lg-6">
+                        {# SECURITY (rules 3, 6): CSRF token + per-IP rate limit; the same answer whether or not the
+                           address was already subscribed (no enumeration). #}
+                        <form method="post" action="{{ path('newsletter_subscribe') }}" class="d-flex flex-column flex-sm-row gap-2">
+                            <input type="hidden" name="_token" value="{{ csrf_token('newsletter') }}">
+                            <input type="hidden" name="_back" value="{{ path('app_home') }}">
+                            <label class="visually-hidden" for="newsEmail">Email address</label>
+                            <input id="newsEmail" class="form-control input-pill" type="email" name="email" required maxlength="180" placeholder="Your email address" autocomplete="email">
+                            <button class="btn btn-primary" type="submit">Subscribe</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {# ---------- FAQ ---------- #}
+    <section class="section" id="faq" aria-labelledby="faqTitle">
+        <div class="container">
+            <div class="row g-5">
+                <div class="col-lg-4">
+                    <p class="eyebrow mb-1">Questions</p>
+                    <h2 id="faqTitle">Frequently asked</h2>
+                    <p class="text-muted">Can't find your answer? Write to <strong>care@maison-secure.test</strong>.</p>
+                </div>
+                <div class="col-lg-8">
+                    <div class="accordion" id="faqAccordion">
+                        {% set faqs = [
+                            ['How long does delivery take?', 'Most orders ship within 2 business days and arrive in 3 to 5 days. Each seller marks your items as shipped, and you can follow the status in “My orders”.'],
+                            ['Can I return an item?', 'Yes. You have 30 days to return any item in its original condition. While an order is still “paid” (not shipped yet) you can cancel it yourself from your order page.'],
+                            ['Is my payment information safe?', 'Payments are simulated in this demo, and we never store your card number or security code: only the last four digits are kept to identify the order.'],
+                            ['Who can leave a review?', 'Only customers who actually bought the product, once per product. That is how we keep reviews honest.'],
+                            ['How do I sell on Maison Secure?', 'Create a free account, then apply to become a seller from your dashboard. Our team reviews each application before your shop opens.'],
+                            ['How do I protect my account?', 'Use a long, unique password and turn on two-factor authentication (TOTP) in your security settings. You can also see your recent login history there.'],
+                        ] %}
+                        {% for faq in faqs %}
+                            <div class="accordion-item">
+                                <h3 class="accordion-header">
+                                    <button class="accordion-button {{ not loop.first ? 'collapsed' }}" type="button" data-bs-toggle="collapse" data-bs-target="#faq{{ loop.index }}" aria-expanded="{{ loop.first ? 'true' : 'false' }}" aria-controls="faq{{ loop.index }}">{{ faq[0] }}</button>
+                                </h3>
+                                <div id="faq{{ loop.index }}" class="accordion-collapse collapse {{ loop.first ? 'show' }}" data-bs-parent="#faqAccordion">
+                                    <div class="accordion-body text-muted">{{ faq[1] }}</div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
 {% endblock %}

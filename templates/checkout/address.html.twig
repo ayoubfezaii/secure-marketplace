@@ -1,0 +1,58 @@
+{% extends 'checkout/_layout.html.twig' %}
+{% set step = 1 %}
+
+{% block step %}
+    <section class="panel">
+        <div class="panel-head"><h2>Shipping address</h2></div>
+        <div class="panel-body">
+            {% if addresses is not empty %}
+                {# SECURITY (rules 3, 4): CSRF token; the chosen UUID is looked up among the buyer's OWN addresses only. #}
+                <form method="post" action="{{ path('checkout') }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('checkout-address') }}">
+                    <fieldset class="d-grid gap-2">
+                        <legend class="visually-hidden">Choose a saved address</legend>
+                        {% for a in addresses %}
+                            <label class="address-option">
+                                <input class="form-check-input" type="radio" name="address" value="{{ a.uuid }}" {{ selected == a.uuid.toRfc4122 ? 'checked' }} required>
+                                <span class="d-flex justify-content-between">
+                                    <strong>{{ a.label }}</strong>
+                                    {% if a.default %}<span class="badge badge-soft">Default</span>{% endif %}
+                                </span>
+                                <span class="d-block small text-muted mt-1">{{ a.lines|join(', ') }}</span>
+                            </label>
+                        {% endfor %}
+                    </fieldset>
+                    <button class="btn btn-primary btn-lg w-100 mt-3" type="submit">Continue to payment <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i></button>
+                </form>
+                {% if canAdd %}
+                    <button class="btn btn-link mt-3" type="button" data-bs-toggle="collapse" data-bs-target="#newAddress" aria-expanded="{{ showForm ? 'true' : 'false' }}" aria-controls="newAddress"><i class="bi bi-plus-lg" aria-hidden="true"></i> Ship to a new address</button>
+                {% endif %}
+            {% endif %}
+
+            {% if canAdd %}
+                <div class="collapse {{ showForm ? 'show' }}" id="newAddress">
+                    <div class="{{ addresses is not empty ? 'border-top pt-3 mt-2' }}">
+                        <h3 class="h6 mb-3">New address</h3>
+                        {# SECURITY (rule 9): explicit fields only (AddressFormType); the owner comes from the session. #}
+                        {{ form_start(form) }}
+                            <div class="row g-2">
+                                <div class="col-md-4">{{ form_row(form.label) }}</div>
+                                <div class="col-md-8">{{ form_row(form.fullName) }}</div>
+                                <div class="col-12">{{ form_row(form.line1) }}</div>
+                                <div class="col-12">{{ form_row(form.line2) }}</div>
+                                <div class="col-md-4">{{ form_row(form.postalCode) }}</div>
+                                <div class="col-md-8">{{ form_row(form.city) }}</div>
+                                <div class="col-md-6">{{ form_row(form.country) }}</div>
+                                <div class="col-md-6">{{ form_row(form.phone) }}</div>
+                                <div class="col-12">{{ form_row(form.isDefault) }}</div>
+                            </div>
+                            <button class="btn {{ addresses is empty ? 'btn-primary btn-lg w-100' : 'btn-outline-dark' }} mt-2" type="submit">Save and continue</button>
+                        {{ form_end(form) }}
+                    </div>
+                </div>
+            {% elseif addresses is empty %}
+                <p class="text-muted mb-0">No address available.</p>
+            {% endif %}
+        </div>
+    </section>
+{% endblock %}

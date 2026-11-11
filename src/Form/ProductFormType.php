@@ -2,11 +2,13 @@
 
 namespace App\Form;
 
+use App\Entity\Category;
 use App\Entity\Product;
+use App\Repository\CategoryRepository;
+use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use App\Service\ImageStorage;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
-use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\FileType;
 use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\Extension\Core\Type\MoneyType;
@@ -50,10 +52,23 @@ class ProductFormType extends AbstractType
                 'label' => 'Stock',
                 'attr' => ['min' => 0, 'max' => 1000000],
             ])
-            ->add('category', ChoiceType::class, [
+            ->add('compareAtPrice', MoneyType::class, [
+                'label' => 'Original price (optional)',
+                'help' => 'Shown crossed out with a discount badge. Must be higher than the price.',
+                'required' => false,
+                'currency' => 'EUR',
+                'input' => 'string',
+                'scale' => 2,
+                'html5' => true,
+                'attr' => ['min' => '0.01', 'max' => '100000', 'step' => '0.01'],
+            ])
+            ->add('category', EntityType::class, [
                 'label' => 'Category',
-                // SECURITY: fixed whitelist; any other submitted value is rejected.
-                'choices' => array_flip(Product::CATEGORIES),
+                // SECURITY: only existing Category rows can be chosen; any other submitted id is rejected.
+                'class' => Category::class,
+                'choice_label' => 'name',
+                'placeholder' => 'Choose a category',
+                'query_builder' => static fn (CategoryRepository $r) => $r->createQueryBuilder('c')->orderBy('c.position', 'ASC'),
             ])
             ->add('isActive', CheckboxType::class, [
                 'label' => 'Visible in the catalogue',

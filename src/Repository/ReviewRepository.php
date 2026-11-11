@@ -49,6 +49,53 @@ class ReviewRepository extends ServiceEntityRepository
         return ['avg' => null !== $row['avg'] ? round((float) $row['avg'], 1) : null, 'count' => (int) $row['cnt']];
     }
 
+    /**
+     * Number of reviews per star value (5 => n, ..., 1 => n) for the distribution bars.
+     *
+     * @return array<int, int>
+     */
+    public function getDistribution(Product $product): array
+    {
+        $rows = $this->createQueryBuilder('r')
+            ->select('r.rating AS rating, COUNT(r.id) AS cnt')
+            ->andWhere('r.product = :product')->setParameter('product', $product)
+            ->groupBy('r.rating')
+            ->getQuery()->getArrayResult();
+
+        $dist = [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0];
+        foreach ($rows as $row) {
+            $dist[(int) $row['rating']] = (int) $row['cnt'];
+        }
+
+        return $dist;
+    }
+
+    /**
+     * Latest 4-5 star reviews of active products (home page carousel).
+     *
+     * @return list<Review>
+     */
+    public function findLatestPositive(int $limit = 9): array
+    {
+        return $this->createQueryBuilder('r')
+            ->innerJoin('r.author', 'a')->addSelect('a')
+            ->innerJoin('r.product', 'p')->addSelect('p')
+            ->andWhere('r.rating >= 4')->andWhere('p.isActive = true')
+            ->orderBy('r.createdAt', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()->getResult();
+    }
+
+    /** Share of 4-5 star reviews, in percent (home page "why shop with us"). */
+    public function positiveRate(): int
+    {
+        $row = $this->createQueryBuilder('r')
+            ->select('COUNT(r.id) AS total, SUM(CASE WHEN r.rating >= 4 THEN 1 ELSE 0 END) AS positive')
+            ->getQuery()->getSingleResult();
+
+        return (int) $row['total'] > 0 ? (int) round(100 * (int) $row['positive'] / (int) $row['total']) : 100;
+    }
+
     public function hasReviewed(User $author, Product $product): bool
     {
         return null !== $this->findOneBy(['author' => $author, 'product' => $product]);

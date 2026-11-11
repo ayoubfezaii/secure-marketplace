@@ -9,6 +9,7 @@ use App\Entity\User;
 use App\Form\ReviewFormType;
 use App\Security\Voter\ReviewVoter;
 use App\Service\AuditLogger;
+use App\Service\ProductRatingUpdater;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
@@ -24,6 +25,7 @@ class ReviewController extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly AuditLogger $audit,
+        private readonly ProductRatingUpdater $ratings,
     ) {
     }
 
@@ -61,6 +63,9 @@ class ReviewController extends AbstractController
             return $this->redirectToRoute('product_show', ['uuid' => $product->getUuid()]);
         }
 
+        $this->ratings->refresh($product);
+        $this->em->flush();
+
         $this->audit->log(AuditLog::REVIEW_POSTED, ['product' => (string) $product->getUuid(), 'review' => (string) $review->getUuid(), 'rating' => $review->getRating()]);
         $this->addFlash('success', 'Thank you for your review!');
 
@@ -89,6 +94,8 @@ class ReviewController extends AbstractController
         ]);
 
         $this->em->remove($review);
+        $this->em->flush();
+        $this->ratings->refresh($product);
         $this->em->flush();
         $this->addFlash('success', 'Review deleted.');
 

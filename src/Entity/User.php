@@ -101,6 +101,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
+    // Public shop of a seller (null for buyers and admins). Created by the server on seller approval (rule 9).
+    #[ORM\OneToOne(mappedBy: 'owner')]
+    private ?Shop $shop = null;
+
     public function __construct()
     {
         $this->uuid = Uuid::v4();
@@ -348,6 +352,31 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
         return $this->createdAt;
     }
 
+    public function getShop(): ?Shop
+    {
+        return $this->shop;
+    }
+
+    public function setShop(?Shop $shop): void
+    {
+        $this->shop = $shop;
+    }
+
+    public function isBuyer(): bool
+    {
+        return in_array(self::ROLE_BUYER, $this->roles, true);
+    }
+
+    public function isSeller(): bool
+    {
+        return in_array(self::ROLE_SELLER, $this->roles, true);
+    }
+
+    public function isAdmin(): bool
+    {
+        return in_array(self::ROLE_ADMIN, $this->roles, true);
+    }
+
     /**
      * Ensure the session doesn't contain the actual password hash.
      */
@@ -360,6 +389,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
         // SECURITY: the TOTP secret never lands in session files; the user is reloaded from the DB on each request.
         $data["\0".self::class."\0totpSecret"] = null;
         $data["\0".self::class."\0ibanEncrypted"] = null;
+        // The shop is reloaded with the user on each request; it doesn't need to live in the session.
+        $data["\0".self::class."\0shop"] = null;
 
         return $data;
     }

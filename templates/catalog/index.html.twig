@@ -1,91 +1,133 @@
 {% extends 'base.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
 
-{% block title %}Products · {{ parent() }}{% endblock %}
+{% block title %}{{ category ? category.name : (criteria.deals ? 'Deals' : 'Shop') }} · Maison Secure{% endblock %}
 
 {% block body %}
+    {% set title = category ? category.name : (criteria.deals ? 'Deals & private sale' : 'Shop all pieces') %}
+    {{ ui.page_header(title, category and category.tagline ? category.tagline : 'Curated pieces from independent shops, chosen to last.', [['Home', path('app_home')], ['Shop', category or criteria.deals ? path('product_index') : null]]|merge(category ? [[category.name, null]] : (criteria.deals ? [['Deals', null]] : []))) }}
+
     <div class="row g-4">
-        <aside class="col-lg-3">
-            {# GET form: searching changes no state, so no CSRF token is needed (rule 3 covers state changes). #}
-            <form method="get" action="{{ path('product_index') }}" class="card card-body shadow-sm">
-                <div class="mb-3">
-                    <label for="q" class="form-label">Search</label>
-                    {# SECURITY (rule 2): value="" is auto-escaped, so "><script> can't break out of the attribute. #}
-                    <input type="search" id="q" name="q" value="{{ criteria.query }}" maxlength="100" class="form-control">
-                </div>
-                <div class="mb-3">
-                    <label for="category" class="form-label">Category</label>
-                    <select id="category" name="category" class="form-select">
-                        <option value="">All categories</option>
-                        {% for key, label in categories %}
-                            <option value="{{ key }}" {{ criteria.category == key ? 'selected' }}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="row g-2 mb-3">
-                    <div class="col">
-                        <label for="min" class="form-label">Min €</label>
-                        <input type="number" id="min" name="min" value="{{ criteria.minPrice }}" min="0" max="100000" step="0.01" class="form-control">
+        {# ---------- Filters (GET form, every value re-validated server side, rule 15) ---------- #}
+        <aside class="col-lg-3" aria-label="Filters">
+            <button class="btn btn-outline-dark w-100 d-lg-none mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#filters" aria-expanded="false" aria-controls="filters">
+                <i class="bi bi-sliders" aria-hidden="true"></i> Filters
+            </button>
+            <div id="filters" class="collapse d-lg-block">
+                <form method="get" action="{{ path('product_index') }}" class="filter-panel">
+                    {% if criteria.query %}<input type="hidden" name="q" value="{{ criteria.query }}">{% endif %}
+                    {% if criteria.sort != 'newest' %}<input type="hidden" name="sort" value="{{ criteria.sort }}">{% endif %}
+
+                    <div class="filter-group">
+                        <h2>Category</h2>
+                        <div class="d-grid gap-1">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="category" id="cat-all" value="" {{ not category ? 'checked' }}>
+                                <label class="form-check-label" for="cat-all">All categories</label>
+                            </div>
+                            {% for c in categories %}
+                                <div class="form-check d-flex justify-content-between">
+                                    <span>
+                                        <input class="form-check-input" type="radio" name="category" id="cat-{{ c.slug }}" value="{{ c.slug }}" {{ category and category.id == c.id ? 'checked' }}>
+                                        <label class="form-check-label" for="cat-{{ c.slug }}">{{ c.name }}</label>
+                                    </span>
+                                    <span class="small text-muted">{{ categoryCounts[c.id] ?? 0 }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
                     </div>
-                    <div class="col">
-                        <label for="max" class="form-label">Max €</label>
-                        <input type="number" id="max" name="max" value="{{ criteria.maxPrice }}" min="0" max="100000" step="0.01" class="form-control">
+
+                    <div class="filter-group">
+                        <h2>Price (€)</h2>
+                        <div class="d-flex gap-2 align-items-center">
+                            <label class="visually-hidden" for="min">Minimum price</label>
+                            <input class="form-control" id="min" type="number" name="min" min="0" max="100000" step="1" value="{{ criteria.minPrice }}" placeholder="{{ priceBounds.min|round(0, 'floor') }}">
+                            <span class="text-muted">–</span>
+                            <label class="visually-hidden" for="max">Maximum price</label>
+                            <input class="form-control" id="max" type="number" name="max" min="0" max="100000" step="1" value="{{ criteria.maxPrice }}" placeholder="{{ priceBounds.max|round(0, 'ceil') }}">
+                        </div>
                     </div>
-                </div>
-                <div class="mb-3">
-                    <label for="sort" class="form-label">Sort by</label>
-                    <select id="sort" name="sort" class="form-select">
-                        {% for key, label in sorts %}
-                            <option value="{{ key }}" {{ criteria.sort == key ? 'selected' }}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary w-100">Apply</button>
-                {% if criteria.hasFilters %}
-                    <a href="{{ path('product_index') }}" class="btn btn-link btn-sm mt-1">Reset filters</a>
-                {% endif %}
-            </form>
+
+                    <div class="filter-group">
+                        <h2>Rating</h2>
+                        <div class="d-grid gap-1">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="rating" id="rating-any" value="" {{ criteria.minRating is null ? 'checked' }}>
+                                <label class="form-check-label" for="rating-any">Any rating</label>
+                            </div>
+                            {% for r in ratings %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="rating" id="rating-{{ r }}" value="{{ r }}" {{ criteria.minRating == r ? 'checked' }}>
+                                    <label class="form-check-label" for="rating-{{ r }}">{{ ui.rating_stars(r) }} <span class="small text-muted">&amp; up</span></label>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="filter-group">
+                        <h2>Availability</h2>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" name="stock" value="1" id="stock" {{ criteria.inStock ? 'checked' }}>
+                            <label class="form-check-label" for="stock">In stock only</label>
+                        </div>
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox" role="switch" name="deals" value="1" id="deals" {{ criteria.deals ? 'checked' }}>
+                            <label class="form-check-label" for="deals">On sale</label>
+                        </div>
+                    </div>
+
+                    <div class="filter-group d-grid gap-2">
+                        <button class="btn btn-primary" type="submit">Apply filters</button>
+                        {% if criteria.hasFilters %}<a class="btn btn-link" href="{{ path('product_index') }}">Clear all</a>{% endif %}
+                    </div>
+                </form>
+            </div>
         </aside>
 
-        <section class="col-lg-9">
-            <div class="d-flex justify-content-between align-items-baseline mb-3">
-                {% if criteria.query != '' %}
-                    {# SECURITY (rule 2): reflected search term, auto-escaped. <script>alert(1)</script> shows as text. #}
-                    <h1 class="h4 mb-0">Results for “{{ criteria.query }}”</h1>
-                {% else %}
-                    <h1 class="h4 mb-0">All products</h1>
-                {% endif %}
-                <span class="text-muted small">{{ total }} product{{ total == 1 ? '' : 's' }}</span>
+        {# ---------- Results ---------- #}
+        <section class="col-lg-9" aria-labelledby="resultsLabel" {{ stimulus_controller('view-toggle') }}>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+                <p id="resultsLabel" class="mb-0 text-muted" role="status">
+                    {# SECURITY (rule 2): the search term is echoed auto-escaped. #}
+                    <strong class="text-body">{{ total }}</strong> {{ total == 1 ? 'piece' : 'pieces' }}{% if criteria.query %} for “{{ criteria.query }}”{% endif %}
+                </p>
+                <div class="d-flex align-items-center gap-2">
+                    <form method="get" action="{{ path('product_index') }}" class="d-flex align-items-center gap-2" {{ stimulus_controller('autosubmit') }}>
+                        {% for name, value in criteria.toQuery({sort: null, page: null}) %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+                        <label class="small text-muted text-nowrap" for="sort">Sort by</label>
+                        {# SECURITY (rule 1): only whitelisted sort keys are accepted server side. #}
+                        <select class="form-select form-select-sm" id="sort" name="sort" {{ stimulus_action('autosubmit', 'submit', 'change') }}>
+                            {% for key, label in sorts %}<option value="{{ key }}" {{ criteria.sort == key ? 'selected' }}>{{ label }}</option>{% endfor %}
+                        </select>
+                        <noscript><button class="btn btn-sm btn-outline-dark" type="submit">Sort</button></noscript>
+                    </form>
+                    <div class="btn-group view-toggle" role="group" aria-label="Display mode">
+                        <button type="button" class="btn btn-sm btn-outline-dark active" data-mode="grid" aria-pressed="true" aria-label="Grid view" {{ stimulus_target('view-toggle', 'button') }} {{ stimulus_action('view-toggle', 'switch') }}><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i></button>
+                        <button type="button" class="btn btn-sm btn-outline-dark" data-mode="list" aria-pressed="false" aria-label="List view" {{ stimulus_target('view-toggle', 'button') }} {{ stimulus_action('view-toggle', 'switch') }}><i class="bi bi-list-ul" aria-hidden="true"></i></button>
+                    </div>
+                </div>
             </div>
 
-            {% if total == 0 %}
-                <div class="text-center text-muted py-5 bg-white rounded-3 border">
-                    No products match your search.
+            {% if criteria.hasFilters %}
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    {% if criteria.query %}<a class="chip" href="{{ path('product_index', criteria.toQuery({q: null})) }}">“{{ criteria.query }}” <i class="bi bi-x" aria-label="Remove"></i></a>{% endif %}
+                    {% if category %}<a class="chip" href="{{ path('product_index', criteria.toQuery({category: null})) }}">{{ category.name }} <i class="bi bi-x" aria-label="Remove"></i></a>{% endif %}
+                    {% if criteria.minPrice or criteria.maxPrice %}<a class="chip" href="{{ path('product_index', criteria.toQuery({min: null, max: null})) }}">€{{ criteria.minPrice ?? 0 }} – €{{ criteria.maxPrice ?? '∞' }} <i class="bi bi-x" aria-label="Remove"></i></a>{% endif %}
+                    {% if criteria.minRating %}<a class="chip" href="{{ path('product_index', criteria.toQuery({rating: null})) }}">{{ criteria.minRating }}★ &amp; up <i class="bi bi-x" aria-label="Remove"></i></a>{% endif %}
+                    {% if criteria.inStock %}<a class="chip" href="{{ path('product_index', criteria.toQuery({stock: null})) }}">In stock <i class="bi bi-x" aria-label="Remove"></i></a>{% endif %}
+                    {% if criteria.deals %}<a class="chip" href="{{ path('product_index', criteria.toQuery({deals: null})) }}">On sale <i class="bi bi-x" aria-label="Remove"></i></a>{% endif %}
                 </div>
+            {% endif %}
+
+            {% if total == 0 %}
+                {{ ui.empty_state('No pieces match your search', 'Try another word, widen the price range or remove a filter.', 'Clear all filters', path('product_index'), 'search') }}
             {% else %}
-                <div class="row row-cols-2 row-cols-md-3 g-3">
+                <div class="row g-3 g-lg-4" {{ stimulus_target('view-toggle', 'container') }}>
                     {% for product in products %}
-                        <div class="col">{% include '_partials/product_card.html.twig' %}</div>
+                        <div class="col-6 col-md-4" data-grid-col="col-6 col-md-4">{{ ui.product_card(product) }}</div>
                     {% endfor %}
                 </div>
-
-                {% if pages > 1 %}
-                    {% set q = criteria.toQuery %}
-                    <nav class="mt-4" aria-label="Pagination">
-                        <ul class="pagination justify-content-center flex-wrap">
-                            <li class="page-item {{ criteria.page <= 1 ? 'disabled' }}">
-                                <a class="page-link" href="{{ path('product_index', q|merge({page: criteria.page - 1})) }}">Previous</a>
-                            </li>
-                            {% for p in max(1, criteria.page - 3)..min(pages, criteria.page + 3) %}
-                                <li class="page-item {{ p == criteria.page ? 'active' }}">
-                                    <a class="page-link" href="{{ path('product_index', q|merge({page: p})) }}">{{ p }}</a>
-                                </li>
-                            {% endfor %}
-                            <li class="page-item {{ criteria.page >= pages ? 'disabled' }}">
-                                <a class="page-link" href="{{ path('product_index', q|merge({page: criteria.page + 1})) }}">Next</a>
-                            </li>
-                        </ul>
-                    </nav>
-                {% endif %}
+                {% include 'catalog/_pagination.html.twig' with {route: 'product_index'} %}
             {% endif %}
         </section>
     </div>

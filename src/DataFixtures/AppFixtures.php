@@ -3,12 +3,15 @@
 namespace App\DataFixtures;
 
 use App\Entity\CartItem;
+use App\Entity\Category;
+use App\Entity\Shop;
 use App\Entity\Order;
 use App\Entity\OrderItem;
 use App\Entity\Product;
 use App\Entity\Review;
 use App\Entity\User;
 use App\Service\ImageStorage;
+use App\Service\PlaceholderImageGenerator;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Persistence\ObjectManager;
 use Symfony\Component\Console\Output\ConsoleOutput;
@@ -79,19 +82,19 @@ final class AppFixtures extends Fixture
         ['Indoor Plant Pot Set', 'home', '32.00', 21, 2, 'Three ceramic pots with bamboo saucers.'],
     ];
 
-    /** Category => RGB background for the placeholder images. */
-    private const COLORS = [
-        'electronics' => [37, 99, 235], 'books' => [180, 83, 9], 'clothing' => [190, 24, 93],
-        'home' => [21, 128, 61], 'sports' => [8, 145, 178], 'toys' => [124, 58, 237], 'other' => [71, 85, 105],
+    /** slug => [label, icon, position, placeholder shape] */
+    private const CATEGORY_DEFS = [
+        'electronics' => ['Electronics', 'headphones', 1, 'device'], 'books' => ['Books', 'book', 2, 'book'],
+        'clothing' => ['Clothing', 'handbag', 3, 'bag'], 'home' => ['Home & Living', 'lamp', 4, 'arch'],
+        'sports' => ['Sports', 'bicycle', 5, 'wave'], 'toys' => ['Toys & Games', 'puzzle', 6, 'star'], 'other' => ['Stationery', 'brush', 7, 'diamond'],
     ];
 
     public function __construct(
         private readonly UserPasswordHasherInterface $hasher,
         private readonly ImageStorage $images,
+        private readonly PlaceholderImageGenerator $generator,
         #[Autowire('%kernel.project_dir%/var/uploads/products')]
         private readonly string $uploadDir,
-        #[Autowire('%kernel.project_dir%/vendor/endroid/qr-code/assets/open_sans.ttf')]
-        private readonly string $fontPath,
     ) {
     }
 
@@ -124,16 +127,32 @@ final class AppFixtures extends Fixture
         }
         $sellers[0]->setPhone('+33 6 12 34 56 78');
 
+        foreach ($sellers as $k => $seller) {
+            $manager->persist(new Shop($seller, self::SELLERS[$k][1], Shop::slugify(self::SELLERS[$k][1])));
+        }
+
+        /** @var array<string, Category> $categories */
+        $categories = [];
+        foreach (self::CATEGORY_DEFS as $slug => [$label, $icon, $pos]) {
+            $categories[$slug] = (new Category())->setName($label)->setSlug($slug)->setIcon($icon)->setPosition($pos);
+            $manager->persist($categories[$slug]);
+        }
+
         // --- Products ----------------------------------------------------------------------------------------
         $products = [];
         foreach (self::PRODUCTS as $i => [$name, $category, $price, $stock, $sellerIndex, $description]) {
             $product = (new Product($sellers[$sellerIndex]))
                 ->setName($name)
-                ->setCategory($category)
+                ->setCategory($categories[$category])
                 ->setPrice($price)
                 ->setStock($stock + 10) // orders below consume some stock
-                ->setDescription($description)
-                ->setImageFilename($this->placeholderImage($name, $category, $i));
+                ->setDescription($description);
+            if (0 === $i % 4) {
+                $product->setCompareAtPrice(bcmul($price, '1.25', 2));
+            }
+            for ($v = 0; $v < 1 + $i % 3; ++$v) {
+                $product->addImage($this->generator->generate($name, self::CATEGORY_DEFS[$category][3], $i, $v));
+            }
             // One hidden product to demonstrate moderation / owner-only visibility.
             if ('Fountain Pen' === $name) {
                 $product->setIsActive(false);
@@ -192,6 +211,8 @@ final class AppFixtures extends Fixture
             2 => ['Not great, quality could be better.'],
         ];
         $reviewed = [];
+        $ratings = [];
+        $ratedProducts = [];
         $reviewCount = 0;
         foreach ($purchases as [$b, $product]) {
             $key = $b.'-'.spl_object_id($product);
@@ -204,7 +225,13 @@ final class AppFixtures extends Fixture
                 ->setRating($rating)
                 ->setComment($comments[$rating][mt_rand(0, count($comments[$rating]) - 1)]);
             $manager->persist($review);
+            $ratings[spl_object_id($product)][] = $rating;
+            $ratedProducts[spl_object_id($product)] = $product;
             ++$reviewCount;
+        }
+        // Denormalised rating (ProductRatingUpdater does the same from the DB in the app).
+        foreach ($ratedProducts as $id => $product) {
+            $product->setRatingSummary(array_sum($ratings[$id]) / count($ratings[$id]), count($ratings[$id]));
         }
 
         // --- Cart items for buyer1 ------------------------------------------------------------------------
@@ -232,45 +259,6 @@ final class AppFixtures extends Fixture
         $user->setPassword($this->hasher->hashPassword($user, self::PASSWORD));
 
         return $user;
-    }
-
-    /**
-     * Draws a simple placeholder with GD and stores it through the normal upload validation.
-     */
-    private function placeholderImage(string $name, string $category, int $i): string
-    {
-        $img = imagecreatetruecolor(800, 600);
-        [$r, $g, $b] = self::COLORS[$category];
-        imagefill($img, 0, 0, imagecolorallocate($img, $r, $g, $b));
-        // A few translucent circles so images aren't all flat.
-        for ($c = 0; $c < 6; ++$c) {
-            $col = imagecolorallocatealpha($img, 255, 255, 255, 100 + mt_rand(0, 20));
-            $d = mt_rand(120, 360);
-            imagefilledellipse($img, mt_rand(0, 800), mt_rand(0, 600), $d, $d, $col);
-        }
-        $white = imagecolorallocate($img, 255, 255, 255);
-        $label = wordwrap($name, 22, "\n", true);
-        if (is_file($this->fontPath)) {
-            imagettftext($img, 34, 0, 50, 260, $white, $this->fontPath, $label);
-            imagettftext($img, 20, 0, 50, 540, $white, $this->fontPath, strtoupper(Product::CATEGORIES[$category]));
-        } else {
-            imagestring($img, 5, 50, 280, $name, $white);
-        }
-
-        $tmp = (string) tempnam(sys_get_temp_dir(), 'fx');
-        // Alternate formats so jpg, png and webp are all represented.
-        match ($i % 3) {
-            0 => imagejpeg($img, $tmp, 85),
-            1 => imagepng($img, $tmp),
-            default => imagewebp($img, $tmp, 85),
-        };
-        imagedestroy($img);
-
-        try {
-            return $this->images->validateAndStore($tmp);
-        } finally {
-            @unlink($tmp);
-        }
     }
 
     /** Fixtures only: back-date entities (there is deliberately no public setter for createdAt). */

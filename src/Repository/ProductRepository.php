@@ -3,11 +3,14 @@
 namespace App\Repository;
 
 use App\Dto\ProductSearchCriteria;
+use App\Entity\Category;
+use App\Entity\Order;
+use App\Entity\OrderItem;
 use App\Entity\Product;
-use Doctrine\ORM\QueryBuilder;
-use Doctrine\ORM\Tools\Pagination\Paginator;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\ORM\QueryBuilder;
+use Doctrine\ORM\Tools\Pagination\Paginator;
 use Doctrine\Persistence\ManagerRegistry;
 
 /**
@@ -17,6 +20,9 @@ use Doctrine\Persistence\ManagerRegistry;
  */
 class ProductRepository extends ServiceEntityRepository
 {
+    /** Order statuses that count as a sale (best sellers, sales counts). */
+    public const SOLD = [Order::STATUS_PAID, Order::STATUS_SHIPPED, Order::STATUS_DELIVERED];
+
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Product::class);
@@ -27,12 +33,13 @@ class ProductRepository extends ServiceEntityRepository
      */
     public function findBySeller(User $seller): array
     {
-        return $this->createQueryBuilder('p')
+        return $this->preloadImages($this->createQueryBuilder('p')
+            ->leftJoin('p.category', 'c')->addSelect('c')
             ->andWhere('p.seller = :seller')
             ->setParameter('seller', $seller)
             ->orderBy('p.createdAt', 'DESC')
             ->getQuery()
-            ->getResult();
+            ->getResult());
     }
 
     public function findOneByUuid(string $uuid): ?Product
@@ -45,10 +52,12 @@ class ProductRepository extends ServiceEntityRepository
      *
      * @return Paginator<Product>
      */
-    public function search(ProductSearchCriteria $c): Paginator
+    public function search(ProductSearchCriteria $c, ?Category $category = null, ?User $seller = null): Paginator
     {
         $qb = $this->createQueryBuilder('p')
             ->innerJoin('p.seller', 's')->addSelect('s')
+            ->innerJoin('p.category', 'c')->addSelect('c')
+            ->leftJoin('p.images', 'img')->addSelect('img')
             ->andWhere('p.isActive = true');
 
         if ('' !== $c->query) {
@@ -57,8 +66,11 @@ class ProductRepository extends ServiceEntityRepository
             $qb->andWhere('(p.name LIKE :q OR p.description LIKE :q)')
                 ->setParameter('q', '%'.addcslashes($c->query, '%_\\').'%');
         }
-        if (null !== $c->category) {
-            $qb->andWhere('p.category = :category')->setParameter('category', $c->category);
+        if (null !== $category) {
+            $qb->andWhere('p.category = :category')->setParameter('category', $category);
+        }
+        if (null !== $seller) {
+            $qb->andWhere('p.seller = :seller')->setParameter('seller', $seller);
         }
         if (null !== $c->minPrice) {
             $qb->andWhere('p.price >= :min')->setParameter('min', $c->minPrice);
@@ -66,14 +78,156 @@ class ProductRepository extends ServiceEntityRepository
         if (null !== $c->maxPrice) {
             $qb->andWhere('p.price <= :max')->setParameter('max', $c->maxPrice);
         }
+        if (null !== $c->minRating) {
+            $qb->andWhere('p.ratingAverage >= :rating')->setParameter('rating', $c->minRating);
+        }
+        if ($c->inStock) {
+            $qb->andWhere('p.stock > 0');
+        }
+        if ($c->deals) {
+            $qb->andWhere('p.compareAtPrice IS NOT NULL AND p.compareAtPrice > p.price');
+        }
 
         // SECURITY (rule 1): ORDER BY comes from a fixed whitelist (ProductSearchCriteria::SORTS), never from input.
         [$field, $direction] = $c->orderBy();
-        $qb->orderBy($field, $direction)->addOrderBy('p.id', 'DESC')
+        $qb->orderBy($field, $direction)->addOrderBy('p.id', 'DESC')->addOrderBy('img.position', 'ASC')
             ->setFirstResult(($c->page - 1) * ProductSearchCriteria::PER_PAGE)
             ->setMaxResults(ProductSearchCriteria::PER_PAGE);
 
-        return new Paginator($qb->getQuery(), fetchJoinCollection: false);
+        return new Paginator($qb->getQuery(), fetchJoinCollection: true);
+    }
+
+    /**
+     * Price bounds of the active catalogue (for the price filter placeholders).
+     *
+     * @return array{min: float, max: float}
+     */
+    public function priceBounds(): array
+    {
+        $row = $this->createQueryBuilder('p')
+            ->select('MIN(p.price) AS min, MAX(p.price) AS max')
+            ->andWhere('p.isActive = true')
+            ->getQuery()->getSingleResult();
+
+        return ['min' => (float) ($row['min'] ?? 0), 'max' => (float) ($row['max'] ?? 0)];
+    }
+
+    /**
+     * Best sellers by units sold (non-cancelled orders), active products only.
+     *
+     * @return list<Product>
+     */
+    public function findBestSellers(int $limit = 8): array
+    {
+        $rows = $this->getEntityManager()->createQueryBuilder()
+            ->select('IDENTITY(i.product) AS pid, SUM(i.quantity) AS units')
+            ->from(OrderItem::class, 'i')
+            ->innerJoin('i.product', 'p')
+            ->andWhere('p.isActive = true')
+            ->andWhere('i.status IN (:sold)')->setParameter('sold', self::SOLD)
+            ->groupBy('i.product')
+            ->orderBy('units', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()->getArrayResult();
+
+        $ids = array_map(static fn (array $r) => (int) $r['pid'], $rows);
+        $products = $this->findActiveByIds($ids);
+
+        // Not enough sales yet (fresh install): complete with the best-rated products.
+        if (count($products) < $limit) {
+            $more = $this->createQueryBuilder('p')
+                ->andWhere('p.isActive = true')
+                ->orderBy('p.ratingAverage', 'DESC')->addOrderBy('p.createdAt', 'DESC')
+                ->setMaxResults($limit * 2)->getQuery()->getResult();
+            foreach ($more as $product) {
+                if (count($products) >= $limit) {
+                    break;
+                }
+                if (!in_array($product, $products, true)) {
+                    $products[] = $product;
+                }
+            }
+        }
+
+        return $this->preloadImages($products);
+    }
+
+    /**
+     * @param list<int> $ids
+     *
+     * @return list<Product> in the order of $ids
+     */
+    public function findActiveByIds(array $ids): array
+    {
+        if ([] === $ids) {
+            return [];
+        }
+        $found = $this->createQueryBuilder('p')
+            ->andWhere('p.id IN (:ids)')->andWhere('p.isActive = true')
+            ->setParameter('ids', $ids)
+            ->getQuery()->getResult();
+        $byId = [];
+        foreach ($found as $p) {
+            $byId[$p->getId()] = $p;
+        }
+
+        return array_values(array_filter(array_map(static fn (int $id) => $byId[$id] ?? null, $ids)));
+    }
+
+    /**
+     * "You may also like": same category first, then anything else, excluding $product.
+     *
+     * @return list<Product>
+     */
+    public function findSimilar(Product $product, int $limit = 4): array
+    {
+        $result = $this->createQueryBuilder('p')
+            ->andWhere('p.isActive = true')->andWhere('p != :self')->andWhere('p.category = :cat')
+            ->setParameter('self', $product)->setParameter('cat', $product->getCategory())
+            ->orderBy('p.ratingAverage', 'DESC')->setMaxResults($limit)
+            ->getQuery()->getResult();
+
+        if (count($result) < $limit) {
+            $more = $this->createQueryBuilder('p')
+                ->andWhere('p.isActive = true')->andWhere('p != :self')->andWhere('p.category != :cat')
+                ->setParameter('self', $product)->setParameter('cat', $product->getCategory())
+                ->orderBy('p.createdAt', 'DESC')->setMaxResults($limit - count($result))
+                ->getQuery()->getResult();
+            $result = array_merge($result, $more);
+        }
+
+        return $this->preloadImages($result);
+    }
+
+    /**
+     * @return list<Product>
+     */
+    public function findLatestActive(int $limit = 8): array
+    {
+        return $this->preloadImages($this->createQueryBuilder('p')
+            ->andWhere('p.isActive = true')
+            ->orderBy('p.createdAt', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult());
+    }
+
+    /**
+     * @return list<Product>
+     */
+    public function findDeals(int $limit = 4): array
+    {
+        return $this->preloadImages($this->createQueryBuilder('p')
+            ->andWhere('p.isActive = true')->andWhere('p.stock > 0')
+            ->andWhere('p.compareAtPrice IS NOT NULL AND p.compareAtPrice > p.price')
+            ->orderBy('p.updatedAt', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()->getResult());
+    }
+
+    public function countActive(): int
+    {
+        return (int) $this->createQueryBuilder('p')->select('COUNT(p.id)')->andWhere('p.isActive = true')->getQuery()->getSingleScalarResult();
     }
 
     public function countActiveBySeller(User $seller): int
@@ -90,20 +244,21 @@ class ProductRepository extends ServiceEntityRepository
      */
     public function findLowStock(User $seller, int $threshold = 5): array
     {
-        return $this->createQueryBuilder('p')
+        return $this->preloadImages($this->createQueryBuilder('p')
             ->andWhere('p.seller = :seller')->andWhere('p.stock < :t')->andWhere('p.isActive = true')
             ->setParameter('seller', $seller)->setParameter('t', $threshold)
             ->orderBy('p.stock', 'ASC')
-            ->getQuery()->getResult();
+            ->getQuery()->getResult());
     }
 
     /**
      * Admin moderation list (all products, active or not).
      */
-    public function createAdminQueryBuilder(?string $search, ?string $state): QueryBuilder
+    public function createAdminQueryBuilder(?string $search, ?string $state, ?Category $category = null, ?User $seller = null): QueryBuilder
     {
         $qb = $this->createQueryBuilder('p')
             ->innerJoin('p.seller', 's')->addSelect('s')
+            ->innerJoin('p.category', 'c')->addSelect('c')
             ->orderBy('p.createdAt', 'DESC');
         if (null !== $search && '' !== $search) {
             $qb->andWhere('(p.name LIKE :q OR s.email LIKE :q)')
@@ -112,20 +267,63 @@ class ProductRepository extends ServiceEntityRepository
         if ('active' === $state || 'hidden' === $state) {
             $qb->andWhere('p.isActive = :active')->setParameter('active', 'active' === $state);
         }
+        if (null !== $category) {
+            $qb->andWhere('p.category = :cat')->setParameter('cat', $category);
+        }
+        if (null !== $seller) {
+            $qb->andWhere('p.seller = :seller')->setParameter('seller', $seller);
+        }
 
         return $qb;
     }
 
     /**
-     * @return list<Product>
+     * Units sold per product id for a list of products (seller tables).
+     *
+     * @param list<Product> $products
+     *
+     * @return array<int, int>
      */
-    public function findLatestActive(int $limit = 8): array
+    public function salesCounts(array $products): array
     {
-        return $this->createQueryBuilder('p')
-            ->andWhere('p.isActive = true')
-            ->orderBy('p.createdAt', 'DESC')
-            ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
+        if ([] === $products) {
+            return [];
+        }
+        $rows = $this->getEntityManager()->createQueryBuilder()
+            ->select('IDENTITY(i.product) AS pid, SUM(i.quantity) AS units')
+            ->from(OrderItem::class, 'i')
+            ->andWhere('i.product IN (:products)')->andWhere('i.status IN (:sold)')
+            ->setParameter('products', $products)->setParameter('sold', self::SOLD)
+            ->groupBy('i.product')
+            ->getQuery()->getArrayResult();
+
+        $counts = [];
+        foreach ($rows as $r) {
+            $counts[(int) $r['pid']] = (int) $r['units'];
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Loads the images of many products in ONE query (avoids N+1 queries when rendering product cards).
+     *
+     * @template T of list<Product>
+     *
+     * @param T $products
+     *
+     * @return T
+     */
+    public function preloadImages(array $products): array
+    {
+        if ([] !== $products) {
+            $this->createQueryBuilder('p')
+                ->select('p', 'img')
+                ->leftJoin('p.images', 'img')
+                ->andWhere('p IN (:products)')->setParameter('products', $products)
+                ->getQuery()->getResult();
+        }
+
+        return $products;
     }
 }

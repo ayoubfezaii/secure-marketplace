@@ -2,7 +2,7 @@
 
 namespace App\Service;
 
-use App\Dto\PaymentDto;
+use App\Entity\Address;
 use App\Entity\AuditLog;
 use App\Entity\CartItem;
 use App\Entity\Order;
@@ -16,13 +16,14 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
 
 /**
- * Places an order (rule 10: price tampering, and race conditions on stock).
+ * Places and cancels orders (rule 10: price tampering, and race conditions on stock).
  *
- * Everything happens in ONE database transaction:
+ * placeOrder(): everything happens in ONE database transaction:
  *  1. the products in the cart are locked with SELECT ... FOR UPDATE (pessimistic write lock), in id order to
  *     avoid deadlocks, and re-read from the DB (fresh price, stock, active flag);
  *  2. every line is checked (still active, not the buyer's own product, enough stock);
- *  3. stock is decremented, the Order + OrderItems are created with a price SNAPSHOT from the locked rows;
+ *  3. stock is decremented, the Order + OrderItems are created with a price SNAPSHOT from the locked rows, and the
+ *     shipping address is copied from the buyer's own saved address;
  *  4. the cart is emptied; commit.
  * Any failure rolls everything back. Two buyers racing for the last unit: the second one waits for the lock,
  * then sees stock 0 and gets an error. Stock can never go negative and no price from the client is ever used.
@@ -37,11 +38,22 @@ final class CheckoutService
     }
 
     /**
+     * @param string $cardHolder name on the card (validated by PaymentDto)
+     * @param string $cardLast4  last 4 digits only: the full number never reaches this service
+     *
      * @throws CheckoutException with a message safe to show to the buyer
      */
-    public function placeOrder(User $buyer, PaymentDto $payment): Order
+    public function placeOrder(User $buyer, Address $address, string $cardHolder, string $cardLast4): Order
     {
-        $order = $this->em->wrapInTransaction(function () use ($buyer, $payment): Order {
+        // SECURITY (rule 4): defense in depth, the controller already loaded the address scoped to the buyer.
+        if ($address->getUser()->getId() !== $buyer->getId()) {
+            throw new CheckoutException('Invalid shipping address.');
+        }
+        if (1 !== preg_match('/^\d{4}$/', $cardLast4)) {
+            throw new CheckoutException('Invalid payment.');
+        }
+
+        $order = $this->em->wrapInTransaction(function () use ($buyer, $address, $cardHolder, $cardLast4): Order {
             $lines = $this->cartItems->findForUser($buyer);
             if ([] === $lines) {
                 throw new CheckoutException('Your cart is empty.');
@@ -49,7 +61,8 @@ final class CheckoutService
 
             $products = $this->lockProducts(array_map(static fn (CartItem $l) => $l->getProduct()->getId(), $lines));
 
-            $order = new Order($buyer, trim((string) $payment->cardHolder), $payment->getLast4());
+            $order = new Order($buyer, trim($cardHolder), $cardLast4);
+            $order->setShippingAddress($address);
 
             foreach ($lines as $line) {
                 $product = $products[$line->getProduct()->getId()] ?? null;
@@ -82,9 +95,6 @@ final class CheckoutService
 
             return $order;
         });
-
-        // The full card number and CVV are dropped as soon as they are no longer needed.
-        $payment->eraseSensitiveData();
 
         // Logged AFTER the commit, so a rolled-back order never appears as placed.
         $this->audit->log(AuditLog::ORDER_PLACED, [

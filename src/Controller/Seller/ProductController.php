@@ -73,15 +73,11 @@ class ProductController extends AbstractController
         // SECURITY (rule 4, IDOR): another seller's UUID in the URL -> 403.
         $this->denyAccessUnlessGranted(ProductVoter::EDIT, $product);
 
-        $oldImage = $product->getImageFilename();
         $form = $this->createForm(ProductFormType::class, $product);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid() && $this->handleImage($form, $product)) {
             $this->em->flush();
-            if ($oldImage !== $product->getImageFilename()) {
-                $this->images->delete($oldImage);
-            }
             $this->audit->log(AuditLog::PRODUCT_UPDATED, ['product' => (string) $product->getUuid()]);
             $this->addFlash('success', 'Product updated.');
 
@@ -106,10 +102,12 @@ class ProductController extends AbstractController
         }
 
         $uuid = (string) $product->getUuid();
-        $image = $product->getImageFilename();
+        $files = array_map(static fn (\App\Entity\ProductImage $i) => $i->getFilename(), $product->getImages()->toArray());
         $this->em->remove($product);
         $this->em->flush();
-        $this->images->delete($image);
+        foreach ($files as $file) {
+            $this->images->delete($file);
+        }
 
         $this->audit->log(AuditLog::PRODUCT_DELETED, ['product' => $uuid, 'name' => $product->getName()]);
         $this->addFlash('success', 'Product deleted.');
@@ -150,11 +148,17 @@ class ProductController extends AbstractController
             return false;
         }
 
+        if ((null !== $file || '' !== $url) && !$product->canAddImage()) {
+            $form->get('imageFile')->addError(new FormError(sprintf('A product can have at most %d images.', Product::MAX_IMAGES)));
+
+            return false;
+        }
+
         try {
             if (null !== $file) {
-                $product->setImageFilename($this->images->storeUploadedFile($file));
+                $product->addImage($this->images->storeUploadedFile($file));
             } elseif ('' !== $url) {
-                $product->setImageFilename($this->fetcher->fetchAndStore($url));
+                $product->addImage($this->fetcher->fetchAndStore($url));
             }
         } catch (SsrfBlockedException $e) {
             // SECURITY (rules 8, 14): blocked SSRF attempts are logged with the internal reason;

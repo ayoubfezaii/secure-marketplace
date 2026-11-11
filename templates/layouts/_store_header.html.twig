@@ -1,30 +1,129 @@
-{# Storefront header (first version; extended with categories, wishlist and offcanvas menu in phase R2). #}
+{#
+    Storefront header: announcement bar, logo, main navigation (with categories dropdown), search, account /
+    wishlist / cart icons; offcanvas menu on mobile.
+    SECURITY: counters come from StoreExtension (logged-in buyer only). Logout is a POST + CSRF token (rule 3).
+#}
+{% set route = app.request.attributes.get('_route') %}
+{% set categories = store_categories() %}
+{% set shopper = can_shop() %}
+{% set q = route == 'product_index' ? app.request.query.get('q', '')|slice(0, 100) : '' %}
+
+<div class="announce py-2">
+    <div class="container d-flex justify-content-center justify-content-md-between gap-4 overflow-hidden">
+        <span class="item"><i class="bi bi-truck" aria-hidden="true"></i> Free shipping on every order</span>
+        <span class="item d-none d-md-inline-flex"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> 30-day free returns</span>
+        <span class="item d-none d-md-inline-flex"><i class="bi bi-shield-lock" aria-hidden="true"></i> Secure checkout &amp; 2FA accounts</span>
+    </div>
+</div>
+
 <header class="site-header sticky-top">
-    <nav class="navbar navbar-expand-lg py-3" aria-label="Main">
-        <div class="container gap-3">
-            {% include '_ui/logo.html.twig' %}
-            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-                <i class="bi bi-list fs-3" aria-hidden="true"></i>
+    <nav class="py-3" aria-label="Main">
+        <div class="container d-flex align-items-center gap-3">
+            <button class="btn btn-icon btn-light d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileMenu" aria-controls="mobileMenu" aria-label="Open menu">
+                <i class="bi bi-list fs-5" aria-hidden="true"></i>
             </button>
-            <div class="collapse navbar-collapse" id="mainNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link" href="{{ path('app_home') }}">Home</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ path('product_index') }}">Shop</a></li>
-                </ul>
-                <div class="d-flex align-items-center gap-2">
-                    {% if app.user %}
-                        <a class="btn btn-light btn-sm" href="{{ path('app_dashboard') }}"><i class="bi bi-person" aria-hidden="true"></i> My account</a>
-                        {# SECURITY (rule 3): logout is a POST with a CSRF token, never a GET link. #}
-                        <form method="post" action="{{ path('app_logout') }}" class="d-inline">
-                            <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
-                            <button type="submit" class="btn btn-outline-dark btn-sm">Log out</button>
-                        </form>
-                    {% else %}
-                        <a class="btn btn-light btn-sm" href="{{ path('app_login') }}">Log in</a>
-                        <a class="btn btn-primary btn-sm" href="{{ path('app_register') }}">Create account</a>
-                    {% endif %}
+
+            {% include '_ui/logo.html.twig' %}
+
+            <ul class="nav d-none d-lg-flex ms-3 gap-1">
+                <li class="nav-item"><a class="nav-link {{ route == 'app_home' ? 'active' }}" href="{{ path('app_home') }}" {% if route == 'app_home' %}aria-current="page"{% endif %}>Home</a></li>
+                <li class="nav-item"><a class="nav-link {{ route == 'product_index' and not app.request.query.has('deals') ? 'active' }}" href="{{ path('product_index') }}">Shop</a></li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="{{ path('product_index') }}" role="button" data-bs-toggle="dropdown" aria-expanded="false">Categories</a>
+                    <ul class="dropdown-menu">
+                        {% for c in categories %}
+                            <li><a class="dropdown-item d-flex align-items-center gap-2" href="{{ path('product_index', {category: c.slug}) }}"><i class="bi bi-{{ c.icon }}" aria-hidden="true"></i> {{ c.name }}</a></li>
+                        {% endfor %}
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item fw-semibold" href="{{ path('product_index') }}">All products</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item"><a class="nav-link {{ app.request.query.has('deals') ? 'active' }}" href="{{ path('product_index', {deals: 1}) }}">Deals <span class="badge badge-sale ms-1">Sale</span></a></li>
+                <li class="nav-item"><a class="nav-link {{ route == 'app_about' ? 'active' }}" href="{{ path('app_about') }}">About</a></li>
+            </ul>
+
+            {# GET search form: the term is validated server side and auto-escaped when echoed back (rules 1, 2). #}
+            <form class="search-pill header-search ms-auto d-none d-md-block" action="{{ path('product_index') }}" method="get" role="search">
+                <label class="visually-hidden" for="headerSearch">Search products</label>
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input id="headerSearch" class="form-control" type="search" name="q" value="{{ q }}" maxlength="100" placeholder="Search pieces, shops…">
+            </form>
+
+            <div class="d-flex align-items-center gap-1 ms-auto ms-md-0">
+                <div class="dropdown">
+                    <button class="btn btn-icon btn-light" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Account menu">
+                        <i class="bi bi-person fs-5" aria-hidden="true"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        {% if app.user %}
+                            <li class="px-3 py-2 small text-muted text-truncate">Signed in as<br><strong class="text-body">{{ app.user.publicName }}</strong></li>
+                            <li><a class="dropdown-item" href="{{ path('app_dashboard') }}"><i class="bi bi-grid me-2" aria-hidden="true"></i>My dashboard</a></li>
+                            {% if shopper %}<li><a class="dropdown-item" href="{{ path('buyer_orders') }}"><i class="bi bi-box-seam me-2" aria-hidden="true"></i>My orders</a></li>{% endif %}
+                            <li><a class="dropdown-item" href="{{ path('account_profile') }}"><i class="bi bi-person-gear me-2" aria-hidden="true"></i>Profile</a></li>
+                            <li><a class="dropdown-item" href="{{ path('app_security_settings') }}"><i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Security</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                {# SECURITY (rule 3): logout is a POST with a CSRF token, never a GET link. #}
+                                <form method="post" action="{{ path('app_logout') }}">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
+                                    <button type="submit" class="dropdown-item"><i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>Log out</button>
+                                </form>
+                            </li>
+                        {% else %}
+                            <li><a class="dropdown-item" href="{{ path('app_login') }}"><i class="bi bi-box-arrow-in-right me-2" aria-hidden="true"></i>Log in</a></li>
+                            <li><a class="dropdown-item" href="{{ path('app_register') }}"><i class="bi bi-person-plus me-2" aria-hidden="true"></i>Create an account</a></li>
+                        {% endif %}
+                    </ul>
                 </div>
+                {% if shopper or not app.user %}
+                    <a class="btn btn-icon btn-light" href="{{ shopper ? path('buyer_wishlist') : path('app_login') }}" aria-label="Wishlist ({{ wishlist_count() }} items)">
+                        <i class="bi bi-heart fs-5" aria-hidden="true"></i>
+                        {% if wishlist_count() > 0 %}<span class="count-badge" aria-hidden="true">{{ wishlist_count() }}</span>{% endif %}
+                    </a>
+                    <a class="btn btn-icon btn-light" href="{{ shopper ? path('cart_index') : path('app_login') }}" aria-label="Cart ({{ cart_count() }} items)">
+                        <i class="bi bi-bag fs-5" aria-hidden="true"></i>
+                        {% if cart_count() > 0 %}<span class="count-badge" aria-hidden="true">{{ cart_count() }}</span>{% endif %}
+                    </a>
+                {% endif %}
             </div>
         </div>
     </nav>
 </header>
+
+{# Mobile menu #}
+<div class="offcanvas offcanvas-start" tabindex="-1" id="mobileMenu" aria-labelledby="mobileMenuLabel">
+    <div class="offcanvas-header">
+        <span id="mobileMenuLabel" class="visually-hidden">Menu</span>
+        {% include '_ui/logo.html.twig' %}
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close menu"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column gap-3">
+        <form class="search-pill" action="{{ path('product_index') }}" method="get" role="search">
+            <label class="visually-hidden" for="mobileSearch">Search products</label>
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <input id="mobileSearch" class="form-control" type="search" name="q" value="{{ q }}" maxlength="100" placeholder="Search…">
+        </form>
+        <nav class="nav flex-column" aria-label="Mobile">
+            <a class="nav-link text-body fw-semibold" href="{{ path('app_home') }}">Home</a>
+            <a class="nav-link text-body fw-semibold" href="{{ path('product_index') }}">Shop all</a>
+            <a class="nav-link text-body fw-semibold" href="{{ path('product_index', {deals: 1}) }}">Deals</a>
+            <a class="nav-link text-body fw-semibold" href="{{ path('app_about') }}">About</a>
+        </nav>
+        <div>
+            <p class="eyebrow mb-2">Categories</p>
+            <div class="d-flex flex-wrap gap-2">
+                {% for c in categories %}
+                    <a class="chip" href="{{ path('product_index', {category: c.slug}) }}"><i class="bi bi-{{ c.icon }}" aria-hidden="true"></i> {{ c.name }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="mt-auto d-grid gap-2">
+            {% if app.user %}
+                <a class="btn btn-primary" href="{{ path('app_dashboard') }}">My dashboard</a>
+            {% else %}
+                <a class="btn btn-primary" href="{{ path('app_login') }}">Log in</a>
+                <a class="btn btn-outline-dark" href="{{ path('app_register') }}">Create an account</a>
+            {% endif %}
+        </div>
+    </div>
+</div>

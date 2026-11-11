@@ -1,0 +1,43 @@
+{% extends 'base.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% block title %}About · Maison Secure{% endblock %}
+
+{% block body %}
+    {{ ui.page_header('About Maison Secure', 'A curated marketplace for independent makers, built with security as a first-class feature.', [['Home', path('app_home')], ['About', null]]) }}
+
+    <div class="row g-4 g-lg-5 mt-1">
+        <div class="col-lg-7">
+            <p class="lead">We started Maison Secure with a simple idea: buying beautiful things online should never mean trading away your safety.</p>
+            <p class="text-muted">Every shop on Maison Secure is reviewed by our team before it opens. Reviews can only be written by customers who bought the product. Prices are always confirmed by our servers at checkout, and your card number is never stored.</p>
+
+            <h2 class="h3 mt-5" id="shipping">Shipping &amp; returns</h2>
+            <p class="text-muted">Standard shipping is free on every order. Sellers ship within two business days and you can follow each item from <em>paid</em> to <em>shipped</em> to <em>delivered</em>. Changed your mind? You can cancel an order yourself while it hasn't shipped, and return any item within 30 days.</p>
+
+            <h2 class="h3 mt-5" id="security">Security &amp; privacy</h2>
+            <ul class="list-unstyled d-grid gap-3 mt-3">
+                <li class="d-flex gap-3"><i class="bi bi-key fs-4" aria-hidden="true"></i><span><strong>Strong account protection.</strong> Passwords are hashed with Argon2id, repeated failed logins lock the account, and you can enable two-factor authentication with any authenticator app.</span></li>
+                <li class="d-flex gap-3"><i class="bi bi-credit-card-2-front fs-4" aria-hidden="true"></i><span><strong>No stored card numbers.</strong> We keep only the last four digits of the card used for an order.</span></li>
+                <li class="d-flex gap-3"><i class="bi bi-safe fs-4" aria-hidden="true"></i><span><strong>Encrypted payouts.</strong> Sellers' bank details are encrypted at rest and only ever shown masked.</span></li>
+                <li class="d-flex gap-3"><i class="bi bi-person-lock fs-4" aria-hidden="true"></i><span><strong>Your data stays yours.</strong> Sellers only see the name and address needed to ship your order, never your email, phone or payment details.</span></li>
+            </ul>
+        </div>
+        <div class="col-lg-5">
+            <div class="surface p-4" id="contact">
+                <h2 class="h4">Contact us</h2>
+                <p class="text-muted">Our care team answers Monday to Saturday, 9am to 7pm.</p>
+                <ul class="list-unstyled d-grid gap-2 mb-0">
+                    <li><i class="bi bi-envelope me-2" aria-hidden="true"></i> care@maison-secure.test</li>
+                    <li><i class="bi bi-telephone me-2" aria-hidden="true"></i> +33 1 00 00 00 00</li>
+                    <li><i class="bi bi-geo-alt me-2" aria-hidden="true"></i> 12 rue des Artisans, 75011 Paris</li>
+                </ul>
+            </div>
+            <div class="surface p-4 mt-3 bg-sand border-0" id="journal">
+                <h2 class="h5">Sell with us</h2>
+                <p class="text-muted small">Create a free account, then apply to become a seller from your dashboard. We review every application to keep the marketplace trustworthy.</p>
+                <a class="btn btn-primary btn-sm" href="{{ path('app_register') }}">Create an account</a>
+            </div>
+            <p class="small text-muted mt-3" id="gallery"><span id="videos"></span>This website is a university cybersecurity project. Orders and payments are simulated.</p>
+        </div>
+    </div>
+{% endblock %}

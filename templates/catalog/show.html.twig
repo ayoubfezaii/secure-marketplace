@@ -1,105 +1,214 @@
 {% extends 'base.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
 
-{% block title %}{{ product.name }} · {{ parent() }}{% endblock %}
+{% block title %}{{ product.name }} · Maison Secure{% endblock %}
+{% block meta_description %}{{ product.description|length > 150 ? product.description|slice(0, 150) ~ '…' : product.description }}{% endblock %}
 
 {% block body %}
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb small">
-            <li class="breadcrumb-item"><a href="{{ path('product_index') }}">Products</a></li>
-            <li class="breadcrumb-item"><a href="{{ path('product_index', {category: product.category}) }}">{{ product.categoryLabel }}</a></li>
-            <li class="breadcrumb-item active" aria-current="page">{{ product.name }}</li>
-        </ol>
-    </nav>
+    {% set shop = product.shop %}
+    {{ ui.breadcrumbs([['Home', path('app_home')], ['Shop', path('product_index')], [product.categoryLabel, product.category ? path('product_index', {category: product.category.slug}) : null], [product.name, null]]) }}
 
     {% if not product.active %}
-        <div class="alert alert-warning">This product is hidden from the catalogue. Only you{{ is_granted('ROLE_ADMIN') ? ' and other admins' }} can see it.</div>
+        <div class="alert alert-warning d-flex gap-2 align-items-center"><i class="bi bi-eye-slash" aria-hidden="true"></i> This product is hidden from the catalogue. Only its seller and administrators can see this page.</div>
     {% endif %}
 
-    <div class="row g-4">
-        <div class="col-md-6">
-            {% include '_partials/product_image.html.twig' with {product: product, class: 'product-main-img rounded border'} %}
+    <div class="row g-4 g-lg-5 mt-1">
+        {# ---------- Gallery ---------- #}
+        <div class="col-lg-6">
+            {% set images = product.images %}
+            <div {{ stimulus_controller('gallery') }}>
+                <div class="gallery-main position-relative">
+                    <div class="position-absolute top-0 start-0 p-3 d-flex gap-2 z-1">
+                        {% if product.onSale %}<span class="badge badge-sale">-{{ product.discountPercent }}%</span>{% endif %}
+                        {% if product.new %}<span class="badge badge-new">New</span>{% endif %}
+                    </div>
+                    {% if images is not empty %}
+                        <img src="{{ path('media_product', {filename: images.first.filename}) }}" alt="{{ product.name }}, image 1" {{ stimulus_target('gallery', 'main') }}>
+                    {% else %}
+                        {{ ui.product_image(null, product.name) }}
+                    {% endif %}
+                </div>
+                {% if images|length > 1 %}
+                    <div class="gallery-thumbs" role="list" aria-label="Product images">
+                        {% for image in images %}
+                            <button type="button" role="listitem" aria-current="{{ loop.first ? 'true' : 'false' }}" aria-label="Show image {{ loop.index }}"
+                                    data-src="{{ path('media_product', {filename: image.filename}) }}" data-alt="{{ product.name }}, image {{ loop.index }}"
+                                    {{ stimulus_target('gallery', 'thumb') }} {{ stimulus_action('gallery', 'select') }}>
+                                <img src="{{ path('media_product', {filename: image.filename}) }}" alt="" loading="lazy">
+                            </button>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
         </div>
-        <div class="col-md-6">
-            <span class="badge text-bg-light border">{{ product.categoryLabel }}</span>
+
+        {# ---------- Details ---------- #}
+        <div class="col-lg-6">
+            <p class="eyebrow mb-2">{{ product.categoryLabel }}</p>
             {# SECURITY (rule 2): auto-escaped; a name like <script> is shown as text. #}
-            <h1 class="h3 mt-2">{{ product.name }}</h1>
-            {# Seller's public name, never the email address. #}
-            <p class="text-muted mb-2">Sold by <strong>{{ product.seller.publicName }}</strong></p>
-            <p class="mb-2">
+            <h1 class="mb-2">{{ product.name }}</h1>
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                 {% if rating.count > 0 %}
-                    {% include "_partials/stars.html.twig" with {value: rating.avg} %}
-                    <a href="#reviews" class="small">{{ rating.avg }} / 5 ({{ rating.count }} review{{ rating.count > 1 ? "s" }})</a>
+                    {{ ui.rating_stars(rating.avg) }}
+                    <a href="#reviews-tab-pane" class="small">{{ rating.avg|number_format(1) }} · {{ rating.count }} review{{ rating.count > 1 ? 's' }}</a>
                 {% else %}
                     <span class="small text-muted">No reviews yet</span>
                 {% endif %}
-            </p>
-            <p class="fs-3 fw-semibold">{{ product.price|format_currency('EUR') }}</p>
-            <p>
-                {% if product.stock > 0 %}
-                    <span class="badge text-bg-success">In stock</span> <span class="small text-muted">{{ product.stock }} available</span>
+            </div>
+
+            <div class="d-flex align-items-baseline gap-2 mb-3">
+                <span class="fs-2">{{ ui.price(product.price, product.compareAtPrice) }}</span>
+                {% if product.onSale %}<span class="badge badge-sale">Save {{ product.discountPercent }}%</span>{% endif %}
+            </div>
+
+            <p class="mb-4">
+                {% if product.stock > 5 %}
+                    <span class="badge status-badge status-delivered">In stock</span>
+                {% elseif product.stock > 0 %}
+                    <span class="badge status-badge status-shipped">Only {{ product.stock }} left</span>
                 {% else %}
-                    <span class="badge text-bg-secondary">Out of stock</span>
+                    <span class="badge status-badge status-cancelled">Out of stock</span>
                 {% endif %}
             </p>
-            {% if is_granted("ROLE_BUYER") and product.purchasable %}
+
+            {% if can_shop() and product.purchasable %}
                 {# SECURITY (rules 3, 10): POST + CSRF; only a product id and a quantity are sent, never a price. #}
-                <form method="post" action="{{ path("cart_add", {uuid: product.uuid}) }}" class="d-flex gap-2 align-items-center mb-3">
-                    <input type="hidden" name="_token" value="{{ csrf_token("cart-add-" ~ product.uuid) }}">
-                    <label for="quantity" class="visually-hidden">Quantity</label>
-                    <input type="number" id="quantity" name="quantity" value="1" min="1" max="{{ min(99, product.stock) }}" class="form-control qty-input">
-                    <button type="submit" class="btn btn-primary">Add to cart</button>
-                </form>
+                <div class="d-flex gap-2 align-items-center mb-3">
+                    <form method="post" action="{{ path('cart_add', {uuid: product.uuid}) }}" class="d-flex flex-wrap gap-2 align-items-center flex-grow-1">
+                        <input type="hidden" name="_token" value="{{ csrf_token('cart-add-' ~ product.uuid) }}">
+                        <div class="qty-stepper" {{ stimulus_controller('quantity') }}>
+                            <button type="button" {{ stimulus_action('quantity', 'dec') }} aria-label="Decrease quantity"><i class="bi bi-dash" aria-hidden="true"></i></button>
+                            <label for="quantity" class="visually-hidden">Quantity</label>
+                            <input type="number" id="quantity" name="quantity" value="1" min="1" max="{{ min(99, product.stock) }}" inputmode="numeric" {{ stimulus_target('quantity', 'input') }}>
+                            <button type="button" {{ stimulus_action('quantity', 'inc') }} aria-label="Increase quantity"><i class="bi bi-plus" aria-hidden="true"></i></button>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg flex-grow-1"><i class="bi bi-bag-plus me-1" aria-hidden="true"></i> Add to cart</button>
+                    </form>
+                    {{ ui.wishlist_button(product) }}
+                </div>
+            {% elseif can_shop() %}
+                <div class="d-flex gap-2 mb-3"><button class="btn btn-primary btn-lg flex-grow-1" disabled>Currently unavailable</button>{{ ui.wishlist_button(product) }}</div>
             {% elseif not app.user and product.purchasable %}
-                <p><a href="{{ path("app_login", {_target_path: path("product_show", {uuid: product.uuid})}) }}" class="btn btn-outline-primary">Log in as a buyer to purchase</a></p>
+                <a href="{{ path('app_login', {_target_path: path('product_show', {uuid: product.uuid})}) }}" class="btn btn-primary btn-lg w-100 mb-3">Log in to buy</a>
+            {% elseif app.user %}
+                <p class="small text-muted mb-3"><i class="bi bi-info-circle" aria-hidden="true"></i> Only buyer accounts can place orders.</p>
             {% endif %}
-            <hr>
-            <h2 class="h6">Description</h2>
-            {# SECURITY (rule 2): plain text with line breaks kept by CSS (white-space: pre-line), no |raw, no nl2br. #}
-            <p class="product-description">{{ product.description }}</p>
+
+            <div class="row g-2 small mb-4">
+                <div class="col-sm-4"><div class="surface p-3 h-100 d-flex gap-2"><i class="bi bi-truck" aria-hidden="true"></i><span>Free shipping in 3–5 days</span></div></div>
+                <div class="col-sm-4"><div class="surface p-3 h-100 d-flex gap-2"><i class="bi bi-arrow-repeat" aria-hidden="true"></i><span>30-day free returns</span></div></div>
+                <div class="col-sm-4"><div class="surface p-3 h-100 d-flex gap-2"><i class="bi bi-shield-check" aria-hidden="true"></i><span>Secure checkout</span></div></div>
+            </div>
+
+            {% if shop %}
+                <div class="seller-box d-flex align-items-center gap-3">
+                    <span class="avatar avatar-lg avatar-ink">{% if shop.logoFilename %}<img class="w-100 h-100 rounded-circle object-fit-cover" src="{{ path('media_product', {filename: shop.logoFilename}) }}" alt="">{% else %}{{ shop.initials }}{% endif %}</span>
+                    <div class="min-w-0 flex-grow-1">
+                        <p class="small text-muted mb-0">Sold by</p>
+                        <p class="fw-semibold mb-0 text-truncate">{{ shop.name }}</p>
+                        <p class="small text-muted mb-0">On Maison Secure since {{ shop.createdAt|date('F Y') }}</p>
+                    </div>
+                    <a class="btn btn-outline-dark btn-sm" href="{{ path('shop_show', {slug: shop.slug}) }}">Visit shop</a>
+                </div>
+            {% endif %}
         </div>
     </div>
 
-    <section id="reviews" class="mt-5">
-        <h2 class="h4 mb-3">Reviews</h2>
-
-        {% if reviewForm %}
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <h3 class="h6">Write a review</h3>
-                    {# SECURITY (rule 3): CSRF token added by form_start/form_end. #}
-                    {{ form_start(reviewForm) }}
-                        <div class="row">
-                            <div class="col-md-3">{{ form_row(reviewForm.rating) }}</div>
-                            <div class="col-md-9">{{ form_row(reviewForm.comment) }}</div>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-sm">Publish review</button>
-                    {{ form_end(reviewForm) }}
+    {# ---------- Tabs ---------- #}
+    <section class="mt-5">
+        <ul class="nav nav-tabs" id="productTabs" role="tablist">
+            <li class="nav-item" role="presentation"><button class="nav-link active" id="desc-tab" data-bs-toggle="tab" data-bs-target="#desc-tab-pane" type="button" role="tab" aria-controls="desc-tab-pane" aria-selected="true">Description</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" id="ship-tab" data-bs-toggle="tab" data-bs-target="#ship-tab-pane" type="button" role="tab" aria-controls="ship-tab-pane" aria-selected="false">Shipping &amp; returns</button></li>
+            <li class="nav-item" role="presentation"><button class="nav-link" id="reviews-tab" data-bs-toggle="tab" data-bs-target="#reviews-tab-pane" type="button" role="tab" aria-controls="reviews-tab-pane" aria-selected="false">Reviews ({{ rating.count }})</button></li>
+        </ul>
+        <div class="tab-content pt-4">
+            <div class="tab-pane fade show active" id="desc-tab-pane" role="tabpanel" aria-labelledby="desc-tab" tabindex="0">
+                {# SECURITY (rule 2): plain text with line breaks kept by CSS (white-space: pre-line), no |raw, no nl2br. #}
+                <p class="pre-line col-lg-8">{{ product.description }}</p>
+            </div>
+            <div class="tab-pane fade" id="ship-tab-pane" role="tabpanel" aria-labelledby="ship-tab" tabindex="0">
+                <div class="row g-4 col-lg-10">
+                    <div class="col-md-6"><h3 class="h6"><i class="bi bi-truck me-1" aria-hidden="true"></i> Shipping</h3><p class="text-muted">Free standard shipping on every order. The seller ships within 2 business days; delivery takes 3 to 5 days. You can follow each item's status from your order page.</p></div>
+                    <div class="col-md-6"><h3 class="h6"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Returns</h3><p class="text-muted">30 days to change your mind. While your order is still “paid” (not shipped), you can cancel it yourself in one click.</p></div>
                 </div>
             </div>
-        {% elseif is_granted("ROLE_BUYER") %}
-            <p class="small text-muted">Only buyers who purchased this product can review it, once.</p>
-        {% endif %}
-
-        {% for review in reviews %}
-            <article class="border-bottom py-3">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        {% include "_partials/stars.html.twig" with {value: review.rating} %}
-                        <strong class="ms-2">{{ review.author.publicName }}</strong>
-                        <span class="small text-muted ms-2">{{ review.createdAt|date("d/m/Y") }}</span>
+            <div class="tab-pane fade" id="reviews-tab-pane" role="tabpanel" aria-labelledby="reviews-tab" tabindex="0">
+                <div class="row g-4 g-lg-5">
+                    <div class="col-lg-4">
+                        <div class="surface p-4 rating-summary">
+                            <div class="d-flex align-items-end gap-2 mb-2">
+                                <span class="score">{{ rating.avg ? rating.avg|number_format(1) : '–' }}</span><span class="text-muted mb-2">/ 5</span>
+                            </div>
+                            {{ ui.rating_stars(rating.avg ?? 0, null, 'lg') }}
+                            <p class="small text-muted mt-1">Based on {{ rating.count }} verified review{{ rating.count != 1 ? 's' }}</p>
+                            <div class="d-grid gap-2 mt-3">
+                                {% for stars, count in distribution %}
+                                    <div class="rating-row">
+                                        <span>{{ stars }} <i class="bi bi-star-fill text-accent" aria-hidden="true"></i></span>
+                                        {# No inline width (CSP): a native <progress> element draws the bar. #}
+                                        <progress class="bar" value="{{ count }}" max="{{ max(1, rating.count) }}" aria-label="{{ count }} reviews with {{ stars }} stars"></progress>
+                                        <span class="text-muted text-end">{{ count }}</span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% if reviewForm %}
+                                <button class="btn btn-primary w-100 mt-4" type="button" data-bs-toggle="collapse" data-bs-target="#reviewFormBox" aria-expanded="false" aria-controls="reviewFormBox"><i class="bi bi-pencil me-1" aria-hidden="true"></i> Write a review</button>
+                            {% elseif can_shop() %}
+                                <p class="small text-muted mt-4 mb-0"><i class="bi bi-patch-check" aria-hidden="true"></i> Only customers who bought this product can review it, once.</p>
+                            {% endif %}
+                        </div>
                     </div>
-                    {% if is_granted("REVIEW_DELETE", review) %}
-                        <form method="post" action="{{ path("review_delete", {uuid: review.uuid}) }}" data-confirm="Delete this review?">
-                            <input type="hidden" name="_token" value="{{ csrf_token("delete-review-" ~ review.uuid) }}">
-                            <button class="btn btn-sm btn-link text-danger p-0">Delete</button>
-                        </form>
-                    {% endif %}
+                    <div class="col-lg-8">
+                        {% if reviewForm %}
+                            <div class="collapse mb-4" id="reviewFormBox">
+                                <div class="surface p-4">
+                                    <h3 class="h5">Your review</h3>
+                                    {# SECURITY (rule 3): CSRF token added by form_start/form_end. #}
+                                    {{ form_start(reviewForm) }}
+                                        <div class="row">
+                                            <div class="col-md-4">{{ form_row(reviewForm.rating) }}</div>
+                                            <div class="col-md-8">{{ form_row(reviewForm.comment) }}</div>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary">Publish review</button>
+                                    {{ form_end(reviewForm) }}
+                                </div>
+                            </div>
+                        {% endif %}
+
+                        {% for review in reviews %}
+                            <article class="review-card">
+                                <div class="d-flex justify-content-between align-items-start gap-3">
+                                    <div class="d-flex gap-3">
+                                        {{ ui.avatar(review.author.publicName) }}
+                                        <div>
+                                            <strong>{{ review.author.publicName }}</strong>
+                                            <span class="badge badge-soft ms-1"><i class="bi bi-patch-check-fill text-success" aria-hidden="true"></i> Verified buyer</span>
+                                            <div class="d-flex align-items-center gap-2 mt-1">{{ ui.rating_stars(review.rating) }}<span class="small text-muted">{{ review.createdAt|date('d M Y') }}</span></div>
+                                        </div>
+                                    </div>
+                                    {% if is_granted('REVIEW_DELETE', review) %}
+                                        {{ ui.confirm_delete_form(path('review_delete', {uuid: review.uuid}), 'delete-review-' ~ review.uuid, 'Delete', 'This review will be permanently removed.', 'btn btn-sm btn-link text-danger') }}
+                                    {% endif %}
+                                </div>
+                                {# SECURITY (rule 2): stored XSS impossible. The comment is plain text, auto-escaped, never |raw. #}
+                                <p class="pre-line mb-0 mt-3">{{ review.comment }}</p>
+                            </article>
+                        {% else %}
+                            {{ ui.empty_state('No reviews yet', 'Reviews come only from verified buyers. Be the first once your order arrives.', null, null, 'chat-heart') }}
+                        {% endfor %}
+                    </div>
                 </div>
-                {# SECURITY (rule 2): stored XSS impossible. The comment is plain text, auto-escaped, never |raw. #}
-                <p class="review-comment mb-0 mt-2">{{ review.comment }}</p>
-            </article>
-        {% else %}
-            <p class="text-muted">No reviews yet.</p>
-        {% endfor %}
+            </div>
+        </div>
     </section>
+
+    {# ---------- You may also like ---------- #}
+    {% if similar is not empty %}
+        <section class="section pb-0" aria-labelledby="similarTitle">
+            <div class="section-title"><h2 id="similarTitle">You may also like</h2></div>
+            <div class="row row-cols-2 row-cols-md-4 g-3 g-lg-4">
+                {% for p in similar %}<div class="col">{{ ui.product_card(p) }}</div>{% endfor %}
+            </div>
+        </section>
+    {% endif %}
 {% endblock %}

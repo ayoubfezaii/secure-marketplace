@@ -1,0 +1,39 @@
+{% extends 'base.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% block title %}Checkout · Maison Secure{% endblock %}
+
+{% block body %}
+    {{ ui.page_header('Checkout', null, [['Home', path('app_home')], ['Cart', path('cart_index')], ['Checkout', null]]) }}
+    {% set steps = ['Address', 'Payment', 'Review'] %}
+    <ol class="steps" aria-label="Checkout progress">
+        {% for label in steps %}
+            <li class="{{ loop.index < step ? 'done' : (loop.index == step ? 'current') }}" {% if loop.index == step %}aria-current="step"{% endif %}>{{ label }}</li>
+        {% endfor %}
+    </ol>
+    <div class="row g-4">
+        <div class="col-lg-7">{% block step %}{% endblock %}</div>
+        <div class="col-lg-5">
+            <aside class="panel summary-card" aria-label="Order summary">
+                <div class="panel-head"><h2>Order summary</h2><span class="small text-muted">{{ summary.units }} item{{ summary.units > 1 ? 's' }}</span></div>
+                <ul class="list-unstyled mb-0 px-3 pt-2">
+                    {% for line in summary.lines %}
+                        <li class="d-flex gap-3 align-items-center py-2">
+                            <span class="thumb position-relative">{{ ui.product_image(line.product.mainImageFilename, line.product.name) }}</span>
+                            <span class="flex-grow-1 min-w-0"><span class="d-block text-truncate small fw-semibold">{{ line.product.name }}</span><span class="small text-muted">Qty {{ line.quantity }}</span></span>
+                            <span class="small fw-semibold">{{ line.lineTotal|format_currency('EUR') }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+                <div class="panel-body border-top">
+                    <dl class="d-grid gap-2 mb-0">
+                        <div class="d-flex justify-content-between"><dt class="fw-normal text-muted">Subtotal</dt><dd class="mb-0">{{ summary.subtotal|format_currency('EUR') }}</dd></div>
+                        <div class="d-flex justify-content-between"><dt class="fw-normal text-muted">Shipping</dt><dd class="mb-0 text-success">Free</dd></div>
+                        <div class="d-flex justify-content-between border-top pt-2 fs-5"><dt>Total</dt><dd class="mb-0 fw-bold">{{ summary.total|format_currency('EUR') }}</dd></div>
+                    </dl>
+                    <p class="small text-muted mt-3 mb-0"><i class="bi bi-shield-lock" aria-hidden="true"></i> Display only: the final price and stock are re-checked by the server when you place the order.</p>
+                </div>
+            </aside>
+        </div>
+    </div>
+{% endblock %}

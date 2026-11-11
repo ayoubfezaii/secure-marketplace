@@ -1,57 +1,74 @@
-{% extends 'dashboard/_layout.html.twig' %}
+{% extends 'base.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
 
-{% block title %}My cart · {{ parent() }}{% endblock %}
+{% block title %}Your cart · Maison Secure{% endblock %}
 
-{% block dash_content %}
-    <h1 class="h3 mb-3">My cart</h1>
+{% block body %}
+    {{ ui.page_header('Your cart', lines is empty ? null : (lines|length) ~ ' item' ~ (lines|length > 1 ? 's') ~ ' ready for checkout', [['Home', path('app_home')], ['Cart', null]]) }}
 
     {% if lines is empty %}
-        <div class="text-center text-muted py-5 bg-white rounded-3 border">
-            <p class="mb-2">Your cart is empty.</p>
-            <a href="{{ path('product_index') }}" class="btn btn-outline-primary btn-sm">Browse products</a>
-        </div>
+        {{ ui.empty_state('Your cart is empty', 'Discover pieces made to last from our independent shops.', 'Start shopping', path('product_index'), 'bag') }}
     {% else %}
-        <div class="table-responsive bg-white rounded-3 border mb-3">
-            <table class="table align-middle mb-0">
-                <thead class="table-light">
-                    <tr><th class="col-thumb"></th><th>Product</th><th class="text-end">Unit price</th><th>Quantity</th><th class="text-end">Total</th><th></th></tr>
-                </thead>
-                <tbody>
-                {% for line in lines %}
-                    {% set p = line.product %}
-                    <tr>
-                        <td>{% include '_partials/product_image.html.twig' with {product: p, class: 'thumb-sm rounded'} %}</td>
-                        <td>
-                            <a href="{{ path('product_show', {uuid: p.uuid}) }}">{{ p.name }}</a>
-                            {% if not p.purchasable %}<div class="small text-danger">No longer available</div>
-                            {% elseif line.quantity > p.stock %}<div class="small text-danger">Only {{ p.stock }} left</div>{% endif %}
-                        </td>
-                        <td class="text-end">{{ p.price|format_currency('EUR') }}</td>
-                        <td>
-                            <form method="post" action="{{ path('cart_update', {uuid: p.uuid}) }}" class="d-flex gap-1">
-                                <input type="hidden" name="_token" value="{{ csrf_token('cart-update-' ~ p.uuid) }}">
-                                <input type="number" name="quantity" value="{{ line.quantity }}" min="1" max="{{ min(99, max(1, p.stock)) }}" class="form-control form-control-sm qty-input" aria-label="Quantity">
-                                <button class="btn btn-sm btn-outline-secondary">Update</button>
-                            </form>
-                        </td>
-                        <td class="text-end">{{ line.lineTotal|format_currency('EUR') }}</td>
-                        <td class="text-end">
-                            <form method="post" action="{{ path('cart_remove', {uuid: p.uuid}) }}">
-                                <input type="hidden" name="_token" value="{{ csrf_token('cart-remove-' ~ p.uuid) }}">
-                                <button class="btn btn-sm btn-link text-danger">Remove</button>
-                            </form>
-                        </td>
-                    </tr>
-                {% endfor %}
-                </tbody>
-                <tfoot>
-                    <tr><th colspan="4" class="text-end">Total</th><th class="text-end">{{ total|format_currency('EUR') }}</th><th></th></tr>
-                </tfoot>
-            </table>
-        </div>
-        <div class="d-flex justify-content-between">
-            <a href="{{ path('product_index') }}" class="btn btn-outline-secondary">Continue shopping</a>
-            <a href="{{ path('checkout') }}" class="btn btn-primary">Proceed to checkout</a>
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="panel">
+                    <ul class="list-unstyled mb-0">
+                        {% for line in lines %}
+                            {% set p = line.product %}
+                            <li class="d-flex gap-3 p-3 {{ not loop.last ? 'border-bottom' }}">
+                                <a class="thumb thumb-lg" href="{{ path('product_show', {uuid: p.uuid}) }}">{{ ui.product_image(p.mainImageFilename, p.name) }}</a>
+                                <div class="flex-grow-1 min-w-0">
+                                    <div class="d-flex justify-content-between gap-3">
+                                        <div class="min-w-0">
+                                            <a class="fw-semibold text-decoration-none d-block text-truncate" href="{{ path('product_show', {uuid: p.uuid}) }}">{{ p.name }}</a>
+                                            <span class="small text-muted">{{ p.categoryLabel }}{% if p.shop %} · {{ p.shop.name }}{% endif %}</span>
+                                            {% if not p.purchasable %}<span class="badge status-badge status-cancelled ms-1">No longer available</span>
+                                            {% elseif line.quantity > p.stock %}<span class="badge status-badge status-shipped ms-1">Only {{ p.stock }} left</span>{% endif %}
+                                        </div>
+                                        {# Current DB price (display only; checkout recomputes it under lock, rule 10). #}
+                                        <div class="text-end text-nowrap">
+                                            <div class="fw-semibold">{{ line.lineTotal|format_currency('EUR') }}</div>
+                                            <div class="small text-muted">{{ p.price|format_currency('EUR') }} each</div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                                        {# SECURITY (rules 3, 15): POST + per-product CSRF token; quantity re-validated 1..99 server side. #}
+                                        <form method="post" action="{{ path('cart_update', {uuid: p.uuid}) }}" {{ stimulus_controller('quantity', {autosubmit: true}) }}>
+                                            <input type="hidden" name="_token" value="{{ csrf_token('cart-update-' ~ p.uuid) }}">
+                                            <div class="qty-stepper sm">
+                                                <button type="button" {{ stimulus_action('quantity', 'dec') }} aria-label="Decrease quantity of {{ p.name }}"><i class="bi bi-dash" aria-hidden="true"></i></button>
+                                                <label class="visually-hidden" for="qty-{{ loop.index }}">Quantity of {{ p.name }}</label>
+                                                <input id="qty-{{ loop.index }}" type="number" name="quantity" value="{{ line.quantity }}" min="1" max="{{ min(99, max(1, p.stock)) }}" {{ stimulus_target('quantity', 'input') }}>
+                                                <button type="button" {{ stimulus_action('quantity', 'inc') }} aria-label="Increase quantity of {{ p.name }}"><i class="bi bi-plus" aria-hidden="true"></i></button>
+                                            </div>
+                                            <noscript><button class="btn btn-sm btn-outline-dark ms-1">Update</button></noscript>
+                                        </form>
+                                        <form method="post" action="{{ path('cart_remove', {uuid: p.uuid}) }}">
+                                            <input type="hidden" name="_token" value="{{ csrf_token('cart-remove-' ~ p.uuid) }}">
+                                            <button class="btn btn-sm btn-link text-muted"><i class="bi bi-x-lg" aria-hidden="true"></i> Remove</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <a class="btn btn-link mt-3" href="{{ path('product_index') }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> Continue shopping</a>
+            </div>
+            <div class="col-lg-4">
+                <div class="panel summary-card">
+                    <div class="panel-head"><h2>Order summary</h2></div>
+                    <div class="panel-body">
+                        <dl class="d-grid gap-2 mb-3">
+                            <div class="d-flex justify-content-between"><dt class="fw-normal text-muted">Subtotal</dt><dd class="mb-0">{{ total|format_currency('EUR') }}</dd></div>
+                            <div class="d-flex justify-content-between"><dt class="fw-normal text-muted">Shipping</dt><dd class="mb-0 text-success">Free</dd></div>
+                            <div class="d-flex justify-content-between border-top pt-2 fs-5"><dt>Total</dt><dd class="mb-0 fw-bold">{{ total|format_currency('EUR') }}</dd></div>
+                        </dl>
+                        <a href="{{ path('checkout') }}" class="btn btn-primary btn-lg w-100">Checkout <i class="bi bi-lock ms-1" aria-hidden="true"></i></a>
+                        <p class="small text-muted mt-3 mb-0"><i class="bi bi-shield-check" aria-hidden="true"></i> Prices and stock are confirmed by our servers when you place the order.</p>
+                    </div>
+                </div>
+            </div>
         </div>
     {% endif %}
 {% endblock %}

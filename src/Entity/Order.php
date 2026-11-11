@@ -63,6 +63,27 @@ class Order
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
+    // Shipping address SNAPSHOT copied from the buyer's saved Address at checkout: later edits or deletion of the
+    // address don't change where a past order was sent. Sellers see these fields (name + address only), never the
+    // buyer's email, phone or payment data.
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $shippingName = null;
+
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $shippingLine1 = null;
+
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $shippingLine2 = null;
+
+    #[ORM\Column(length: 12, nullable: true)]
+    private ?string $shippingPostalCode = null;
+
+    #[ORM\Column(length: 80, nullable: true)]
+    private ?string $shippingCity = null;
+
+    #[ORM\Column(length: 2, nullable: true)]
+    private ?string $shippingCountry = null;
+
     /** @var Collection<int, OrderItem> */
     #[ORM\OneToMany(targetEntity: OrderItem::class, mappedBy: 'order', cascade: ['persist'])]
     private Collection $items;
@@ -157,5 +178,48 @@ class Order
     public function hasSeller(User $seller): bool
     {
         return [] !== $this->getItemsForSeller($seller);
+    }
+
+    public function setShippingAddress(Address $address): void
+    {
+        $this->shippingName = $address->getFullName();
+        $this->shippingLine1 = $address->getLine1();
+        $this->shippingLine2 = $address->getLine2();
+        $this->shippingPostalCode = $address->getPostalCode();
+        $this->shippingCity = $address->getCity();
+        $this->shippingCountry = $address->getCountry();
+    }
+
+    public function getShippingName(): ?string
+    {
+        return $this->shippingName;
+    }
+
+    /** @return list<string> */
+    public function getShippingLines(): array
+    {
+        if (null === $this->shippingName) {
+            return [];
+        }
+
+        return array_values(array_filter([
+            $this->shippingName,
+            $this->shippingLine1,
+            $this->shippingLine2,
+            trim($this->shippingPostalCode.' '.$this->shippingCity),
+            Address::COUNTRIES[$this->shippingCountry] ?? $this->shippingCountry,
+        ]));
+    }
+
+    /** Short human order number (derived from the UUID, display only). */
+    public function getNumber(): string
+    {
+        return 'MS-'.strtoupper(substr($this->uuid->toBase58(), 0, 8));
+    }
+
+    /** Fixtures only: spreads demo orders over time so the charts have history. */
+    public function backdate(\DateTimeImmutable $createdAt): void
+    {
+        $this->createdAt = $createdAt;
     }
 }

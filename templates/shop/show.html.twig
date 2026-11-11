@@ -1,0 +1,50 @@
+{% extends 'base.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% block title %}{{ shop.name }} · Maison Secure{% endblock %}
+
+{% block body %}
+    {{ ui.breadcrumbs([['Home', path('app_home')], ['Shops', null], [shop.name, null]]) }}
+
+    <section class="shop-banner mt-2 mb-5">
+        <span class="glow" aria-hidden="true"></span>
+        <div class="d-flex flex-column flex-md-row align-items-md-center gap-4 position-relative">
+            <div class="shop-logo">
+                {% if shop.logoFilename %}<img src="{{ path('media_product', {filename: shop.logoFilename}) }}" alt="{{ shop.name }} logo">{% else %}<span aria-hidden="true">{{ shop.initials }}</span>{% endif %}
+            </div>
+            <div class="flex-grow-1">
+                <p class="eyebrow text-white-50 mb-1">Independent shop</p>
+                {# SECURITY (rule 2): shop name and description are seller-provided: auto-escaped. #}
+                <h1 class="text-white mb-2">{{ shop.name }}</h1>
+                <div class="d-flex flex-wrap align-items-center gap-3 small">
+                    {% if rating.count > 0 %}
+                        <span>{{ ui.rating_stars(rating.avg) }} <span class="text-white-50">{{ rating.avg|number_format(1) }} · {{ rating.count }} reviews</span></span>
+                    {% endif %}
+                    <span class="text-white-50"><i class="bi bi-box-seam" aria-hidden="true"></i> {{ total }} pieces</span>
+                    <span class="text-white-50"><i class="bi bi-calendar3" aria-hidden="true"></i> Since {{ shop.createdAt|date('F Y') }}</span>
+                </div>
+            </div>
+        </div>
+        {% if shop.description %}<p class="text-white-50 mt-4 mb-0 col-lg-8 pre-line position-relative">{{ shop.description }}</p>{% endif %}
+    </section>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+        <h2 class="h3 mb-0">The collection</h2>
+        <form method="get" action="{{ path('shop_show', {slug: shop.slug}) }}" class="d-flex align-items-center gap-2" {{ stimulus_controller('autosubmit') }}>
+            <label class="small text-muted" for="sort">Sort by</label>
+            <select class="form-select form-select-sm" id="sort" name="sort" {{ stimulus_action('autosubmit', 'submit', 'change') }}>
+                {% for key, label in sorts %}<option value="{{ key }}" {{ criteria.sort == key ? 'selected' }}>{{ label }}</option>{% endfor %}
+            </select>
+            <noscript><button class="btn btn-sm btn-outline-dark" type="submit">Sort</button></noscript>
+        </form>
+    </div>
+
+    {% if total == 0 %}
+        {{ ui.empty_state('This shop is preparing its collection', 'New pieces will appear here soon.', 'Browse all products', path('product_index'), 'shop') }}
+    {% else %}
+        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3 g-lg-4">
+            {% for product in products %}<div class="col">{{ ui.product_card(product) }}</div>{% endfor %}
+        </div>
+        {% include 'catalog/_pagination.html.twig' with {route: 'shop_show', route_params: {slug: shop.slug}} %}
+    {% endif %}
+{% endblock %}

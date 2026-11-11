@@ -127,32 +127,45 @@
     {% endif %}
 {% endmacro %}
 
+{#
+    ---------- Wishlist heart (buyers only) ----------
+    SECURITY (rules 3, 12): POST + per-product CSRF token; the return path is validated server side (SafeRedirect).
+#}
+{% macro wishlist_button(product, extra_class = '') %}
+    {% if can_shop() %}
+        {% set saved = in_wishlist(product) %}
+        <form method="post" action="{{ path('wishlist_toggle', {uuid: product.uuid}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('wishlist-' ~ product.uuid) }}">
+            <input type="hidden" name="_back" value="{{ app.request.requestUri }}">
+            <button type="submit" class="btn btn-icon btn-light {{ extra_class }}" aria-pressed="{{ saved ? 'true' : 'false' }}"
+                    aria-label="{{ saved ? 'Remove from wishlist' : 'Save to wishlist' }}: {{ product.name }}">
+                <i class="bi {{ saved ? 'bi-heart-fill text-accent' : 'bi-heart' }}" aria-hidden="true"></i>
+            </button>
+        </form>
+    {% elseif not app.user %}
+        <a class="btn btn-icon btn-light {{ extra_class }}" href="{{ path('app_login') }}" aria-label="Log in to save {{ product.name }}"><i class="bi bi-heart" aria-hidden="true"></i></a>
+    {% endif %}
+{% endmacro %}
+
 {# ---------- Product card ---------- #}
-{% macro product_card(product, options = {}) %}
-    {% set img = product.mainImageFilename %}
-    {% set old = product.compareAtPrice %}
-    {% set is_new = product.createdAt > date('-14 days') %}
+{% macro product_card(product) %}
     <article class="product-card">
         <div class="media">
             <div class="badges">
-                {% if old and old > product.price %}
-                    <span class="badge badge-sale">-{{ ((1 - product.price / old) * 100)|round }}%</span>
-                {% endif %}
-                {% if is_new %}<span class="badge badge-new">New</span>{% endif %}
+                {% if product.onSale %}<span class="badge badge-sale">-{{ product.discountPercent }}%</span>{% endif %}
+                {% if product.new %}<span class="badge badge-new">New</span>{% endif %}
                 {% if product.stock == 0 %}<span class="badge badge-outline">Sold out</span>{% endif %}
             </div>
-            {% if options.wishlist_form is defined and options.wishlist_form %}
-                <div class="wish-btn">{{ options.wishlist_form }}</div>
-            {% endif %}
-            {{ _self.product_image(img, product.name) }}
+            <div class="wish-btn">{{ _self.wishlist_button(product, 'btn-sm') }}</div>
+            {{ _self.product_image(product.mainImageFilename, product.name) }}
         </div>
         <div class="body">
-            <span class="meta">{{ product.categoryLabel }}</span>
+            <span class="meta">{{ product.categoryLabel }}{% if product.shop %} · {{ product.shop.name }}{% endif %}</span>
             <a class="title" href="{{ path('product_show', {uuid: product.uuid}) }}">{{ product.name }}</a>
             {% if product.ratingCount > 0 %}
                 <div>{{ _self.rating_stars(product.ratingAverage, product.ratingCount) }}</div>
             {% endif %}
-            <div class="mt-auto pt-1">{{ _self.price(product.price, old) }}</div>
+            <div class="mt-auto pt-1">{{ _self.price(product.price, product.compareAtPrice) }}</div>
         </div>
     </article>
 {% endmacro %}

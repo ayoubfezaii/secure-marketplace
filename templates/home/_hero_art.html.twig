@@ -1,0 +1,47 @@
+{# Original hero illustration (inline SVG, palette colours only, no photographs). Decorative: hidden from screen readers. #}
+<svg viewBox="0 0 520 520" aria-hidden="true" focusable="false">
+    <defs>
+        <linearGradient id="heroSand" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#EDE6DC"/>
+            <stop offset="1" stop-color="#E2D8CB"/>
+        </linearGradient>
+        <linearGradient id="heroVase" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#E8701A"/>
+            <stop offset="1" stop-color="#B9561A"/>
+        </linearGradient>
+        <linearGradient id="heroInk" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#2A2A2A"/>
+            <stop offset="1" stop-color="#141414"/>
+        </linearGradient>
+    </defs>
+    {# Arch backdrop #}
+    <path d="M70 500V250a190 190 0 0 1 380 0v250Z" fill="url(#heroSand)"/>
+    <path d="M110 500V258a150 150 0 0 1 300 0v242Z" fill="#F7F3EE"/>
+    {# Sun #}
+    <circle cx="372" cy="150" r="46" fill="#E8701A" opacity=".9"/>
+    <circle cx="372" cy="150" r="64" fill="none" stroke="#E8701A" stroke-opacity=".25" stroke-width="2"/>
+    {# Plinths #}
+    <rect x="128" y="392" width="150" height="108" rx="6" fill="#E2D8CB"/>
+    <rect x="262" y="350" width="140" height="150" rx="6" fill="#EDE6DC"/>
+    <rect x="262" y="350" width="140" height="10" fill="#DCD0C1"/>
+    {# Tote bag #}
+    <path d="M168 300h104l10 92H158Z" fill="url(#heroInk)"/>
+    <path d="M192 300v-18a28 28 0 0 1 56 0v18" fill="none" stroke="#141414" stroke-width="7" stroke-linecap="round"/>
+    <path d="M205 342l12 12 24-24" fill="none" stroke="#E8701A" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    {# Vase with branch #}
+    <path d="M318 350c-26-10-30-48-14-72 6-9 6-18 2-26h44c-4 8-4 17 2 26 16 24 12 62-14 72Z" fill="url(#heroVase)"/>
+    <path d="M332 252c4-46 22-80 52-108" fill="none" stroke="#6F645B" stroke-width="3" stroke-linecap="round"/>
+    <ellipse cx="370" cy="170" rx="16" ry="7" transform="rotate(-40 370 170)" fill="#8B7E74"/>
+    <ellipse cx="352" cy="196" rx="14" ry="6" transform="rotate(-60 352 196)" fill="#A99C90"/>
+    <ellipse cx="343" cy="224" rx="13" ry="5.5" transform="rotate(-20 343 224)" fill="#8B7E74"/>
+    {# Ring / jewel #}
+    <circle cx="226" cy="420" r="18" fill="none" stroke="#D4A017" stroke-width="6"/>
+    <circle cx="226" cy="402" r="6" fill="#F7F3EE" stroke="#D4A017" stroke-width="3"/>
+    {# Sparkles #}
+    <path d="M140 170l6 14 14 6-14 6-6 14-6-14-14-6 14-6Z" fill="#141414"/>
+    <path d="M440 300l4 9 9 4-9 4-4 9-4-9-9-4 9-4Z" fill="#E8701A"/>
+    <circle cx="96" cy="300" r="5" fill="#8B7E74"/>
+    <circle cx="452" cy="420" r="4" fill="#141414"/>
+    {# Ground line #}
+    <path d="M40 500h440" stroke="#141414" stroke-width="2"/>
+</svg>

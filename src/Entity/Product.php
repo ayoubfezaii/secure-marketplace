@@ -3,27 +3,25 @@
 namespace App\Entity;
 
 use App\Repository\ProductRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 #[ORM\Entity(repositoryClass: ProductRepository::class)]
 #[ORM\Index(name: 'idx_product_active_created', columns: ['is_active', 'created_at'])]
 #[ORM\HasLifecycleCallbacks]
 class Product
 {
-    /** Whitelisted categories (value => label). The form and the search filter accept nothing else. */
-    public const CATEGORIES = [
-        'electronics' => 'Electronics',
-        'books' => 'Books',
-        'clothing' => 'Clothing',
-        'home' => 'Home & Garden',
-        'sports' => 'Sports',
-        'toys' => 'Toys',
-        'other' => 'Other',
-    ];
+    /** Up to 4 images per product (same secure upload rules for each one, rule 7). */
+    public const MAX_IMAGES = 4;
+
+    /** "NEW" badge for products listed during the last N days. */
+    public const NEW_DAYS = 14;
 
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -45,7 +43,7 @@ class Product
     #[Assert\Length(min: 3, max: 120)]
     private string $name = '';
 
-    // SECURITY: plain text only, max 5000. Never rendered with |raw; line breaks via nl2br AFTER escaping (rule 2).
+    // SECURITY: plain text only, max 5000. Never rendered with |raw; line breaks via CSS pre-line (rule 2).
     #[ORM\Column(type: Types::TEXT)]
     #[Assert\NotBlank]
     #[Assert\Length(max: 5000)]
@@ -58,24 +56,41 @@ class Product
     #[Assert\LessThanOrEqual(100000)]
     private string $price = '0.00';
 
+    // "Was" price for the sale badge. Display only: checkout always charges $price read from the DB (rule 10).
+    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 2, nullable: true)]
+    #[Assert\Positive]
+    #[Assert\LessThanOrEqual(100000)]
+    private ?string $compareAtPrice = null;
+
     #[ORM\Column]
     #[Assert\NotNull]
     #[Assert\PositiveOrZero]
     #[Assert\LessThanOrEqual(1000000)]
     private int $stock = 0;
 
-    // SECURITY: whitelist (rule 15).
-    #[ORM\Column(length: 32)]
-    #[Assert\NotBlank]
-    #[Assert\Choice(callback: [self::class, 'categoryKeys'])]
-    private string $category = 'other';
+    // SECURITY (rule 15): a real Category row (admin-managed), not free text. RESTRICT: a category that still
+    // has products can't be deleted (the admin UI checks it too).
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: false, onDelete: 'RESTRICT')]
+    #[Assert\NotNull(message: 'Please choose a category.')]
+    private ?Category $category = null;
 
-    // Random server-generated name (see ImageUploader); never a user-provided filename.
-    #[ORM\Column(length: 64, nullable: true)]
-    private ?string $imageFilename = null;
+    /** @var Collection<int, ProductImage> */
+    #[ORM\OneToMany(targetEntity: ProductImage::class, mappedBy: 'product', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['position' => 'ASC'])]
+    #[Assert\Count(max: self::MAX_IMAGES, maxMessage: 'A product can have at most {{ limit }} images.')]
+    private Collection $images;
 
     #[ORM\Column(options: ['default' => true])]
     private bool $isActive = true;
+
+    // Denormalised rating, recomputed by ProductRatingUpdater whenever a review is added or removed. Lets the
+    // catalogue filter and sort by rating with a plain indexed column (no HAVING over a join).
+    #[ORM\Column(type: Types::DECIMAL, precision: 3, scale: 2, options: ['default' => '0.00'])]
+    private string $ratingAverage = '0.00';
+
+    #[ORM\Column(options: ['default' => 0])]
+    private int $ratingCount = 0;
 
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
@@ -87,14 +102,20 @@ class Product
     {
         $this->uuid = Uuid::v4();
         $this->seller = $seller;
+        $this->images = new ArrayCollection();
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
     }
 
-    /** @return list<string> */
-    public static function categoryKeys(): array
+    #[Assert\Callback]
+    public function validateCompareAtPrice(ExecutionContextInterface $context): void
     {
-        return array_keys(self::CATEGORIES);
+        // SECURITY/consistency: a "was" price must be higher than the real price, otherwise the sale badge would lie.
+        if (null !== $this->compareAtPrice && is_numeric($this->compareAtPrice) && is_numeric($this->price)
+            && bccomp($this->compareAtPrice, $this->price, 2) <= 0) {
+            $context->buildViolation('The original price must be higher than the current price (or empty).')
+                ->atPath('compareAtPrice')->addViolation();
+        }
     }
 
     #[ORM\PreUpdate]
@@ -116,6 +137,11 @@ class Product
     public function getSeller(): User
     {
         return $this->seller;
+    }
+
+    public function getShop(): ?Shop
+    {
+        return $this->seller->getShop();
     }
 
     public function getName(): string
@@ -154,6 +180,37 @@ class Product
         return $this;
     }
 
+    public function getCompareAtPrice(): ?string
+    {
+        return $this->compareAtPrice;
+    }
+
+    public function setCompareAtPrice(?string $compareAtPrice): static
+    {
+        $this->compareAtPrice = null === $compareAtPrice || '' === $compareAtPrice ? null : $compareAtPrice;
+
+        return $this;
+    }
+
+    public function isOnSale(): bool
+    {
+        return null !== $this->compareAtPrice && bccomp($this->compareAtPrice, $this->price, 2) > 0;
+    }
+
+    public function getDiscountPercent(): int
+    {
+        if (!$this->isOnSale()) {
+            return 0;
+        }
+
+        return (int) round((1 - (float) $this->price / (float) $this->compareAtPrice) * 100);
+    }
+
+    public function isNew(): bool
+    {
+        return $this->createdAt > new \DateTimeImmutable(sprintf('-%d days', self::NEW_DAYS));
+    }
+
     public function getStock(): int
     {
         return $this->stock;
@@ -177,33 +234,70 @@ class Product
         $this->stock -= $quantity;
     }
 
-    public function getCategory(): string
+    /**
+     * Cancellation / refund: puts units back, inside the same transaction as the status change.
+     */
+    public function restoreStock(int $quantity): void
+    {
+        if ($quantity < 1) {
+            throw new \DomainException('Invalid quantity.');
+        }
+        $this->stock += $quantity;
+    }
+
+    public function getCategory(): ?Category
     {
         return $this->category;
     }
 
+    public function setCategory(?Category $category): static
+    {
+        $this->category = $category;
+
+        return $this;
+    }
+
     public function getCategoryLabel(): string
     {
-        return self::CATEGORIES[$this->category] ?? 'Other';
+        return $this->category?->getName() ?? 'Other';
     }
 
-    public function setCategory(?string $category): static
+    /** @return Collection<int, ProductImage> */
+    public function getImages(): Collection
     {
-        $this->category = (string) $category;
-
-        return $this;
+        return $this->images;
     }
 
-    public function getImageFilename(): ?string
+    public function canAddImage(): bool
     {
-        return $this->imageFilename;
+        return $this->images->count() < self::MAX_IMAGES;
     }
 
-    public function setImageFilename(?string $imageFilename): static
+    public function addImage(string $filename): ProductImage
     {
-        $this->imageFilename = $imageFilename;
+        if (!$this->canAddImage()) {
+            throw new \DomainException(sprintf('A product can have at most %d images.', self::MAX_IMAGES));
+        }
+        $image = new ProductImage($this, $filename, $this->images->count());
+        $this->images->add($image);
 
-        return $this;
+        return $image;
+    }
+
+    public function removeImage(ProductImage $image): void
+    {
+        $this->images->removeElement($image);
+        $position = 0;
+        foreach ($this->images as $remaining) {
+            $remaining->setPosition($position++);
+        }
+    }
+
+    public function getMainImageFilename(): ?string
+    {
+        $first = $this->images->first();
+
+        return false !== $first ? $first->getFilename() : null;
     }
 
     public function isActive(): bool
@@ -218,9 +312,32 @@ class Product
         return $this;
     }
 
+    public function getRatingAverage(): float
+    {
+        return (float) $this->ratingAverage;
+    }
+
+    public function getRatingCount(): int
+    {
+        return $this->ratingCount;
+    }
+
+    public function setRatingSummary(float $average, int $count): void
+    {
+        $this->ratingAverage = number_format(max(0, min(5, $average)), 2, '.', '');
+        $this->ratingCount = max(0, $count);
+    }
+
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    /** Fixtures only: spreads demo products over time. */
+    public function backdate(\DateTimeImmutable $createdAt): void
+    {
+        $this->createdAt = $createdAt;
+        $this->updatedAt = $createdAt;
     }
 
     public function getUpdatedAt(): \DateTimeImmutable

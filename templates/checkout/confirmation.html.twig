@@ -1,0 +1,29 @@
+{% extends 'base.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% block title %}Thank you · Maison Secure{% endblock %}
+
+{% block body %}
+    <div class="row justify-content-center py-4">
+        <div class="col-lg-7">
+            <div class="surface p-4 p-lg-5 text-center">
+                <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-success text-white mb-3 fs-2 confirm-check"><i class="bi bi-check-lg" aria-hidden="true"></i></span>
+                <p class="eyebrow mb-2">Order confirmed</p>
+                <h1 class="mb-2">Thank you for your order!</h1>
+                <p class="text-muted">Your order number is <strong class="text-body font-monospace">{{ order.number }}</strong>. The sellers have been notified and will ship within 2 business days.</p>
+
+                <div class="text-start surface p-3 my-4">
+                    <div class="d-flex justify-content-between small mb-2"><span class="text-muted">Placed on</span><span>{{ order.createdAt|date('d M Y, H:i') }}</span></div>
+                    <div class="d-flex justify-content-between small mb-2"><span class="text-muted">Payment</span><span>Card •••• {{ order.cardLast4 }}</span></div>
+                    <div class="d-flex justify-content-between small mb-2"><span class="text-muted">Ship to</span><span class="text-end">{{ order.shippingLines|join(', ') }}</span></div>
+                    <div class="d-flex justify-content-between border-top pt-2 mt-2"><strong>Total paid</strong><strong>{{ order.total|format_currency('EUR') }}</strong></div>
+                </div>
+
+                <div class="d-flex flex-wrap justify-content-center gap-2">
+                    <a class="btn btn-primary" href="{{ path('order_show', {uuid: order.uuid}) }}">Track my order</a>
+                    <a class="btn btn-outline-dark" href="{{ path('product_index') }}">Continue shopping</a>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

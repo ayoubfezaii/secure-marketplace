@@ -1,0 +1,24 @@
+{% extends 'base.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% block title %}Wishlist · Maison Secure{% endblock %}
+
+{% block body %}
+    {{ ui.page_header('Your wishlist', 'Pieces you saved for later.', [['Home', path('app_home')], ['Wishlist', null]]) }}
+    {% if items is empty %}
+        {{ ui.empty_state('Your wishlist is empty', 'Tap the heart on any piece to save it here.', 'Discover products', path('product_index'), 'heart') }}
+    {% else %}
+        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3 g-lg-4">
+            {% for item in items %}
+                {% set p = item.product %}
+                <div class="col d-flex flex-column gap-2">
+                    {{ ui.product_card(p) }}
+                    <form method="post" action="{{ path('buyer_wishlist_move', {uuid: p.uuid}) }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('wishlist-move-' ~ p.uuid) }}">
+                        <button class="btn btn-sm btn-primary w-100" type="submit" {{ not p.purchasable ? 'disabled' }}><i class="bi bi-bag-plus" aria-hidden="true"></i> {{ p.purchasable ? 'Move to cart' : 'Unavailable' }}</button>
+                    </form>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endblock %}
