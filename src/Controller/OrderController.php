@@ -9,6 +9,8 @@ use App\Entity\User;
 use App\Repository\OrderRepository;
 use App\Security\Voter\OrderVoter;
 use App\Service\AuditLogger;
+use App\Service\OrderManager;
+use App\Service\Pagination;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -20,21 +22,32 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 class OrderController extends AbstractController
 {
+    /** Status filter labels (also the whitelist of accepted values). */
+    public const STATUS_LABELS = [
+        Order::STATUS_PAID => 'Paid', Order::STATUS_SHIPPED => 'Shipped', Order::STATUS_DELIVERED => 'Delivered',
+        Order::STATUS_CANCELLED => 'Cancelled', Order::STATUS_REFUNDED => 'Refunded',
+    ];
+
     #[IsGranted('ROLE_BUYER')]
     #[Route('/buyer/orders', name: 'buyer_orders', methods: ['GET'])]
-    public function buyerOrders(OrderRepository $orders): Response
+    public function buyerOrders(Request $request, OrderRepository $orders): Response
     {
-        // SECURITY: scoped to the logged-in buyer by the query itself.
-        return $this->render('order/buyer_index.html.twig', ['orders' => $orders->findForBuyer($this->getAppUser())]);
+        $status = $request->query->getString('status');
+        // SECURITY (rule 15): whitelist.
+        $status = array_key_exists($status, self::STATUS_LABELS) ? $status : null;
+
+        // SECURITY (rule 4): scoped to the logged-in buyer by the query itself.
+        return $this->render('buyer/orders.html.twig', [
+            'pager' => Pagination::fromQueryBuilder($orders->createBuyerQueryBuilder($this->getAppUser(), $status), $request, 10),
+            'status' => $status,
+            'statuses' => self::STATUS_LABELS,
+            'params' => array_filter(['status' => $status]),
+        ]);
     }
 
-    #[IsGranted('ROLE_SELLER')]
-    #[Route('/seller/orders', name: 'seller_orders', methods: ['GET'])]
-    public function sellerOrders(OrderRepository $orders): Response
-    {
-        return $this->render('order/seller_index.html.twig', ['orders' => $orders->findForSeller($this->getAppUser())]);
-    }
-
+    /**
+     * Shared order URL (/orders/{uuid}): each role gets its own view of the same order.
+     */
     #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[Route('/orders/{uuid}', name: 'order_show', methods: ['GET'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function show(#[MapEntity(mapping: ['uuid' => 'uuid'])] Order $order): Response
@@ -43,17 +56,15 @@ class OrderController extends AbstractController
         $this->denyAccessUnlessGranted(OrderVoter::VIEW, $order);
         $user = $this->getAppUser();
 
-        $isBuyer = $order->getBuyer()->getId() === $user->getId();
-        $isAdmin = $this->isGranted('ROLE_ADMIN');
-        // SECURITY: a seller sees only their own lines of a multi-seller order, not what the buyer bought elsewhere.
-        $items = ($isBuyer || $isAdmin) ? $order->getItems()->toArray() : $order->getItemsForSeller($user);
+        if ($user->isAdmin() && $this->routeExists('admin_order_show')) {
+            return $this->redirectToRoute('admin_order_show', ['uuid' => $order->getUuid()]);
+        }
+        if ($user->isSeller() && $this->routeExists('seller_order_show')) {
+            return $this->redirectToRoute('seller_order_show', ['uuid' => $order->getUuid()]);
+        }
 
-        return $this->render('order/show.html.twig', [
-            'order' => $order,
-            'items' => $items,
-            'isBuyer' => $isBuyer,
-            'isAdmin' => $isAdmin,
-        ]);
+        // Buyer view (the voter guarantees it is their own order).
+        return $this->render('buyer/order_show.html.twig', ['order' => $order]);
     }
 
     /**
@@ -61,7 +72,7 @@ class OrderController extends AbstractController
      */
     #[IsGranted('ROLE_BUYER')]
     #[Route('/buyer/orders/{uuid}/cancel', name: 'buyer_order_cancel', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
-    public function cancel(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] Order $order, \App\Service\OrderManager $orders): Response
+    public function cancel(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] Order $order, OrderManager $orders): Response
     {
         // SECURITY (rule 3): POST + per-order CSRF token.
         if (!$this->isCsrfTokenValid('order-cancel-'.$order->getUuid(), $request->request->getString('_token'))) {
@@ -80,20 +91,23 @@ class OrderController extends AbstractController
         return $this->redirectToRoute('order_show', ['uuid' => $order->getUuid()]);
     }
 
-    #[IsGranted('ROLE_SELLER')]
-    #[Route('/seller/order-items/{uuid}/status', name: 'seller_order_item_status', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
+    /**
+     * Seller (own items) or admin (any item) moves an item one step forward: paid -> shipped -> delivered.
+     */
+    #[IsGranted(new \Symfony\Component\ExpressionLanguage\Expression("is_granted('ROLE_SELLER') or is_granted('ROLE_ADMIN')"))]
+    #[Route('/order-items/{uuid}/status', name: 'order_item_status', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function updateItemStatus(
         Request $request,
         #[MapEntity(mapping: ['uuid' => 'uuid'])] OrderItem $item,
         EntityManagerInterface $em,
         AuditLogger $audit,
     ): Response {
-        // SECURITY (rule 4): only the seller of THIS item.
-        $this->denyAccessUnlessGranted(OrderVoter::ITEM_UPDATE_STATUS, $item);
         // SECURITY (rule 3): POST + per-item CSRF token.
         if (!$this->isCsrfTokenValid('item-status-'.$item->getUuid(), $request->request->getString('_token'))) {
             throw $this->createAccessDeniedException('Invalid CSRF token.');
         }
+        // SECURITY (rule 4): only the seller of THIS item, or an admin.
+        $this->denyAccessUnlessGranted(OrderVoter::ITEM_UPDATE_STATUS, $item);
 
         $from = $item->getStatus();
         try {
@@ -111,6 +125,7 @@ class OrderController extends AbstractController
             'item' => (string) $item->getUuid(),
             'from' => $from,
             'to' => $item->getStatus(),
+            'by' => $this->getAppUser()->isAdmin() ? 'admin' : 'seller',
         ]);
         $this->addFlash('success', sprintf('"%s" marked as %s.', $item->getProductName(), $item->getStatus()));
 
@@ -119,12 +134,19 @@ class OrderController extends AbstractController
 
     private function backUrl(Request $request, OrderItem $item): string
     {
+        $uuid = ['uuid' => $item->getOrder()->getUuid()];
+
         // SECURITY (rule 12): fixed set of internal destinations, never a user-supplied URL.
         return match ($request->request->getString('back')) {
-            'dashboard' => $this->generateUrl('seller_dashboard'),
-            'orders' => $this->generateUrl('seller_orders'),
-            default => $this->generateUrl('order_show', ['uuid' => $item->getOrder()->getUuid()]),
+            'dashboard' => $this->generateUrl($this->getAppUser()->isAdmin() ? 'admin_dashboard' : 'seller_dashboard'),
+            'orders' => $this->generateUrl($this->getAppUser()->isAdmin() ? 'admin_orders' : 'seller_orders'),
+            default => $this->generateUrl('order_show', $uuid),
         };
+    }
+
+    private function routeExists(string $name): bool
+    {
+        return null !== $this->container->get('router')->getRouteCollection()->get($name);
     }
 
     private function getAppUser(): User

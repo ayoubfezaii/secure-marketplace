@@ -1,41 +1,47 @@
-{% extends 'dashboard/_layout.html.twig' %}
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
 
-{% block title %}Profile · {{ parent() }}{% endblock %}
+{% set page_title = 'Profile' %}
+{% set page_subtitle = 'Your public name and contact details.' %}
+{% set crumbs = [['Dashboard', path('app_dashboard')], ['Profile', null]] %}
 
-{% block dash_content %}
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <h1 class="h3 mb-3">My profile</h1>
-
-            <div class="card shadow-sm mb-3">
-                <div class="card-body">
-                    <dl class="row mb-0">
-                        <dt class="col-sm-4">Email</dt><dd class="col-sm-8">{{ user.email }} <span class="small text-muted">(cannot be changed here)</span></dd>
-                        <dt class="col-sm-4">Account type</dt><dd class="col-sm-8">{{ is_granted('ROLE_ADMIN') ? 'Administrator' : (isSeller ? 'Seller' : 'Buyer') }}</dd>
-                        <dt class="col-sm-4">Two-factor auth</dt><dd class="col-sm-8">{{ user.totpAuthenticationEnabled ? 'Enabled' : 'Disabled' }} · <a href="{{ path('app_security_settings') }}">Manage</a></dd>
-                        <dt class="col-sm-4">Password</dt><dd class="col-sm-8"><a href="{{ path('account_password') }}">Change password</a></dd>
+{% block content %}
+    <div class="row g-4">
+        <div class="col-xl-4">
+            <section class="panel text-center">
+                <div class="panel-body">
+                    <div class="mb-3">{{ ui.avatar(user.publicName, 'xl', 'ink') }}</div>
+                    <h2 class="h5 mb-1">{{ user.publicName }}</h2>
+                    <p class="small text-muted mb-2 text-break">{{ user.email }}</p>
+                    {{ ui.role_badge(user.roles) }}
+                    <dl class="kv text-start mt-4 small">
+                        <dt>Member since</dt><dd>{{ user.createdAt|date('F Y') }}</dd>
+                        <dt>Two-factor</dt><dd>{{ user.totpAuthenticationEnabled ? 'Enabled' : 'Disabled' }}</dd>
+                        <dt>Last login</dt><dd>{{ user.lastLoginAt ? user.lastLoginAt|date('d M Y, H:i') : '—' }}</dd>
                     </dl>
+                    <a class="btn btn-outline-dark btn-sm w-100" href="{{ path('app_security_settings') }}"><i class="bi bi-shield-lock" aria-hidden="true"></i> Security settings</a>
                 </div>
-            </div>
-
-            <div class="card shadow-sm">
-                <div class="card-body p-4">
-                    {{ form_start(form) }}
+            </section>
+        </div>
+        <div class="col-xl-8">
+            <section class="panel">
+                <div class="panel-head"><h2>Personal information</h2></div>
+                <div class="panel-body">
+                    {# SECURITY (rules 3, 9): CSRF token; bound to ProfileDto (name + phone only). Email and role can't be
+                       changed here. #}
+                    {{ form_start(form, {attr: {novalidate: 'novalidate'}}) }}
                         {{ form_errors(form) }}
+                        <div class="mb-3">
+                            <label class="form-label" for="emailRo">Email</label>
+                            <input id="emailRo" class="form-control" type="email" value="{{ user.email }}" disabled>
+                            <div class="form-text">Your login. Contact support to change it.</div>
+                        </div>
                         {{ form_row(form.displayName) }}
                         {{ form_row(form.phone) }}
-                        {% if isSeller %}
-                            <hr>
-                            <h2 class="h6">Payout account</h2>
-                            {# SECURITY (rule 11): only the last 4 characters are ever displayed. #}
-                            <p class="small">Current IBAN: <strong>{{ user.maskedIban ?? 'none' }}</strong></p>
-                            {{ form_row(form.iban) }}
-                            {{ form_row(form.removeIban) }}
-                        {% endif %}
-                        <button type="submit" class="btn btn-primary">Save</button>
+                        <button type="submit" class="btn btn-primary">Save changes</button>
                     {{ form_end(form) }}
                 </div>
-            </div>
+            </section>
         </div>
     </div>
 {% endblock %}

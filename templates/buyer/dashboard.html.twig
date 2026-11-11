@@ -1,52 +1,59 @@
-{% extends 'dashboard/_layout.html.twig' %}
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
 
-{% block title %}Buyer dashboard · {{ parent() }}{% endblock %}
+{% set page_title = 'Welcome back, ' ~ (app.user.displayName ?? 'there') %}
+{% set page_subtitle = 'Here is what is happening with your orders.' %}
+{% set crumbs = [['Dashboard', null]] %}
 
-{% block dash_content %}
-    <h1 class="h3 mb-3">Welcome{{ app.user.displayName ? ', ' ~ app.user.displayName }}</h1>
+{% block page_actions %}
+    <a class="btn btn-primary" href="{{ path('product_index') }}"><i class="bi bi-bag" aria-hidden="true"></i> Continue shopping</a>
+{% endblock %}
 
-    <div class="row row-cols-2 row-cols-md-4 g-3 mb-4">
-        {% include '_partials/stat_card.html.twig' with {label: 'Orders', value: stats.orders} %}
-        {% include '_partials/stat_card.html.twig' with {label: 'Total spent', value: stats.spent|format_currency('EUR'), variant: 'success'} %}
-        {% include '_partials/stat_card.html.twig' with {label: 'Items in cart', value: stats.cartUnits, variant: 'warning'} %}
-        {% include '_partials/stat_card.html.twig' with {label: 'Reviews written', value: stats.reviews} %}
+{% block content %}
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-xl-3">{{ ui.stat_card('Orders', stats.orders, 'box-seam', 'ink') }}</div>
+        <div class="col-6 col-xl-3">{{ ui.stat_card('Total spent', stats.spent|format_currency('EUR'), 'wallet2', 'accent') }}</div>
+        <div class="col-6 col-xl-3"><a class="text-decoration-none" href="{{ path('buyer_wishlist') }}">{{ ui.stat_card('Wishlist', stats.wishlist, 'heart', 'danger') }}</a></div>
+        <div class="col-6 col-xl-3"><a class="text-decoration-none" href="{{ path('buyer_reviews') }}">{{ ui.stat_card('Reviews written', stats.reviews, 'star', 'success') }}</a></div>
     </div>
-
-    {% if not app.user.totpAuthenticationEnabled %}
-        <div class="alert alert-info d-flex justify-content-between align-items-center">
-            <span>Protect your account with two-factor authentication.</span>
-            <a href="{{ path('app_security_settings') }}" class="btn btn-sm btn-primary">Enable 2FA</a>
-        </div>
-    {% endif %}
 
     <div class="row g-4">
         <div class="col-xl-8">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <h2 class="h5 mb-0">Recent orders</h2>
-                <a href="{{ path('buyer_orders') }}" class="small">All orders &rarr;</a>
-            </div>
-            {% if recentOrders is empty %}
-                <div class="text-center text-muted py-4 bg-white rounded-3 border">
-                    No orders yet. <a href="{{ path('product_index') }}">Start shopping</a>
-                </div>
-            {% else %}
-                {% include 'order/_buyer_table.html.twig' with {orders: recentOrders} %}
-            {% endif %}
+            <section class="panel h-100">
+                <div class="panel-head"><h2>Recent orders</h2><a class="small" href="{{ path('buyer_orders') }}">All orders <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+                {% if recentOrders is empty %}
+                    <div class="panel-body">{{ ui.empty_state('No orders yet', 'Your orders will appear here once you check out.', 'Start shopping', path('product_index'), 'box-seam') }}</div>
+                {% else %}
+                    {% include 'buyer/_orders_table.html.twig' with {orders: recentOrders} %}
+                {% endif %}
+            </section>
         </div>
         <div class="col-xl-4">
-            <h2 class="h5 mb-2">Products to review</h2>
-            {% if toReview is empty %}
-                <div class="text-center text-muted py-4 bg-white rounded-3 border small">Nothing to review right now.</div>
-            {% else %}
-                <ul class="list-group shadow-sm">
+            <section class="panel h-100">
+                <div class="panel-head"><h2>Products to review</h2></div>
+                <div class="panel-body">
                     {% for product in toReview %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <span class="text-truncate me-2">{{ product.name }}</span>
-                            <a href="{{ path('product_show', {uuid: product.uuid, _fragment: 'reviews'}) }}" class="btn btn-sm btn-outline-primary">Review</a>
-                        </li>
+                        <div class="d-flex align-items-center gap-3 {{ not loop.last ? 'mb-3' }}">
+                            <span class="thumb">{{ ui.product_image(product.mainImageFilename, product.name) }}</span>
+                            <div class="min-w-0 flex-grow-1">
+                                <p class="small fw-semibold text-truncate mb-1">{{ product.name }}</p>
+                                <a class="btn btn-sm btn-outline-dark" href="{{ path('product_show', {uuid: product.uuid}) }}#reviews-tab-pane"><i class="bi bi-pencil" aria-hidden="true"></i> Write a review</a>
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="text-muted small mb-0"><i class="bi bi-check2-circle" aria-hidden="true"></i> You have reviewed everything you bought. Thank you!</p>
                     {% endfor %}
-                </ul>
-            {% endif %}
+                </div>
+            </section>
         </div>
     </div>
+
+    {% if recommended is not empty %}
+        <section class="mt-4">
+            <div class="d-flex justify-content-between align-items-end mb-3"><h2 class="h4 mb-0">Recommended for you</h2><a class="small" href="{{ path('product_index') }}">Shop all</a></div>
+            <div class="row row-cols-2 row-cols-lg-4 g-3">
+                {% for product in recommended %}<div class="col">{{ ui.product_card(product) }}</div>{% endfor %}
+            </div>
+        </section>
+    {% endif %}
 {% endblock %}

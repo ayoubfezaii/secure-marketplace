@@ -33,6 +33,21 @@ class OrderRepository extends ServiceEntityRepository
     }
 
     /**
+     * Buyer "My orders" list (scoped to the buyer, status from the whitelist).
+     */
+    public function createBuyerQueryBuilder(User $buyer, ?string $status): QueryBuilder
+    {
+        $qb = $this->createQueryBuilder('o')
+            ->andWhere('o.buyer = :buyer')->setParameter('buyer', $buyer)
+            ->orderBy('o.createdAt', 'DESC');
+        if (null !== $status && in_array($status, Order::STATUSES, true)) {
+            $qb->andWhere('o.status = :status')->setParameter('status', $status);
+        }
+
+        return $qb;
+    }
+
+    /**
      * Orders that contain at least one item sold by $seller.
      *
      * @return list<Order>
@@ -46,6 +61,25 @@ class OrderRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+    }
+
+    /**
+     * Seller list: orders containing at least one of the seller's items; optional filter on the status of THOSE items.
+     */
+    public function createSellerQueryBuilder(User $seller, ?string $itemStatus): QueryBuilder
+    {
+        $sub = 'SELECT IDENTITY(i.order) FROM App\Entity\OrderItem i WHERE i.seller = :seller';
+        if (null !== $itemStatus && in_array($itemStatus, Order::STATUSES, true)) {
+            $sub .= ' AND i.status = :istatus';
+        }
+        $qb = $this->createQueryBuilder('o')
+            ->andWhere('o.id IN ('.$sub.')')->setParameter('seller', $seller)
+            ->orderBy('o.createdAt', 'DESC');
+        if (null !== $itemStatus && in_array($itemStatus, Order::STATUSES, true)) {
+            $qb->setParameter('istatus', $itemStatus);
+        }
+
+        return $qb;
     }
 
     /**

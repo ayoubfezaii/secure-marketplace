@@ -1,0 +1,51 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+{% import '_ui/table.html.twig' as t %}
+
+{% set page_title = 'My reviews' %}
+{% set page_subtitle = 'Reviews you wrote as a verified buyer.' %}
+{% set crumbs = [['Dashboard', path('buyer_dashboard')], ['My reviews', null]] %}
+
+{% block content %}
+    {% if toReview is not empty %}
+        <section class="surface p-3 mb-4 d-flex flex-wrap align-items-center gap-3">
+            <i class="bi bi-pencil-square fs-4" aria-hidden="true"></i>
+            <span class="flex-grow-1">You can review <strong>{{ toReview|length }}</strong> more product{{ toReview|length > 1 ? 's' }} you bought.</span>
+            <div class="d-flex flex-wrap gap-2">
+                {% for p in toReview|slice(0, 3) %}<a class="chip" href="{{ path('product_show', {uuid: p.uuid}) }}#reviews-tab-pane">{{ p.name|length > 28 ? p.name|slice(0, 28) ~ '…' : p.name }}</a>{% endfor %}
+            </div>
+        </section>
+    {% endif %}
+
+    {% if pager.total == 0 %}
+        {{ ui.empty_state('No reviews yet', 'After your order arrives, share what you think. It helps other customers and our makers.', 'See my orders', path('buyer_orders'), 'chat-heart') }}
+    {% else %}
+        <div class="d-grid gap-3">
+            {% for review in pager.items %}
+                <article class="panel">
+                    <div class="panel-body">
+                        <div class="d-flex flex-wrap justify-content-between gap-2">
+                            <div class="d-flex gap-3 align-items-center min-w-0">
+                                <span class="thumb">{{ ui.product_image(review.product.mainImageFilename, review.product.name) }}</span>
+                                <div class="min-w-0">
+                                    <a class="fw-semibold d-block text-truncate" href="{{ path('product_show', {uuid: review.product.uuid}) }}">{{ review.product.name }}</a>
+                                    <div class="d-flex align-items-center gap-2">{{ ui.rating_stars(review.rating) }}<span class="small text-muted">{{ review.createdAt|date('d M Y') }}{% if review.updatedAt %} · edited{% endif %}</span></div>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2 align-items-start">
+                                <a class="btn btn-sm btn-outline-dark" href="{{ path('buyer_review_edit', {uuid: review.uuid}) }}"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</a>
+                                {{ ui.confirm_delete_form(path('review_delete', {uuid: review.uuid}), 'delete-review-' ~ review.uuid, 'Delete', 'Your review will be permanently removed.', 'btn btn-sm btn-outline-danger', 'trash3', {back: 'buyer'}) }}
+                            </div>
+                        </div>
+                        {# SECURITY (rule 2): plain text, auto-escaped. #}
+                        <p class="pre-line mt-3 mb-0">{{ review.comment }}</p>
+                        {% if review.reply %}
+                            <div class="seller-reply"><strong class="small"><i class="bi bi-reply-fill" aria-hidden="true"></i> Seller's response</strong><p class="pre-line mb-0 mt-1">{{ review.reply.body }}</p></div>
+                        {% endif %}
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+        <div class="panel mt-3">{{ t.pager(pager, 'buyer_reviews') }}</div>
+    {% endif %}
+{% endblock %}

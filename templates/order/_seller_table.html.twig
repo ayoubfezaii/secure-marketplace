@@ -1,18 +1,20 @@
-{# Seller view: only THIS seller's items of each order (Order::getItemsForSeller). #}
-<div class="table-responsive bg-white rounded-3 border">
-    <table class="table align-middle mb-0">
-        <thead class="table-light"><tr><th>Order</th><th>Date</th><th>Product</th><th class="text-end">Qty</th><th class="text-end">Amount</th><th>Status</th><th></th></tr></thead>
+{# Seller view: only THIS seller's items of each order (Order::getItemsForSeller), never the buyer's email/payment. #}
+{% import '_ui/macros.html.twig' as ui %}
+<div class="table-responsive">
+    <table class="table table-hover table-cards align-middle">
+        <thead><tr><th scope="col">Order</th><th scope="col">Date</th><th scope="col">Ship to</th><th scope="col">Product</th><th scope="col" class="text-end">Qty</th><th scope="col" class="text-end">Amount</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
         <tbody>
         {% for order in orders %}
             {% for item in order.itemsForSeller(app.user) %}
                 <tr>
-                    <td><a href="{{ path('order_show', {uuid: order.uuid}) }}">{{ order.uuid|slice(0, 8)|upper }}</a></td>
-                    <td>{{ order.createdAt|date('d/m/Y') }}</td>
-                    <td>{{ item.productName }}</td>
-                    <td class="text-end">{{ item.quantity }}</td>
-                    <td class="text-end">{{ item.lineTotal|format_currency('EUR') }}</td>
-                    <td>{% include '_partials/status_badge.html.twig' with {status: item.status} %}</td>
-                    <td class="text-end">{% include '_partials/item_status_action.html.twig' with {item: item, back: back} %}</td>
+                    <td class="cell-main"><a class="fw-semibold font-monospace" href="{{ path('seller_order_show', {uuid: order.uuid}) }}">{{ order.number }}</a></td>
+                    <td data-label="Date">{{ order.createdAt|date('d M Y') }}</td>
+                    <td data-label="Ship to">{{ order.shippingName ?? '—' }}</td>
+                    <td data-label="Product" class="text-truncate">{{ item.productName }}</td>
+                    <td data-label="Qty" class="text-end">{{ item.quantity }}</td>
+                    <td data-label="Amount" class="text-end">{{ item.lineTotal|format_currency('EUR') }}</td>
+                    <td data-label="Status">{{ ui.status_badge(item.status) }}</td>
+                    <td class="text-end text-nowrap">{% include '_partials/item_status_action.html.twig' with {item: item, back: back|default('orders')} %}</td>
                 </tr>
             {% endfor %}
         {% endfor %}

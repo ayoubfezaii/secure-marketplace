@@ -1,0 +1,29 @@
+{% extends 'layouts/dashboard.html.twig' %}
+
+{% set page_title = address ? 'Edit address' : 'New address' %}
+{% set crumbs = [['Dashboard', path('buyer_dashboard')], ['Addresses', path('buyer_addresses')], [page_title, null]] %}
+
+{% block content %}
+    <section class="panel col-xl-8">
+        <div class="panel-body">
+            {# SECURITY (rules 3, 9): CSRF token; explicit fields only, the owner comes from the session. #}
+            {{ form_start(form, {attr: {novalidate: 'novalidate'}}) }}
+                <div class="row g-2">
+                    <div class="col-md-4">{{ form_row(form.label) }}</div>
+                    <div class="col-md-8">{{ form_row(form.fullName) }}</div>
+                    <div class="col-12">{{ form_row(form.line1) }}</div>
+                    <div class="col-12">{{ form_row(form.line2) }}</div>
+                    <div class="col-md-4">{{ form_row(form.postalCode) }}</div>
+                    <div class="col-md-8">{{ form_row(form.city) }}</div>
+                    <div class="col-md-6">{{ form_row(form.country) }}</div>
+                    <div class="col-md-6">{{ form_row(form.phone) }}</div>
+                    <div class="col-12">{{ form_row(form.isDefault) }}</div>
+                </div>
+                <div class="d-flex gap-2 mt-2">
+                    <button class="btn btn-primary" type="submit">Save address</button>
+                    <a class="btn btn-light" href="{{ path('buyer_addresses') }}">Cancel</a>
+                </div>
+            {{ form_end(form) }}
+        </div>
+    </section>
+{% endblock %}

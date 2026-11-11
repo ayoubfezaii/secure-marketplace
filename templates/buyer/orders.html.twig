@@ -1,0 +1,22 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+{% import '_ui/table.html.twig' as t %}
+
+{% set page_title = 'My orders' %}
+{% set page_subtitle = 'Track, review or cancel your orders.' %}
+{% set crumbs = [['Dashboard', path('buyer_dashboard')], ['My orders', null]] %}
+
+{% block content %}
+    <section class="panel">
+        <div class="toolbar">{{ t.filter_chips('status', status, statuses, 'buyer_orders') }}</div>
+        {% if pager.total == 0 %}
+            <div class="panel-body">
+                {{ status ? ui.empty_state('No ' ~ statuses[status]|lower ~ ' orders', 'Try another filter.', 'Show all orders', path('buyer_orders'), 'funnel')
+                          : ui.empty_state('No orders yet', 'When you place an order, you can follow it here.', 'Start shopping', path('product_index'), 'box-seam') }}
+            </div>
+        {% else %}
+            {% include 'buyer/_orders_table.html.twig' with {orders: pager.items} %}
+            {{ t.pager(pager, 'buyer_orders', params) }}
+        {% endif %}
+    </section>
+{% endblock %}

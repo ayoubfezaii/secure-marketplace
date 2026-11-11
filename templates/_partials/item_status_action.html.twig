@@ -1,9 +1,11 @@
-{# Seller action on one order item: advance to the next status. POST + per-item CSRF token (rule 3). #}
+{# Seller/admin action on one order item: advance to the next status. POST + per-item CSRF token (rule 3); the
+   server only accepts the single next step (state machine) and checks OrderVoter::ITEM_UPDATE_STATUS (rule 4). #}
 {% if item.nextStatus %}
-    <form method="post" action="{{ path('seller_order_item_status', {uuid: item.uuid}) }}" class="d-inline">
+    <form method="post" action="{{ path('order_item_status', {uuid: item.uuid}) }}" class="d-inline"
+          data-confirm="Mark “{{ item.productName }}” as {{ item.nextStatus }}?" data-confirm-button="Mark as {{ item.nextStatus }}" data-confirm-title="Update status" data-confirm-variant="dark">
         <input type="hidden" name="_token" value="{{ csrf_token('item-status-' ~ item.uuid) }}">
         <input type="hidden" name="status" value="{{ item.nextStatus }}">
         <input type="hidden" name="back" value="{{ back|default('order') }}">
-        <button class="btn btn-sm btn-outline-primary">Mark {{ item.nextStatus }}</button>
+        <button class="btn btn-sm btn-primary"><i class="bi bi-{{ item.nextStatus == 'shipped' ? 'truck' : 'check2-circle' }}" aria-hidden="true"></i> Mark as {{ item.nextStatus }}</button>
     </form>
 {% endif %}

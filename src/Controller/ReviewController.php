@@ -103,6 +103,9 @@ class ReviewController extends AbstractController
         if ('admin' === $request->request->getString('back') && $this->isGranted('ROLE_ADMIN')) {
             return $this->redirectToRoute('admin_reviews');
         }
+        if ('buyer' === $request->request->getString('back') && $this->isGranted('ROLE_BUYER')) {
+            return $this->redirectToRoute('buyer_reviews');
+        }
 
         return $this->redirectToRoute('product_show', ['uuid' => $product->getUuid(), '_fragment' => 'reviews']);
     }

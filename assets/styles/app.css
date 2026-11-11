@@ -417,3 +417,4 @@ meter.bar:-moz-meter-sub-sub-optimum::-moz-meter-bar { background: var(--danger)
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1.25rem; margin: 0; font-size: .92rem; }
 .kv dt { color: var(--taupe); font-weight: 500; }
 .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.avatar-xl { width: 88px; height: 88px; font-size: 1.8rem; font-family: var(--font-serif); }

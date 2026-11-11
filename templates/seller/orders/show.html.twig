@@ -1,0 +1,59 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% set page_title = 'Order ' ~ order.number %}
+{% set page_subtitle = 'Placed on ' ~ order.createdAt|date('d M Y \\a\\t H:i') %}
+{% set crumbs = [['Dashboard', path('seller_dashboard')], ['Orders', path('seller_orders')], [order.number, null]] %}
+
+{% block content %}
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <section class="panel">
+                <div class="panel-head"><h2>Your items in this order</h2><span class="small text-muted">{{ items|length }} line{{ items|length > 1 ? 's' }}</span></div>
+                <div class="table-responsive">
+                    <table class="table table-cards align-middle">
+                        <thead><tr><th scope="col">Product</th><th scope="col" class="text-end">Unit price</th><th scope="col" class="text-end">Qty</th><th scope="col" class="text-end">Total</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Action</span></th></tr></thead>
+                        <tbody>
+                            {% for item in items %}
+                                <tr>
+                                    <td class="cell-main">
+                                        <div class="cell-product">
+                                            <span class="thumb">{{ ui.product_image(item.product ? item.product.mainImageFilename : null, item.productName) }}</span>
+                                            <span class="name">{{ item.productName }}</span>
+                                        </div>
+                                    </td>
+                                    <td data-label="Unit price" class="text-end">{{ item.unitPrice|format_currency('EUR') }}</td>
+                                    <td data-label="Qty" class="text-end">{{ item.quantity }}</td>
+                                    <td data-label="Total" class="text-end fw-semibold">{{ item.lineTotal|format_currency('EUR') }}</td>
+                                    <td data-label="Status">{{ ui.status_badge(item.status) }}</td>
+                                    <td class="text-end text-nowrap">{% include '_partials/item_status_action.html.twig' with {item: item, back: 'order'} %}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="panel-body border-top d-flex justify-content-between">
+                    <span class="text-muted">Your share of this order</span><strong>{{ subtotal|format_currency('EUR') }}</strong>
+                </div>
+            </section>
+        </div>
+        <div class="col-lg-4 d-grid gap-4 align-content-start">
+            <section class="panel">
+                <div class="panel-head"><h2><i class="bi bi-geo-alt me-1" aria-hidden="true"></i> Ship to</h2></div>
+                <div class="panel-body">
+                    {# SECURITY (privilege matrix): shipping name + address only. The buyer's email, phone and payment
+                       details are never shown to sellers. #}
+                    {% if order.shippingLines is not empty %}
+                        <address class="mb-0">{% for l in order.shippingLines %}{{ l }}<br>{% endfor %}</address>
+                    {% else %}
+                        <p class="text-muted small mb-0">No address recorded for this older order.</p>
+                    {% endif %}
+                </div>
+            </section>
+            <section class="surface p-3 small">
+                <p class="fw-semibold mb-2"><i class="bi bi-truck" aria-hidden="true"></i> Fulfilment steps</p>
+                <p class="text-muted mb-0">Paid → Shipped → Delivered. Each step can only move forward, one at a time. Cancelled or refunded items can't be changed.</p>
+            </section>
+        </div>
+    </div>
+{% endblock %}

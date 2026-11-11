@@ -1,0 +1,44 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% set page_title = 'Addresses' %}
+{% set page_subtitle = addresses|length ~ ' of ' ~ max ~ ' saved addresses' %}
+{% set crumbs = [['Dashboard', path('buyer_dashboard')], ['Addresses', null]] %}
+
+{% block page_actions %}
+    {% if addresses|length < max %}<a class="btn btn-primary" href="{{ path('buyer_address_new') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add an address</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+    {% if addresses is empty %}
+        {{ ui.empty_state('No saved address', 'Save an address to check out faster.', 'Add an address', path('buyer_address_new'), 'geo-alt') }}
+    {% else %}
+        <div class="row g-3">
+            {% for a in addresses %}
+                <div class="col-md-6 col-xxl-4">
+                    <article class="panel h-100 d-flex flex-column">
+                        <div class="panel-head">
+                            <h2><i class="bi bi-{{ a.label|lower in ['office', 'work', 'bureau'] ? 'building' : 'house' }} me-1" aria-hidden="true"></i> {{ a.label }}</h2>
+                            {% if a.default %}<span class="badge badge-soft"><i class="bi bi-star-fill text-accent" aria-hidden="true"></i> Default</span>{% endif %}
+                        </div>
+                        <div class="panel-body flex-grow-1">
+                            <address class="mb-0">{% for l in a.lines %}{{ l }}<br>{% endfor %}</address>
+                            {% if a.phone %}<p class="small text-muted mt-2 mb-0"><i class="bi bi-telephone" aria-hidden="true"></i> {{ a.phone }}</p>{% endif %}
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 px-3 pb-3">
+                            <a class="btn btn-sm btn-outline-dark" href="{{ path('buyer_address_edit', {uuid: a.uuid}) }}"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</a>
+                            {% if not a.default %}
+                                {# SECURITY (rules 3, 4): POST + per-address CSRF token; AddressVoter on the server. #}
+                                <form method="post" action="{{ path('buyer_address_default', {uuid: a.uuid}) }}">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('address-default-' ~ a.uuid) }}">
+                                    <button class="btn btn-sm btn-light" type="submit">Set as default</button>
+                                </form>
+                            {% endif %}
+                            <span class="ms-auto">{{ ui.confirm_delete_form(path('buyer_address_delete', {uuid: a.uuid}), 'address-delete-' ~ a.uuid, 'Delete', 'This address will be removed from your account. Past orders keep their own copy.', 'btn btn-sm btn-link text-danger') }}</span>
+                        </div>
+                    </article>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endblock %}

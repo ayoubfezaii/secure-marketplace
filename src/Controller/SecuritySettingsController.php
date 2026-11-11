@@ -3,6 +3,8 @@
 namespace App\Controller;
 
 use App\Entity\User;
+use App\Form\ChangePasswordFormType;
+use App\Repository\AuditLogRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Endroid\QrCode\Builder\Builder;
 use Endroid\QrCode\Writer\SvgWriter;
@@ -36,7 +38,7 @@ class SecuritySettingsController extends AbstractController
     }
 
     #[Route('', name: 'app_security_settings', methods: ['GET'])]
-    public function index(Request $request): Response
+    public function index(Request $request, AuditLogRepository $logs): Response
     {
         $user = $this->getAppUser();
         $pendingSecret = $request->getSession()->get(self::PENDING_SECRET_KEY);
@@ -57,6 +59,10 @@ class SecuritySettingsController extends AbstractController
             'totpEnabled' => $user->isTotpAuthenticationEnabled(),
             'qrCode' => $qrCode,
             'pendingSecret' => null !== $qrCode ? $pendingSecret : null,
+            // The password form posts to ProfileController::changePassword (same CSRF id, same rate limit).
+            'passwordForm' => $this->createForm(ChangePasswordFormType::class, null, ['action' => $this->generateUrl('account_password')]),
+            // SECURITY (rule 14): the user's OWN login history only (scoped to the logged-in user).
+            'loginHistory' => $logs->findLoginHistory($user, 20),
         ]);
     }
 

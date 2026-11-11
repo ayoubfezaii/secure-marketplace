@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\AuditLog;
+use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
@@ -58,6 +59,21 @@ class AuditLogRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+    }
+
+    /**
+     * The user's own login history (security page): successes, failures, blocked attempts, 2FA failures, lockouts.
+     *
+     * @return list<AuditLog>
+     */
+    public function findLoginHistory(User $user, int $limit = 20): array
+    {
+        return $this->createQueryBuilder('a')
+            ->andWhere('a.user = :u')->andWhere('a.action IN (:actions)')
+            ->setParameter('u', $user)
+            ->setParameter('actions', [AuditLog::LOGIN_SUCCESS, AuditLog::LOGIN_FAILURE, AuditLog::LOGIN_BLOCKED, AuditLog::TWO_FA_FAILURE, AuditLog::ACCOUNT_LOCKED])
+            ->orderBy('a.createdAt', 'DESC')->setMaxResults($limit)
+            ->getQuery()->getResult();
     }
 
     public function countSince(string $action, \DateTimeImmutable $since): int

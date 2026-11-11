@@ -1,0 +1,63 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% set page_title = 'Become a seller' %}
+{% set page_subtitle = 'Open your own shop on Maison Secure.' %}
+{% set crumbs = [['Dashboard', path('buyer_dashboard')], ['Become a seller', null]] %}
+
+{% block content %}
+    <div class="row g-4">
+        <div class="col-xl-7">
+            {% if latest %}
+                <section class="panel mb-4">
+                    <div class="panel-head"><h2>Your application</h2>{{ ui.status_badge(latest.status) }}</div>
+                    <div class="panel-body">
+                        <dl class="kv mb-3">
+                            <dt>Shop name</dt><dd>{{ latest.shopName }}</dd>
+                            <dt>Sent on</dt><dd>{{ latest.createdAt|date('d M Y') }}</dd>
+                            {% if latest.reviewedAt %}<dt>Reviewed on</dt><dd>{{ latest.reviewedAt|date('d M Y') }}</dd>{% endif %}
+                        </dl>
+                        {% if latest.status == 'pending' %}
+                            <div class="alert alert-light border mb-0 d-flex gap-2"><i class="bi bi-hourglass-split" aria-hidden="true"></i><span>Our team is reviewing your application. You will become a seller as soon as it is approved; log in again to see your seller dashboard.</span></div>
+                        {% elseif latest.status == 'rejected' %}
+                            <div class="alert alert-warning mb-0">
+                                <strong>Not approved this time.</strong>
+                                {# SECURITY (rule 2): the admin's reason is plain text, auto-escaped. #}
+                                <p class="pre-line mb-0 mt-1">{{ latest.reason }}</p>
+                                <p class="small mt-2 mb-0">You can send a new application below.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </section>
+            {% endif %}
+
+            {% if form %}
+                <section class="panel">
+                    <div class="panel-head"><h2>{{ latest ? 'New application' : 'Apply to open a shop' }}</h2></div>
+                    <div class="panel-body">
+                        {# SECURITY (rules 3, 9): CSRF token; only shop name + description; applicant/status set by the server. #}
+                        {{ form_start(form, {attr: {novalidate: 'novalidate'}}) }}
+                            {{ form_row(form.shopName) }}
+                            {{ form_row(form.description) }}
+                            {{ form_row(form.agreeSellerTerms) }}
+                            <button class="btn btn-primary" type="submit"><i class="bi bi-send" aria-hidden="true"></i> Send my application</button>
+                        {{ form_end(form) }}
+                    </div>
+                </section>
+            {% endif %}
+        </div>
+        <div class="col-xl-5">
+            <section class="panel bg-sand border-0">
+                <div class="panel-body">
+                    <h2 class="h5">How it works</h2>
+                    <ol class="d-grid gap-3 ps-3 mb-0">
+                        <li><strong>Apply</strong> with your shop name and what you make.</li>
+                        <li><strong>We review</strong> every application to keep the marketplace trustworthy.</li>
+                        <li><strong>Once approved</strong>, your account becomes a seller account and your shop page is created. You can then add products, ship orders and reply to reviews.</li>
+                    </ol>
+                    <p class="small text-muted mt-3 mb-0"><i class="bi bi-info-circle" aria-hidden="true"></i> A seller account can't place orders: accounts are either buyer, seller or admin.</p>
+                </div>
+            </section>
+        </div>
+    </div>
+{% endblock %}

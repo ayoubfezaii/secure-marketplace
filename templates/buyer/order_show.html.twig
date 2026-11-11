@@ -1,0 +1,99 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% set page_title = 'Order ' ~ order.number %}
+{% set page_subtitle = 'Placed on ' ~ order.createdAt|date('d M Y \\a\\t H:i') %}
+{% set crumbs = [['Dashboard', path('buyer_dashboard')], ['My orders', path('buyer_orders')], [order.number, null]] %}
+
+{% block page_actions %}
+    {% if is_granted('ORDER_CANCEL', order) %}
+        {# SECURITY (rules 3, 4): POST + per-order CSRF token; OrderVoter::CANCEL re-checked on the server (own order,
+           status "paid"); stock restored in a transaction. #}
+        {{ ui.confirm_delete_form(path('buyer_order_cancel', {uuid: order.uuid}), 'order-cancel-' ~ order.uuid, 'Cancel order', 'Your order will be cancelled and you will not be charged. This cannot be undone.', 'btn btn-outline-danger', 'x-circle', {}, 'Yes, cancel it', 'Cancel this order?') }}
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+    {# ---------- Timeline ---------- #}
+    <section class="panel mb-4">
+        <div class="panel-body">
+            {% if order.status in ['cancelled', 'refunded'] %}
+                <div class="d-flex align-items-center gap-3">
+                    {{ ui.status_badge(order.status) }}
+                    <span class="text-muted">{{ order.status == 'cancelled' ? 'This order was cancelled. Nothing was charged and the items went back in stock.' : 'This order was refunded.' }}</span>
+                </div>
+            {% else %}
+                {% set steps = [['paid', 'Paid', 'credit-card'], ['shipped', 'Shipped', 'truck'], ['delivered', 'Delivered', 'house-check']] %}
+                {% set reached = {paid: 1, shipped: 2, delivered: 3}[order.status] ?? 1 %}
+                <ol class="timeline" aria-label="Order progress">
+                    {% for s in steps %}
+                        <li class="{{ loop.index <= reached ? 'done' }}" {% if loop.index == reached %}aria-current="step"{% endif %}>
+                            <span class="dot"><i class="bi bi-{{ s[2] }}" aria-hidden="true"></i></span>{{ s[1] }}
+                        </li>
+                    {% endfor %}
+                </ol>
+            {% endif %}
+        </div>
+    </section>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <section class="panel">
+                <div class="panel-head"><h2>Items</h2><span class="small text-muted">{{ order.items|length }} item{{ order.items|length > 1 ? 's' }}</span></div>
+                <ul class="list-unstyled mb-0">
+                    {% for item in order.items %}
+                        <li class="d-flex gap-3 align-items-center p-3 {{ not loop.last ? 'border-bottom' }}">
+                            <span class="thumb thumb-lg">{{ ui.product_image(item.product ? item.product.mainImageFilename : null, item.productName) }}</span>
+                            <div class="flex-grow-1 min-w-0">
+                                {# Name and price are snapshots taken at checkout (rule 10). #}
+                                {% if item.product and item.product.active %}
+                                    <a class="fw-semibold d-block text-truncate" href="{{ path('product_show', {uuid: item.product.uuid}) }}">{{ item.productName }}</a>
+                                {% else %}
+                                    <span class="fw-semibold d-block text-truncate">{{ item.productName }}</span>
+                                {% endif %}
+                                <span class="small text-muted">{{ item.quantity }} × {{ item.unitPrice|format_currency('EUR') }}{% if item.seller.shop %} · {{ item.seller.shop.name }}{% endif %}</span>
+                                <div class="mt-1">{{ ui.status_badge(item.status) }}</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="fw-semibold">{{ item.lineTotal|format_currency('EUR') }}</div>
+                                {% if item.product and is_granted('REVIEW_CREATE', item.product) %}
+                                    <a class="btn btn-sm btn-link px-0" href="{{ path('product_show', {uuid: item.product.uuid}) }}#reviews-tab-pane">Write a review</a>
+                                {% endif %}
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+                <div class="panel-body border-top">
+                    <dl class="d-grid gap-2 mb-0 col-md-6 ms-auto">
+                        <div class="d-flex justify-content-between"><dt class="fw-normal text-muted">Subtotal</dt><dd class="mb-0">{{ order.total|format_currency('EUR') }}</dd></div>
+                        <div class="d-flex justify-content-between"><dt class="fw-normal text-muted">Shipping</dt><dd class="mb-0 text-success">Free</dd></div>
+                        <div class="d-flex justify-content-between border-top pt-2 fs-5"><dt>Total</dt><dd class="mb-0 fw-bold">{{ order.total|format_currency('EUR') }}</dd></div>
+                    </dl>
+                </div>
+            </section>
+        </div>
+        <div class="col-lg-4 d-grid gap-4 align-content-start">
+            <section class="panel">
+                <div class="panel-head"><h2><i class="bi bi-geo-alt me-1" aria-hidden="true"></i> Shipping address</h2></div>
+                <div class="panel-body">
+                    {% if order.shippingLines is not empty %}
+                        <address class="mb-0">{% for l in order.shippingLines %}{{ l }}<br>{% endfor %}</address>
+                    {% else %}
+                        <p class="text-muted small mb-0">No address recorded for this older order.</p>
+                    {% endif %}
+                </div>
+            </section>
+            <section class="panel">
+                <div class="panel-head"><h2><i class="bi bi-credit-card me-1" aria-hidden="true"></i> Payment</h2></div>
+                <div class="panel-body">
+                    {# SECURITY (rule 11): only the last 4 digits were ever stored. #}
+                    <p class="mb-1">Card <span class="font-monospace">•••• •••• •••• {{ order.cardLast4 }}</span></p>
+                    <p class="small text-muted mb-0">{{ order.cardHolder }}</p>
+                </div>
+            </section>
+            <section class="surface p-3 small text-muted">
+                <i class="bi bi-question-circle" aria-hidden="true"></i> Need help with this order? Write to care@maison-secure.test with your order number <strong class="text-body">{{ order.number }}</strong>.
+            </section>
+        </div>
+    </div>
+{% endblock %}

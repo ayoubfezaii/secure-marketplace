@@ -9,6 +9,8 @@ use App\Entity\OrderItem;
 use App\Entity\Product;
 use App\Entity\Review;
 use App\Entity\User;
+use App\Entity\WishlistItem;
+use App\Repository\ProductRepository;
 use App\Repository\AuditLogRepository;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -28,6 +30,7 @@ final class DashboardStats
         private readonly EntityManagerInterface $em,
         private readonly UserRepository $users,
         private readonly AuditLogRepository $auditLogs,
+        private readonly ProductRepository $products,
     ) {
     }
 
@@ -48,7 +51,54 @@ final class DashboardStats
             'spent' => number_format((float) $orders['spent'], 2, '.', ''),
             'cartUnits' => $this->scalar('SELECT COALESCE(SUM(c.quantity), 0) FROM '.CartItem::class.' c WHERE c.user = :u', ['u' => $buyer]),
             'reviews' => $this->scalar('SELECT COUNT(r.id) FROM '.Review::class.' r WHERE r.author = :u', ['u' => $buyer]),
+            'wishlist' => $this->scalar('SELECT COUNT(w.id) FROM '.WishlistItem::class.' w WHERE w.user = :u', ['u' => $buyer]),
         ];
+    }
+
+    /**
+     * "Recommended for you": active products from the categories the buyer already bought in, that they haven't
+     * bought yet; completed with best-rated products.
+     *
+     * @return list<Product>
+     */
+    public function recommendedFor(User $buyer, int $limit = 4): array
+    {
+        $bought = $this->em->createQueryBuilder()
+            ->select('IDENTITY(i.product) AS pid, IDENTITY(p.category) AS cid')
+            ->from(OrderItem::class, 'i')->innerJoin('i.order', 'o')->innerJoin('i.product', 'p')
+            ->where('o.buyer = :u')->setParameter('u', $buyer)
+            ->getQuery()->getArrayResult();
+        $productIds = array_values(array_unique(array_map(static fn (array $r) => (int) $r['pid'], $bought)));
+        $categoryIds = array_values(array_unique(array_map(static fn (array $r) => (int) $r['cid'], $bought)));
+
+        $qb = $this->em->createQueryBuilder()->select('p')->from(Product::class, 'p')
+            ->where('p.isActive = true')->andWhere('p.stock > 0')
+            ->orderBy('p.ratingAverage', 'DESC')->addOrderBy('p.createdAt', 'DESC')->setMaxResults($limit);
+        if ([] !== $productIds) {
+            $qb->andWhere('p.id NOT IN (:bought)')->setParameter('bought', $productIds);
+        }
+        if ([] !== $categoryIds) {
+            $qb->andWhere('p.category IN (:cats)')->setParameter('cats', $categoryIds);
+        }
+        /** @var list<Product> $result */
+        $result = $qb->getQuery()->getResult();
+
+        if (count($result) < $limit) {
+            $more = $this->em->createQueryBuilder()->select('p')->from(Product::class, 'p')
+                ->where('p.isActive = true')->andWhere('p.stock > 0')
+                ->orderBy('p.ratingAverage', 'DESC')->setMaxResults($limit * 3)
+                ->getQuery()->getResult();
+            foreach ($more as $p) {
+                if (count($result) >= $limit) {
+                    break;
+                }
+                if (!in_array($p, $result, true) && !in_array($p->getId(), $productIds, true)) {
+                    $result[] = $p;
+                }
+            }
+        }
+
+        return $this->products->preloadImages($result);
     }
 
     /**

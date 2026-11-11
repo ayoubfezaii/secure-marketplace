@@ -1,64 +1,73 @@
-{% extends 'dashboard/_layout.html.twig' %}
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+{% import '_ui/forms.html.twig' as f %}
 
-{% block title %}Security settings · {{ parent() }}{% endblock %}
+{% set page_title = 'Security' %}
+{% set page_subtitle = 'Password, two-factor authentication and recent sign-ins.' %}
+{% set crumbs = [['Dashboard', path('app_dashboard')], ['Security', null]] %}
 
-{% block dash_content %}
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <h1 class="h3 mb-4">Security settings</h1>
+{% block content %}
+    <div class="row g-4">
+        <div class="col-xl-6 d-grid gap-4 align-content-start">
+            {# ---------- Password ---------- #}
+            <section class="panel" id="password">
+                <div class="panel-head"><h2><i class="bi bi-key me-1" aria-hidden="true"></i> Change password</h2></div>
+                <div class="panel-body">
+                    {# SECURITY (rules 3, 5, 6): CSRF token; the CURRENT password is required (a hijacked session alone
+                       can't change it); rate limited; every session is ended after the change. #}
+                    {{ form_start(passwordForm, {attr: {novalidate: 'novalidate'}}) }}
+                        {{ f.password(passwordForm.currentPassword) }}
+                        {{ f.password(passwordForm.newPassword.first, true) }}
+                        {{ f.password(passwordForm.newPassword.second) }}
+                        <button type="submit" class="btn btn-primary">Update password</button>
+                    {{ form_end(passwordForm) }}
+                </div>
+            </section>
 
-            <div class="card shadow-sm">
-                <div class="card-body p-4">
-                    <h2 class="h5 d-flex align-items-center gap-2">
-                        Two-factor authentication (TOTP)
-                        {% if totpEnabled %}
-                            <span class="badge text-bg-success">Enabled</span>
-                        {% else %}
-                            <span class="badge text-bg-secondary">Disabled</span>
-                        {% endif %}
-                    </h2>
-
+            {# ---------- 2FA ---------- #}
+            <section class="panel" id="two-factor">
+                <div class="panel-head">
+                    <h2><i class="bi bi-phone-vibrate me-1" aria-hidden="true"></i> Two-factor authentication</h2>
+                    {{ ui.status_badge(totpEnabled ? 'active' : 'inactive') }}
+                </div>
+                <div class="panel-body">
                     {% if totpEnabled %}
                         <p>Every login asks for a 6-digit code from your authenticator app.</p>
-                        <hr>
-                        <h3 class="h6">Disable two-factor authentication</h3>
-                        <p class="text-muted small">For your protection, enter your password and a current code.</p>
-                        <form method="post" action="{{ path('app_2fa_disable') }}" class="row g-2 align-items-end">
+                        <h3 class="h6 mt-4">Disable two-factor authentication</h3>
+                        <p class="text-muted small">For your protection, enter your password <strong>and</strong> a current code.</p>
+                        {# SECURITY (rules 3, 5): re-authentication with BOTH factors + CSRF + rate limit. #}
+                        <form method="post" action="{{ path('app_2fa_disable') }}" data-confirm="Your account will only be protected by your password." data-confirm-title="Disable 2FA?" data-confirm-button="Disable 2FA">
                             <input type="hidden" name="_token" value="{{ csrf_token('totp_disable') }}">
-                            <div class="col-md-5">
-                                <label class="form-label" for="current_password">Current password</label>
-                                <input type="password" id="current_password" name="current_password" class="form-control" autocomplete="current-password" required>
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-6">{{ f.raw_password('current_password', 'current_password', 'Current password') }}</div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label" for="disable_code">Code</label>
+                                    <input type="text" id="disable_code" name="code" class="form-control" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
+                                </div>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label" for="disable_code">Code</label>
-                                <input type="text" id="disable_code" name="code" class="form-control" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
-                            </div>
-                            <div class="col-md-3">
-                                <button type="submit" class="btn btn-outline-danger w-100">Disable</button>
-                            </div>
+                            <button type="submit" class="btn btn-outline-danger">Disable</button>
                         </form>
                     {% elseif qrCode %}
-                        <ol class="mb-3">
-                            <li>Open an authenticator app (Google Authenticator, Microsoft Authenticator, Aegis, 1Password...).</li>
+                        <ol class="mb-3 small">
+                            <li>Open an authenticator app (Google Authenticator, Microsoft Authenticator, Aegis, 1Password…).</li>
                             <li>Scan this QR code, or type the key manually.</li>
                             <li>Enter the 6-digit code it shows to confirm.</li>
                         </ol>
                         <div class="d-flex flex-wrap gap-4 align-items-center mb-3">
-                            <img src="{{ qrCode }}" alt="QR code for your authenticator app" width="220" height="220" class="border rounded">
+                            {# SECURITY: QR generated server side as a data: URI; the secret never goes to a third-party service. #}
+                            <img src="{{ qrCode }}" alt="QR code for your authenticator app" width="200" height="200" class="border rounded bg-white">
                             <div>
                                 <div class="small text-muted">Manual entry key</div>
-                                <code class="fs-6 user-select-all">{{ pendingSecret }}</code>
+                                <code class="fs-6 user-select-all text-break">{{ pendingSecret }}</code>
                             </div>
                         </div>
                         <form method="post" action="{{ path('app_2fa_confirm') }}" class="row g-2 align-items-end">
                             <input type="hidden" name="_token" value="{{ csrf_token('totp_confirm') }}">
-                            <div class="col-md-5">
+                            <div class="col-md-6">
                                 <label class="form-label" for="confirm_code">Code from the app</label>
-                                <input type="text" id="confirm_code" name="code" class="form-control" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required autofocus>
+                                <input type="text" id="confirm_code" name="code" class="form-control otp-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required autofocus>
                             </div>
-                            <div class="col-md-4">
-                                <button type="submit" class="btn btn-primary w-100">Confirm and enable</button>
-                            </div>
+                            <div class="col-md-6"><button type="submit" class="btn btn-primary w-100">Confirm and enable</button></div>
                         </form>
                         <form method="post" action="{{ path('app_2fa_cancel') }}" class="mt-2">
                             <input type="hidden" name="_token" value="{{ csrf_token('totp_cancel') }}">
@@ -68,11 +77,40 @@
                         <p>Protect your account with a second factor: even with your password, nobody can log in without the code from your phone.</p>
                         <form method="post" action="{{ path('app_2fa_start') }}">
                             <input type="hidden" name="_token" value="{{ csrf_token('totp_start') }}">
-                            <button type="submit" class="btn btn-primary">Set up two-factor authentication</button>
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-qr-code" aria-hidden="true"></i> Set up two-factor authentication</button>
                         </form>
                     {% endif %}
                 </div>
-            </div>
+            </section>
+        </div>
+
+        {# ---------- Login history ---------- #}
+        <div class="col-xl-6">
+            <section class="panel" id="history">
+                <div class="panel-head"><h2><i class="bi bi-clock-history me-1" aria-hidden="true"></i> Recent sign-ins</h2><span class="small text-muted">Last 20</span></div>
+                {% if loginHistory is empty %}
+                    <div class="panel-body text-muted small">No sign-in recorded yet.</div>
+                {% else %}
+                    <div class="table-responsive">
+                        <table class="table table-cards align-middle">
+                            <thead><tr><th scope="col">Date</th><th scope="col">IP address</th><th scope="col">Result</th></tr></thead>
+                            <tbody>
+                                {% set labels = {'login.success': ['Success', 'delivered'], 'login.failure': ['Wrong password', 'refunded'], 'login.blocked': ['Blocked', 'refunded'], '2fa.failure': ['Wrong 2FA code', 'shipped'], 'account.locked': ['Account locked', 'refunded']} %}
+                                {% for e in loginHistory %}
+                                    {% set l = labels[e.action] ?? [e.action, 'cancelled'] %}
+                                    <tr>
+                                        <td class="cell-main">{{ e.createdAt|date('d M Y, H:i') }}</td>
+                                        {# SECURITY (rule 2): IP is auto-escaped. #}
+                                        <td data-label="IP" class="font-monospace small">{{ e.ip ?? '—' }}</td>
+                                        <td data-label="Result"><span class="badge status-badge status-{{ l[1] }}">{{ l[0] }}</span></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="small text-muted px-3 py-3 mb-0 border-top"><i class="bi bi-info-circle" aria-hidden="true"></i> Don't recognise a sign-in? Change your password and enable two-factor authentication.</p>
+                {% endif %}
+            </section>
         </div>
     </div>
 {% endblock %}
