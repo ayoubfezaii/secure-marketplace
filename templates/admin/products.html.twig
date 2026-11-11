@@ -1,46 +1,70 @@
-{% extends 'dashboard/_layout.html.twig' %}
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+{% import '_ui/table.html.twig' as t %}
 
-{% block title %}Products · Admin · {{ parent() }}{% endblock %}
+{% set page_title = 'Products' %}
+{% set page_subtitle = pager.total ~ ' product' ~ (pager.total != 1 ? 's') ~ ' (all sellers)' %}
+{% set crumbs = [['Dashboard', path('admin_dashboard')], ['Products', null]] %}
 
-{% block dash_content %}
-    <h1 class="h3 mb-3">Products moderation <span class="text-muted fs-6">({{ pager.total }})</span></h1>
-
-    <form method="get" class="row g-2 mb-3">
-        <div class="col-md-6"><input type="search" name="q" value="{{ q }}" maxlength="100" class="form-control" placeholder="Search name or seller email" aria-label="Search"></div>
-        <div class="col-md-3">
-            <select name="state" class="form-select" aria-label="State">
-                <option value="">All</option>
-                <option value="active" {{ state == 'active' ? 'selected' }}>Active</option>
-                <option value="hidden" {{ state == 'hidden' ? 'selected' }}>Hidden</option>
+{% block content %}
+    <section class="panel">
+        <form class="toolbar" method="get" action="{{ path('admin_products') }}" {{ stimulus_controller('autosubmit') }}>
+            <div class="search-pill flex-grow-1">
+                <label class="visually-hidden" for="q">Search</label><i class="bi bi-search" aria-hidden="true"></i>
+                <input class="form-control" id="q" type="search" name="q" maxlength="100" value="{{ list.q }}" placeholder="Product or seller email…">
+            </div>
+            <label class="visually-hidden" for="seller">Seller</label>
+            <select class="form-select" id="seller" name="seller" {{ stimulus_action('autosubmit', 'submit', 'change') }}>
+                <option value="">All sellers</option>
+                {% for s in sellers %}<option value="{{ s.uuid }}" {{ seller and seller.id == s.id ? 'selected' }}>{{ s.shop ? s.shop.name : s.email }}</option>{% endfor %}
             </select>
-        </div>
-        <div class="col-md-3"><button class="btn btn-outline-primary w-100">Filter</button></div>
-    </form>
-
-    <div class="table-responsive bg-white rounded-3 border">
-        <table class="table align-middle mb-0">
-            <thead class="table-light"><tr><th class="col-thumb"></th><th>Name</th><th>Seller</th><th class="text-end">Price</th><th class="text-end">Stock</th><th>Status</th><th class="text-end"></th></tr></thead>
-            <tbody>
-            {% for p in pager.items %}
-                <tr>
-                    <td>{% include '_partials/product_image.html.twig' with {product: p, class: 'thumb-sm rounded'} %}</td>
-                    <td><a href="{{ path('product_show', {uuid: p.uuid}) }}">{{ p.name }}</a></td>
-                    <td class="small">{{ p.seller.email }}</td>
-                    <td class="text-end">{{ p.price|format_currency('EUR') }}</td>
-                    <td class="text-end">{{ p.stock }}</td>
-                    <td>{% if p.active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-secondary">Hidden</span>{% endif %}</td>
-                    <td class="text-end">
-                        <form method="post" action="{{ path('admin_product_toggle', {uuid: p.uuid}) }}">
-                            <input type="hidden" name="_token" value="{{ csrf_token('admin-toggle-' ~ p.uuid) }}">
-                            <button class="btn btn-sm {{ p.active ? 'btn-outline-danger' : 'btn-outline-success' }}">{{ p.active ? 'Deactivate' : 'Reactivate' }}</button>
-                        </form>
-                    </td>
-                </tr>
-            {% else %}
-                <tr><td colspan="7" class="text-center text-muted py-4">No products found.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% include '_partials/pager.html.twig' with {pager: pager, route: 'admin_products', params: params} %}
+            <label class="visually-hidden" for="category">Category</label>
+            <select class="form-select" id="category" name="category" {{ stimulus_action('autosubmit', 'submit', 'change') }}>
+                <option value="">All categories</option>
+                {% for c in categories %}<option value="{{ c.slug }}" {{ category and category.id == c.id ? 'selected' }}>{{ c.name }}</option>{% endfor %}
+            </select>
+            <label class="visually-hidden" for="state">Status</label>
+            <select class="form-select" id="state" name="state" {{ stimulus_action('autosubmit', 'submit', 'change') }}>
+                <option value="">Any status</option>
+                <option value="active" {{ state == 'active' ? 'selected' }}>Active</option>
+                <option value="hidden" {{ state == 'hidden' ? 'selected' }}>Deactivated</option>
+            </select>
+            <input type="hidden" name="sort" value="{{ list.sort }}"><input type="hidden" name="dir" value="{{ list.dir }}">
+            <button class="btn btn-outline-dark" type="submit">Filter</button>
+            {% if filters is not empty %}<a class="btn btn-link" href="{{ path('admin_products') }}">Reset</a>{% endif %}
+        </form>
+        {% if pager.total == 0 %}
+            <div class="panel-body">{{ ui.empty_state('No product found', 'Try other filters.', 'Reset', path('admin_products'), 'box-seam') }}</div>
+        {% else %}
+            <div class="table-responsive">
+                <table class="table table-hover table-cards align-middle">
+                    <thead><tr>
+                        {{ t.sort_th('Product', 'name', list, 'admin_products', filters) }}
+                        <th scope="col">Seller</th><th scope="col">Category</th>
+                        {{ t.sort_th('Price', 'price', list, 'admin_products', filters, 'text-end') }}
+                        {{ t.sort_th('Stock', 'stock', list, 'admin_products', filters, 'text-end') }}
+                        <th scope="col">Status</th><th scope="col"><span class="visually-hidden">Actions</span></th>
+                    </tr></thead>
+                    <tbody>
+                        {% for p in products %}
+                            <tr>
+                                <td class="cell-main"><div class="cell-product"><span class="thumb">{{ ui.product_image(p.mainImageFilename, p.name) }}</span><a class="name text-truncate" href="{{ path('product_show', {uuid: p.uuid}) }}">{{ p.name }}</a></div></td>
+                                <td data-label="Seller" class="small text-break">{{ p.shop ? p.shop.name : p.seller.email }}</td>
+                                <td data-label="Category" class="small">{{ p.categoryLabel }}</td>
+                                <td data-label="Price" class="text-end">{{ p.price|format_currency('EUR') }}</td>
+                                <td data-label="Stock" class="text-end">{{ p.stock }}</td>
+                                <td data-label="Status">{{ ui.status_badge(p.active ? 'active' : 'inactive') }}</td>
+                                <td class="text-end text-nowrap">
+                                    {# SECURITY (rules 3, 4, 14): POST + CSRF + ProductVoter::MODERATE + audit log. #}
+                                    {{ ui.confirm_delete_form(path('admin_product_toggle', {uuid: p.uuid}), 'admin-toggle-' ~ p.uuid, p.active ? 'Deactivate' : 'Reactivate', p.active ? 'The product will be hidden from the catalogue.' : 'The product will be visible in the catalogue again.', 'btn btn-sm btn-outline-dark', p.active ? 'eye-slash' : 'eye', {}, null, null, 'dark') }}
+                                    {{ ui.confirm_delete_form(path('admin_product_delete', {uuid: p.uuid}), 'admin-delete-' ~ p.uuid, 'Delete', '“' ~ p.name ~ '” will be permanently deleted. Past orders keep their copy.', 'btn btn-sm btn-outline-danger', 'trash3', {}, 'Delete', 'Delete this product?') }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {{ t.pager(pager, 'admin_products', params) }}
+        {% endif %}
+    </section>
 {% endblock %}

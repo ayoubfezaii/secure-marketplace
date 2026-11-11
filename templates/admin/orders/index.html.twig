@@ -1,0 +1,64 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+{% import '_ui/table.html.twig' as t %}
+
+{% set page_title = 'Orders' %}
+{% set page_subtitle = pager.total ~ ' order' ~ (pager.total != 1 ? 's') %}
+{% set crumbs = [['Dashboard', path('admin_dashboard')], ['Orders', null]] %}
+
+{% block content %}
+    <section class="panel">
+        <form class="toolbar" method="get" action="{{ path('admin_orders') }}" {{ stimulus_controller('autosubmit') }}>
+            <div class="search-pill flex-grow-1">
+                <label class="visually-hidden" for="q">Buyer</label><i class="bi bi-search" aria-hidden="true"></i>
+                <input class="form-control" id="q" type="search" name="q" maxlength="100" value="{{ list.q }}" placeholder="Buyer email or name…">
+            </div>
+            <label class="visually-hidden" for="status">Status</label>
+            <select class="form-select" id="status" name="status" {{ stimulus_action('autosubmit', 'submit', 'change') }}>
+                <option value="">All statuses</option>
+                {% for s in statuses %}<option value="{{ s }}" {{ status == s ? 'selected' }}>{{ s|capitalize }}</option>{% endfor %}
+            </select>
+            <label class="visually-hidden" for="seller">Seller</label>
+            <select class="form-select" id="seller" name="seller" {{ stimulus_action('autosubmit', 'submit', 'change') }}>
+                <option value="">All sellers</option>
+                {% for s in sellers %}<option value="{{ s.uuid }}" {{ seller and seller.id == s.id ? 'selected' }}>{{ s.shop ? s.shop.name : s.email }}</option>{% endfor %}
+            </select>
+            <label class="visually-hidden" for="from">From</label>
+            <input class="form-control" id="from" type="date" name="from" value="{{ filters.from ?? '' }}" aria-label="From date">
+            <label class="visually-hidden" for="to">To</label>
+            <input class="form-control" id="to" type="date" name="to" value="{{ filters.to ?? '' }}" aria-label="To date">
+            <input type="hidden" name="sort" value="{{ list.sort }}"><input type="hidden" name="dir" value="{{ list.dir }}">
+            <button class="btn btn-outline-dark" type="submit">Filter</button>
+            {% if filters is not empty %}<a class="btn btn-link" href="{{ path('admin_orders') }}">Reset</a>{% endif %}
+        </form>
+        {% if pager.total == 0 %}
+            <div class="panel-body">{{ ui.empty_state('No order found', 'Try other filters.', 'Reset', path('admin_orders'), 'receipt') }}</div>
+        {% else %}
+            <div class="table-responsive">
+                <table class="table table-hover table-cards align-middle">
+                    <thead><tr>
+                        <th scope="col">Order</th>
+                        {{ t.sort_th('Date', 'date', list, 'admin_orders', filters) }}
+                        <th scope="col">Buyer</th><th scope="col">Items</th><th scope="col">Status</th>
+                        {{ t.sort_th('Total', 'total', list, 'admin_orders', filters, 'text-end') }}
+                        <th scope="col"><span class="visually-hidden">Actions</span></th>
+                    </tr></thead>
+                    <tbody>
+                        {% for o in pager.items %}
+                            <tr>
+                                <td class="cell-main"><a class="font-monospace fw-semibold" href="{{ path('admin_order_show', {uuid: o.uuid}) }}">{{ o.number }}</a></td>
+                                <td data-label="Date" class="small">{{ o.createdAt|date('d M Y H:i') }}</td>
+                                <td data-label="Buyer" class="small text-break">{{ o.buyer.email }}</td>
+                                <td data-label="Items">{{ o.items|length }}</td>
+                                <td data-label="Status">{{ ui.status_badge(o.status) }}</td>
+                                <td data-label="Total" class="text-end fw-semibold">{{ o.total|format_currency('EUR') }}</td>
+                                <td class="text-end"><a class="btn btn-sm btn-outline-dark" href="{{ path('admin_order_show', {uuid: o.uuid}) }}">Details</a></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {{ t.pager(pager, 'admin_orders', params) }}
+        {% endif %}
+    </section>
+{% endblock %}

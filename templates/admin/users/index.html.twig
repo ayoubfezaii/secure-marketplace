@@ -1,0 +1,76 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+{% import '_ui/table.html.twig' as t %}
+
+{% set page_title = 'Users' %}
+{% set page_subtitle = pager.total ~ ' account' ~ (pager.total != 1 ? 's') %}
+{% set crumbs = [['Dashboard', path('admin_dashboard')], ['Users', null]] %}
+
+{% block content %}
+    <section class="panel">
+        <form class="toolbar" method="get" action="{{ path('admin_users') }}" {{ stimulus_controller('autosubmit') }}>
+            <div class="search-pill flex-grow-1">
+                <label class="visually-hidden" for="q">Search users</label>
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input class="form-control" id="q" type="search" name="q" maxlength="100" value="{{ list.q }}" placeholder="Email or name…">
+            </div>
+            <label class="visually-hidden" for="role">Role</label>
+            <select class="form-select" id="role" name="role" {{ stimulus_action('autosubmit', 'submit', 'change') }}>
+                <option value="">All roles</option>
+                {% for k, l in {buyer: 'Buyers', seller: 'Sellers', admin: 'Admins'} %}<option value="{{ k }}" {{ role == k ? 'selected' }}>{{ l }}</option>{% endfor %}
+            </select>
+            <label class="visually-hidden" for="status">Status</label>
+            <select class="form-select" id="status" name="status" {{ stimulus_action('autosubmit', 'submit', 'change') }}>
+                <option value="">Any status</option>
+                <option value="active" {{ status == 'active' ? 'selected' }}>Active</option>
+                <option value="locked" {{ status == 'locked' ? 'selected' }}>Locked</option>
+            </select>
+            <label class="visually-hidden" for="twofa">Two-factor</label>
+            <select class="form-select" id="twofa" name="twofa" {{ stimulus_action('autosubmit', 'submit', 'change') }}>
+                <option value="">2FA: any</option>
+                <option value="on" {{ twofa == 'on' ? 'selected' }}>2FA on</option>
+                <option value="off" {{ twofa == 'off' ? 'selected' }}>2FA off</option>
+            </select>
+            <input type="hidden" name="sort" value="{{ list.sort }}"><input type="hidden" name="dir" value="{{ list.dir }}">
+            <button class="btn btn-outline-dark" type="submit">Filter</button>
+            {% if filters is not empty %}<a class="btn btn-link" href="{{ path('admin_users') }}">Reset</a>{% endif %}
+        </form>
+        {% if pager.total == 0 %}
+            <div class="panel-body">{{ ui.empty_state('No user found', 'Try another search or reset the filters.', 'Reset', path('admin_users'), 'people') }}</div>
+        {% else %}
+            <div class="table-responsive">
+                <table class="table table-hover table-cards align-middle">
+                    <thead>
+                        <tr>
+                            {{ t.sort_th('User', 'email', list, 'admin_users', filters) }}
+                            <th scope="col">Role</th><th scope="col">Status</th><th scope="col">2FA</th>
+                            {{ t.sort_th('Created', 'created', list, 'admin_users', filters) }}
+                            {{ t.sort_th('Last login', 'login', list, 'admin_users', filters) }}
+                            <th scope="col"><span class="visually-hidden">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in pager.items %}
+                            <tr>
+                                <td class="cell-main">
+                                    <div class="d-flex align-items-center gap-2 min-w-0">
+                                        {{ ui.avatar(u.publicName, 'sm') }}
+                                        {# SECURITY (rule 2): user-controlled values auto-escaped. #}
+                                        <span class="min-w-0"><a class="fw-semibold d-block text-truncate" href="{{ path('admin_user_show', {uuid: u.uuid}) }}">{{ u.email }}</a><span class="small text-muted">{{ u.displayName ?? '—' }}</span></span>
+                                    </div>
+                                </td>
+                                <td data-label="Role">{{ ui.role_badge(u.roles) }}</td>
+                                <td data-label="Status">{{ ui.status_badge(u.locked ? 'locked' : 'active') }}</td>
+                                <td data-label="2FA">{% if u.totpAuthenticationEnabled %}<i class="bi bi-shield-fill-check text-success" aria-hidden="true"></i> On{% else %}<span class="text-muted">Off</span>{% endif %}</td>
+                                <td data-label="Created" class="small">{{ u.createdAt|date('d M Y') }}</td>
+                                <td data-label="Last login" class="small">{{ u.lastLoginAt ? u.lastLoginAt|date('d M Y H:i') : '—' }}</td>
+                                <td class="text-end"><a class="btn btn-sm btn-outline-dark" href="{{ path('admin_user_show', {uuid: u.uuid}) }}">Manage</a></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {{ t.pager(pager, 'admin_users', params) }}
+        {% endif %}
+    </section>
+{% endblock %}

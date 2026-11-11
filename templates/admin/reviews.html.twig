@@ -1,35 +1,49 @@
-{% extends 'dashboard/_layout.html.twig' %}
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+{% import '_ui/table.html.twig' as t %}
 
-{% block title %}Reviews · Admin · {{ parent() }}{% endblock %}
+{% set page_title = 'Reviews' %}
+{% set page_subtitle = 'Moderate reviews and seller replies.' %}
+{% set crumbs = [['Dashboard', path('admin_dashboard')], ['Reviews', null]] %}
 
-{% block dash_content %}
-    <h1 class="h3 mb-3">Reviews moderation <span class="text-muted fs-6">({{ pager.total }})</span></h1>
-
-    <div class="table-responsive bg-white rounded-3 border">
-        <table class="table align-middle mb-0">
-            <thead class="table-light"><tr><th>Date</th><th>Product</th><th>Author</th><th>Rating</th><th>Comment</th><th></th></tr></thead>
-            <tbody>
+{% block content %}
+    <section class="panel mb-3">
+        <div class="toolbar">
+            {{ t.filter_chips('rating', rating, {5: '5 ★', 4: '4 ★', 3: '3 ★', 2: '2 ★', 1: '1 ★'}, 'admin_reviews', params) }}
+            <form class="search-pill ms-lg-auto" method="get" action="{{ path('admin_reviews') }}">
+                {% if rating %}<input type="hidden" name="rating" value="{{ rating }}">{% endif %}
+                <label class="visually-hidden" for="q">Search</label><i class="bi bi-search" aria-hidden="true"></i>
+                <input class="form-control" id="q" type="search" name="q" maxlength="100" value="{{ q }}" placeholder="Product or text…">
+            </form>
+        </div>
+    </section>
+    {% if pager.total == 0 %}
+        {{ ui.empty_state('No reviews', 'Nothing matches these filters.', 'Reset', path('admin_reviews'), 'chat-quote') }}
+    {% else %}
+        <div class="d-grid gap-3">
             {% for r in pager.items %}
-                <tr>
-                    <td class="small text-nowrap">{{ r.createdAt|date('d/m/Y') }}</td>
-                    <td><a href="{{ path('product_show', {uuid: r.product.uuid}) }}">{{ r.product.name }}</a></td>
-                    <td class="small">{{ r.author.email }}</td>
-                    <td class="text-nowrap">{% include '_partials/stars.html.twig' with {value: r.rating} %}</td>
-                    {# SECURITY (rule 2): plain text, auto-escaped. #}
-                    <td class="review-comment small">{{ r.comment }}</td>
-                    <td class="text-end">
-                        <form method="post" action="{{ path('review_delete', {uuid: r.uuid}) }}" data-confirm="Delete this review?">
-                            <input type="hidden" name="_token" value="{{ csrf_token('delete-review-' ~ r.uuid) }}">
-                            <input type="hidden" name="back" value="admin">
-                            <button class="btn btn-sm btn-outline-danger">Delete</button>
-                        </form>
-                    </td>
-                </tr>
-            {% else %}
-                <tr><td colspan="6" class="text-center text-muted py-4">No reviews.</td></tr>
+                <article class="panel">
+                    <div class="panel-body">
+                        <div class="d-flex flex-wrap justify-content-between gap-2">
+                            <div>
+                                <div class="d-flex align-items-center gap-2">{{ ui.rating_stars(r.rating) }}<span class="small text-muted">{{ r.createdAt|date('d M Y H:i') }}</span></div>
+                                <span class="small">{{ r.author.email }} on <a href="{{ path('product_show', {uuid: r.product.uuid}) }}">{{ r.product.name }}</a></span>
+                            </div>
+                            {# SECURITY (rules 3, 4, 14): ReviewController::delete (ReviewVoter, CSRF, audit), back to this page. #}
+                            {{ ui.confirm_delete_form(path('review_delete', {uuid: r.uuid}), 'delete-review-' ~ r.uuid, 'Delete review', 'The review (and its reply) will be permanently deleted.', 'btn btn-sm btn-outline-danger', 'trash3', {back: 'admin'}, 'Delete', 'Delete this review?') }}
+                        </div>
+                        {# SECURITY (rule 2): user text, auto-escaped. #}
+                        <p class="pre-line mt-2 mb-0">{{ r.comment }}</p>
+                        {% if r.reply %}
+                            <div class="seller-reply d-flex justify-content-between gap-3">
+                                <div><strong class="small"><i class="bi bi-reply-fill" aria-hidden="true"></i> Seller reply ({{ r.reply.author.email }})</strong><p class="pre-line mb-0 mt-1">{{ r.reply.body }}</p></div>
+                                {{ ui.confirm_delete_form(path('admin_reply_delete', {uuid: r.reply.uuid}), 'reply-delete-' ~ r.reply.uuid, 'Delete reply', 'The seller reply will be removed.', 'btn btn-sm btn-link text-danger', 'trash3', {}, 'Delete', 'Delete this reply?') }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </article>
             {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% include '_partials/pager.html.twig' with {pager: pager, route: 'admin_reviews', params: params} %}
+        </div>
+        <div class="panel mt-3">{{ t.pager(pager, 'admin_reviews', params) }}</div>
+    {% endif %}
 {% endblock %}

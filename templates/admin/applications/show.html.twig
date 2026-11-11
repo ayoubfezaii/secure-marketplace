@@ -1,0 +1,56 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% set page_title = application.shopName %}
+{% set page_subtitle = 'Seller application from ' ~ application.applicant.email %}
+{% set crumbs = [['Dashboard', path('admin_dashboard')], ['Seller applications', path('admin_applications')], [application.shopName, null]] %}
+
+{% block content %}
+    <div class="row g-4">
+        <div class="col-xl-8">
+            <section class="panel">
+                <div class="panel-head"><h2>Application</h2>{{ ui.status_badge(application.status) }}</div>
+                <div class="panel-body">
+                    <dl class="kv mb-4">
+                        <dt>Shop name</dt><dd>{{ application.shopName }}</dd>
+                        <dt>Applicant</dt><dd><a href="{{ path('admin_user_show', {uuid: application.applicant.uuid}) }}">{{ application.applicant.publicName }}</a> · {{ application.applicant.email }}</dd>
+                        <dt>Member since</dt><dd>{{ application.applicant.createdAt|date('d M Y') }}</dd>
+                        <dt>Sent on</dt><dd>{{ application.createdAt|date('d M Y H:i') }}</dd>
+                        {% if application.reviewedAt %}
+                            <dt>Decision</dt><dd>{{ application.reviewedAt|date('d M Y H:i') }} by {{ application.reviewedBy ? application.reviewedBy.email : 'a former admin' }}</dd>
+                        {% endif %}
+                    </dl>
+                    <h3 class="h6">What they want to sell</h3>
+                    {# SECURITY (rule 2): applicant text, auto-escaped. #}
+                    <p class="pre-line">{{ application.description }}</p>
+                    {% if application.reason %}<div class="alert alert-warning mb-0"><strong>Reason given:</strong><p class="pre-line mb-0">{{ application.reason }}</p></div>{% endif %}
+                </div>
+            </section>
+        </div>
+        <div class="col-xl-4">
+            {% if is_granted('SELLER_APPLICATION_REVIEW', application) %}
+                <section class="panel mb-4">
+                    <div class="panel-head"><h2><i class="bi bi-check2-circle text-success me-1" aria-hidden="true"></i> Approve</h2></div>
+                    <div class="panel-body">
+                        <p class="small text-muted">The account becomes a <strong>seller</strong>, a shop named “{{ application.shopName }}” is created and the cart is emptied.</p>
+                        {# SECURITY (rules 3, 4): POST + CSRF; SellerApplicationVoter::REVIEW (pending, not mine); one transaction. #}
+                        {{ ui.confirm_delete_form(path('admin_application_approve', {uuid: application.uuid}), 'application-approve-' ~ application.uuid, 'Approve application', 'The applicant will become a seller.', 'btn btn-success w-100', 'check-lg', {}, 'Approve', 'Approve this application?', 'dark') }}
+                    </div>
+                </section>
+                <section class="panel">
+                    <div class="panel-head"><h2><i class="bi bi-x-circle text-danger me-1" aria-hidden="true"></i> Reject</h2></div>
+                    <div class="panel-body">
+                        <form method="post" action="{{ path('admin_application_reject', {uuid: application.uuid}) }}" data-confirm="The applicant will see your reason and can apply again." data-confirm-title="Reject this application?" data-confirm-button="Reject">
+                            <input type="hidden" name="_token" value="{{ csrf_token('application-reject-' ~ application.uuid) }}">
+                            <label class="form-label" for="reason">Reason (required, shown to the applicant)</label>
+                            <textarea class="form-control mb-3" id="reason" name="reason" rows="4" minlength="5" maxlength="500" required placeholder="e.g. Please describe your products in more detail."></textarea>
+                            <button class="btn btn-outline-danger w-100" type="submit">Reject</button>
+                        </form>
+                    </div>
+                </section>
+            {% else %}
+                <section class="surface p-3 small text-muted"><i class="bi bi-info-circle" aria-hidden="true"></i> This application has already been reviewed. Decisions are final; the applicant can apply again after a rejection.</section>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

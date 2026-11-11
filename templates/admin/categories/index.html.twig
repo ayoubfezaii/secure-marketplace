@@ -1,0 +1,43 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% set page_title = 'Categories' %}
+{% set page_subtitle = categories|length ~ ' categories in the catalogue' %}
+{% set crumbs = [['Dashboard', path('admin_dashboard')], ['Categories', null]] %}
+
+{% block page_actions %}
+    <a class="btn btn-primary" href="{{ path('admin_category_new') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> New category</a>
+{% endblock %}
+
+{% block content %}
+    <section class="panel">
+        {% if categories is empty %}
+            <div class="panel-body">{{ ui.empty_state('No categories', 'Create the first category of the catalogue.', 'New category', path('admin_category_new'), 'tags') }}</div>
+        {% else %}
+            <div class="table-responsive">
+                <table class="table table-hover table-cards align-middle">
+                    <thead><tr><th scope="col">#</th><th scope="col">Category</th><th scope="col">Slug</th><th scope="col" class="text-end">Products</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+                    <tbody>
+                        {% for c in categories %}
+                            {% set count = counts[c.id] ?? 0 %}
+                            <tr>
+                                <td data-label="Position" class="text-muted">{{ c.position }}</td>
+                                <td class="cell-main"><span class="d-inline-flex align-items-center gap-2 fw-semibold"><span class="thumb"><i class="bi bi-{{ c.icon }} fs-5" aria-hidden="true"></i></span>{{ c.name }}</span>{% if c.tagline %}<div class="small text-muted">{{ c.tagline }}</div>{% endif %}</td>
+                                <td data-label="Slug" class="font-monospace small">{{ c.slug }}</td>
+                                <td data-label="Products" class="text-end">{{ count }}</td>
+                                <td class="text-end text-nowrap">
+                                    <a class="btn btn-sm btn-outline-dark" href="{{ path('admin_category_edit', {slug: c.slug}) }}"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</a>
+                                    {% if count == 0 %}
+                                        {{ ui.confirm_delete_form(path('admin_category_delete', {slug: c.slug}), 'category-delete-' ~ c.slug, 'Delete', 'The category “' ~ c.name ~ '” will be deleted.', 'btn btn-sm btn-outline-danger', 'trash3', {}, 'Delete', 'Delete this category?') }}
+                                    {% else %}
+                                        <button class="btn btn-sm btn-outline-secondary" type="button" disabled title="Categories with products can't be deleted"><i class="bi bi-trash3" aria-hidden="true"></i> Delete</button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </section>
+{% endblock %}

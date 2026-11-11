@@ -4,51 +4,107 @@ namespace App\Controller\Admin;
 
 use App\Entity\AuditLog;
 use App\Entity\User;
+use App\Repository\AuditLogRepository;
+use App\Repository\OrderRepository;
+use App\Repository\ProductRepository;
+use App\Repository\SellerApplicationRepository;
 use App\Repository\UserRepository;
+use App\Security\Voter\UserManagementVoter;
+use App\Service\AccountManager;
 use App\Service\AuditLogger;
+use App\Service\ListQuery;
 use App\Service\Pagination;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
+use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
+use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Mime\Address;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Requirement\Requirement;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use SymfonyCasts\Bundle\ResetPassword\Exception\ResetPasswordExceptionInterface;
+use SymfonyCasts\Bundle\ResetPassword\ResetPasswordHelperInterface;
 
 /**
- * User management. Every action: POST + per-user CSRF token + audit log (rules 3, 14).
+ * User management. Every action: POST + per-user, per-action CSRF token + UserManagementVoter + audit log
+ * (rules 3, 4, 14).
  *
- * SECURITY policy: from the web an admin can only manage BUYER and SELLER accounts. Admin accounts (including
- * their own) can't be demoted or blocked here; they are managed with console commands. A single stolen admin
- * session therefore can't lock out or demote the other administrators, and nobody can be promoted to admin here.
+ * SECURITY policy: an admin can only manage BUYER and SELLER accounts and never himself. Admin accounts are managed
+ * with console commands; nobody can be promoted to admin from the web. The admin never sees a password hash, a 2FA
+ * secret or a full IBAN: none of them is passed to the templates.
  */
 #[IsGranted('ROLE_ADMIN')]
 #[Route('/admin/users')]
 class UserController extends AbstractController
 {
-    // SECURITY (rule 9): fixed whitelist. ROLE_ADMIN is not reachable.
-    private const ASSIGNABLE_ROLES = ['buyer' => User::ROLE_BUYER, 'seller' => User::ROLE_SELLER];
+    /** Sort whitelist (rule 1). */
+    private const SORTS = ['email' => 'u.email', 'created' => 'u.createdAt', 'login' => 'u.lastLoginAt'];
+    private const ROLE_FILTERS = ['buyer' => User::ROLE_BUYER, 'seller' => User::ROLE_SELLER, 'admin' => User::ROLE_ADMIN];
 
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly AuditLogger $audit,
-        private readonly \App\Service\AccountManager $accounts,
     ) {
     }
 
     #[Route('', name: 'admin_users', methods: ['GET'])]
     public function index(Request $request, UserRepository $users): Response
     {
-        $q = mb_substr(trim($request->query->getString('q')), 0, 100);
+        $list = ListQuery::fromRequest($request, self::SORTS, 'created');
+        // SECURITY (rule 15): whitelisted filters.
         $role = $request->query->getString('role');
-        $role = in_array($role, [User::ROLE_BUYER, User::ROLE_SELLER, User::ROLE_ADMIN], true) ? $role : null;
+        $role = array_key_exists($role, self::ROLE_FILTERS) ? $role : null;
+        $status = in_array($request->query->getString('status'), ['active', 'locked'], true) ? $request->query->getString('status') : null;
+        $twofa = in_array($request->query->getString('twofa'), ['on', 'off'], true) ? $request->query->getString('twofa') : null;
 
-        return $this->render('admin/users.html.twig', [
-            'pager' => Pagination::fromQueryBuilder($users->createAdminQueryBuilder($q, $role), $request, 20),
-            'params' => array_filter(['q' => $q, 'role' => $role]),
-            'q' => $q,
+        $qb = $users->createAdminQueryBuilder($list->q, null !== $role ? self::ROLE_FILTERS[$role] : null);
+        if ('locked' === $status) {
+            $qb->andWhere('(u.blocked = true OR u.lockedUntil > :now)')->setParameter('now', new \DateTimeImmutable());
+        } elseif ('active' === $status) {
+            $qb->andWhere('u.blocked = false AND (u.lockedUntil IS NULL OR u.lockedUntil <= :now)')->setParameter('now', new \DateTimeImmutable());
+        }
+        if (null !== $twofa) {
+            $qb->andWhere('u.totpEnabled = :tfa')->setParameter('tfa', 'on' === $twofa);
+        }
+        $list->applySort($qb)->addOrderBy('u.id', 'DESC');
+
+        $filters = array_filter(['role' => $role, 'status' => $status, 'twofa' => $twofa, 'q' => $list->q]);
+
+        return $this->render('admin/users/index.html.twig', [
+            'pager' => Pagination::fromQueryBuilder($qb, $request, 20),
+            'list' => $list,
             'role' => $role,
+            'status' => $status,
+            'twofa' => $twofa,
+            'filters' => $filters,
+            'params' => $filters + $list->params(),
+        ]);
+    }
+
+    #[Route('/{uuid}', name: 'admin_user_show', methods: ['GET'], requirements: ['uuid' => Requirement::UUID_V4])]
+    public function show(
+        // Named $target (not $user): a controller argument called $user is reserved for the current user.
+        #[MapEntity(mapping: ['uuid' => 'uuid'])] User $target,
+        OrderRepository $orders,
+        ProductRepository $products,
+        AuditLogRepository $logs,
+        SellerApplicationRepository $applications,
+    ): Response {
+        $this->denyAccessUnlessGranted(UserManagementVoter::VIEW, $target);
+
+        return $this->render('admin/users/show.html.twig', [
+            'user' => $target,
+            'canManage' => $this->isGranted(UserManagementVoter::MANAGE, $target),
+            'orders' => $target->isBuyer() ? $orders->findForBuyer($target, 10) : [],
+            'products' => $target->isSeller() ? $products->findBySeller($target) : [],
+            'loginHistory' => $logs->findLoginHistory($target, 20),
+            'application' => $applications->findLatestFor($target),
         ]);
     }
 
@@ -59,9 +115,9 @@ class UserController extends AbstractController
         $target->block();
         $this->em->flush();
         $this->audit->log(AuditLog::USER_LOCKED, ['target' => $target->getEmail()]);
-        $this->addFlash('success', sprintf('%s is blocked. Their open sessions end on their next request.', $target->getEmail()));
+        $this->addFlash('success', sprintf('%s is locked. Their open sessions end on their next request.', $target->getEmail()));
 
-        return $this->redirectToRoute('admin_users', $this->listParams($request));
+        return $this->back($request, $target);
     }
 
     #[Route('/{uuid}/unblock', name: 'admin_user_unblock', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
@@ -73,25 +129,81 @@ class UserController extends AbstractController
         $this->audit->log(AuditLog::USER_UNLOCKED, ['target' => $target->getEmail()]);
         $this->addFlash('success', sprintf('%s is unlocked.', $target->getEmail()));
 
-        return $this->redirectToRoute('admin_users', $this->listParams($request));
+        return $this->back($request, $target);
     }
 
     #[Route('/{uuid}/role', name: 'admin_user_role', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
-    public function changeRole(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] User $target): Response
+    public function changeRole(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] User $target, AccountManager $accounts): Response
     {
         $this->guard($request, $target, 'role');
 
+        // SECURITY (rule 9): fixed whitelist. "admin" (or anything else) is refused.
         $key = $request->request->getString('role');
-        if (!isset(self::ASSIGNABLE_ROLES[$key])) {
+        if (!in_array($key, ['buyer', 'seller'], true)) {
             throw $this->createAccessDeniedException('Invalid role.');
         }
 
         // SECURITY: AccountManager keeps roles exclusive (creates the shop / hides the products) and audit-logs the
         // change. Symfony notices the role change on the target's next request and logs them out.
-        $this->accounts->switchRole($target, $key);
+        $accounts->switchRole($target, $key);
         $this->addFlash('success', sprintf('%s is now a %s.', $target->getEmail(), $key));
 
-        return $this->redirectToRoute('admin_users', $this->listParams($request));
+        return $this->back($request, $target);
+    }
+
+    /**
+     * Forces a password reset: the current password stops working immediately (all sessions end) and a single-use
+     * reset link is e-mailed to the account owner. The admin never chooses or sees a password.
+     */
+    #[Route('/{uuid}/force-reset', name: 'admin_user_force_reset', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
+    public function forceReset(
+        Request $request,
+        #[MapEntity(mapping: ['uuid' => 'uuid'])] User $target,
+        UserPasswordHasherInterface $hasher,
+        ResetPasswordHelperInterface $resetHelper,
+        MailerInterface $mailer,
+        #[Autowire('%app.mailer_from%')] string $mailerFrom,
+    ): Response {
+        $this->guard($request, $target, 'force-reset');
+
+        // SECURITY: replace the hash by the hash of a random secret nobody knows: the old password (maybe leaked)
+        // no longer works and every existing session is invalidated (User::__serialize compares the hash).
+        $target->setPassword($hasher->hashPassword($target, bin2hex(random_bytes(32))));
+        $this->em->flush();
+
+        $sent = false;
+        try {
+            $token = $resetHelper->generateResetToken($target);
+            $mailer->send((new TemplatedEmail())
+                ->from(new Address($mailerFrom, 'Maison Secure'))
+                ->to($target->getEmail())
+                ->subject('Please choose a new password')
+                ->htmlTemplate('reset_password/email.html.twig')
+                ->context(['resetToken' => $token]));
+            $sent = true;
+        } catch (ResetPasswordExceptionInterface|TransportExceptionInterface) {
+            // A recent request is still valid (throttle) or the mailer is down: the user can use "Forgot password".
+        }
+
+        $this->audit->log(AuditLog::USER_PASSWORD_RESET_FORCED, ['target' => $target->getEmail(), 'email_sent' => $sent]);
+        $this->addFlash('success', $sent
+            ? sprintf('The password of %s was invalidated and a reset link was e-mailed.', $target->getEmail())
+            : sprintf('The password of %s was invalidated. They can use "Forgot password" to choose a new one.', $target->getEmail()));
+
+        return $this->back($request, $target);
+    }
+
+    #[Route('/{uuid}/reset-2fa', name: 'admin_user_reset_2fa', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
+    public function reset2fa(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] User $target): Response
+    {
+        $this->guard($request, $target, 'reset-2fa');
+        // For a user who lost their phone. The secret is wiped (never displayed); they can enrol again.
+        $target->disableTotp();
+        $this->em->flush();
+        $this->audit->log(AuditLog::USER_2FA_RESET, ['target' => $target->getEmail()]);
+        $this->addFlash('success', sprintf('Two-factor authentication was reset for %s.', $target->getEmail()));
+
+        return $this->back($request, $target);
     }
 
     private function guard(Request $request, User $target, string $action): void
@@ -100,21 +212,16 @@ class UserController extends AbstractController
         if (!$this->isCsrfTokenValid('admin-user-'.$action.'-'.$target->getUuid(), $request->request->getString('_token'))) {
             throw $this->createAccessDeniedException('Invalid CSRF token.');
         }
-        // SECURITY: UserManagementVoter: never on yourself (no self-lockout / self-demotion), never on another admin.
-        $this->denyAccessUnlessGranted(\App\Security\Voter\UserManagementVoter::MANAGE, $target);
+        // SECURITY (rule 4): UserManagementVoter: never on yourself (no self-lockout / self-demotion), never on
+        // another admin.
+        $this->denyAccessUnlessGranted(UserManagementVoter::MANAGE, $target);
     }
 
-    /**
-     * @return array<string, string>
-     */
-    private function listParams(Request $request): array
+    private function back(Request $request, User $target): Response
     {
-        // Only re-use the (re-validated) list filters, never an arbitrary return URL (rule 12).
-        $role = $request->request->getString('return_role');
-
-        return array_filter([
-            'q' => mb_substr($request->request->getString('return_q'), 0, 100),
-            'role' => in_array($role, [User::ROLE_BUYER, User::ROLE_SELLER, User::ROLE_ADMIN], true) ? $role : '',
-        ]);
+        // SECURITY (rule 12): fixed internal destinations only.
+        return 'list' === $request->request->getString('back')
+            ? $this->redirectToRoute('admin_users')
+            : $this->redirectToRoute('admin_user_show', ['uuid' => $target->getUuid()]);
     }
 }

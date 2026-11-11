@@ -1,23 +1,41 @@
-{% extends 'dashboard/_layout.html.twig' %}
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/table.html.twig' as t %}
+{% import '_ui/macros.html.twig' as ui %}
 
-{% block title %}Audit log · Admin · {{ parent() }}{% endblock %}
+{% set page_title = 'Audit log' %}
+{% set page_subtitle = pager.total ~ ' event' ~ (pager.total != 1 ? 's') ~ '. Append-only: entries can\'t be edited or deleted.' %}
+{% set crumbs = [['Dashboard', path('admin_dashboard')], ['Audit log', null]] %}
 
-{% block dash_content %}
-    <h1 class="h3 mb-3">Audit log <span class="text-muted fs-6">({{ pager.total }})</span></h1>
+{% block page_actions %}
+    {# Export of the CURRENT filters. CSV cells are escaped against formula injection (CsvSanitizer). #}
+    <a class="btn btn-outline-dark" href="{{ path('admin_audit_export', params) }}"><i class="bi bi-download" aria-hidden="true"></i> Export CSV</a>
+{% endblock %}
 
-    <form method="get" class="row g-2 mb-3">
-        <div class="col-md-3">
-            <select name="action" class="form-select" aria-label="Action">
+{% block content %}
+    <section class="panel">
+        {# GET filters; every value is re-validated on the server (action whitelist, IP format, strict dates). #}
+        <form class="toolbar" method="get" action="{{ path('admin_audit') }}">
+            <label class="visually-hidden" for="action">Action</label>
+            <select class="form-select" id="action" name="action">
                 <option value="">All actions</option>
                 {% for a in actions %}<option value="{{ a }}" {{ filters.action == a ? 'selected' }}>{{ a }}</option>{% endfor %}
             </select>
-        </div>
-        <div class="col-md-3"><input type="search" name="user" value="{{ filters.user }}" maxlength="180" class="form-control" placeholder="User email" aria-label="User"></div>
-        <div class="col-md-2"><input type="date" name="from" value="{{ filters.from }}" class="form-control" aria-label="From"></div>
-        <div class="col-md-2"><input type="date" name="to" value="{{ filters.to }}" class="form-control" aria-label="To"></div>
-        <div class="col-md-2"><button class="btn btn-outline-primary w-100">Filter</button></div>
-    </form>
-
-    {% include 'admin/_events_table.html.twig' with {events: pager.items, showUa: true} %}
-    {% include '_partials/pager.html.twig' with {pager: pager, route: 'admin_audit', params: params} %}
+            <label class="visually-hidden" for="user">User</label>
+            <input class="form-control" id="user" type="search" name="user" maxlength="180" value="{{ filters.user }}" placeholder="User email…">
+            <label class="visually-hidden" for="ip">IP</label>
+            <input class="form-control" id="ip" type="search" name="ip" maxlength="45" value="{{ filters.ip }}" placeholder="IP (prefix)…">
+            <label class="visually-hidden" for="from">From</label>
+            <input class="form-control" id="from" type="date" name="from" value="{{ filters.from ? filters.from|date('Y-m-d') }}" aria-label="From date">
+            <label class="visually-hidden" for="to">To</label>
+            <input class="form-control" id="to" type="date" name="to" value="{{ filters.to ? filters.to|date('Y-m-d') }}" aria-label="To date">
+            <button class="btn btn-primary" type="submit">Filter</button>
+            {% if params is not empty %}<a class="btn btn-link" href="{{ path('admin_audit') }}">Reset</a>{% endif %}
+        </form>
+        {% if pager.total == 0 %}
+            <div class="panel-body">{{ ui.empty_state('No event', 'Nothing matches these filters.', 'Reset', path('admin_audit'), 'journal-text') }}</div>
+        {% else %}
+            {% include 'admin/_events_table.html.twig' with {events: pager.items, details: true} %}
+            {{ t.pager(pager, 'admin_audit', params) }}
+        {% endif %}
+    </section>
 {% endblock %}

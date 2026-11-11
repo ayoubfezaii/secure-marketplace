@@ -10,7 +10,7 @@
 {% block body_class %}dashboard-page{% endblock %}
 
 {% block shell %}
-    {% set user = app.user %}
+    {% set me = app.user %}
     <div class="app-shell" {{ stimulus_controller('sidebar') }}>
         <aside class="app-sidebar" aria-label="Sidebar">
             {% include 'layouts/_sidebar.html.twig' %}
@@ -59,12 +59,12 @@
 
                     <div class="dropdown">
                         <button class="btn btn-light d-flex align-items-center gap-2 py-1 ps-1 pe-2" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="User menu">
-                            {{ ui.avatar(user.publicName, 'sm', 'ink') }}
-                            <span class="d-none d-md-inline small fw-semibold text-truncate user-name">{{ user.publicName }}</span>
+                            {{ ui.avatar(me.publicName, 'sm', 'ink') }}
+                            <span class="d-none d-md-inline small fw-semibold text-truncate user-name">{{ me.publicName }}</span>
                             <i class="bi bi-chevron-down small" aria-hidden="true"></i>
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li class="px-3 py-2 small text-muted">{{ ui.role_badge(user.roles) }}<br><span class="text-truncate d-inline-block user-email">{{ user.email }}</span></li>
+                            <li class="px-3 py-2 small text-muted">{{ ui.role_badge(me.roles) }}<br><span class="text-truncate d-inline-block user-email">{{ me.email }}</span></li>
                             <li><a class="dropdown-item" href="{{ path('account_profile') }}"><i class="bi bi-person-circle me-2" aria-hidden="true"></i>Profile</a></li>
                             <li><a class="dropdown-item" href="{{ path('app_security_settings') }}"><i class="bi bi-shield-lock me-2" aria-hidden="true"></i>Security</a></li>
                             <li><a class="dropdown-item" href="{{ path('app_home') }}"><i class="bi bi-shop me-2" aria-hidden="true"></i>Back to the store</a></li>

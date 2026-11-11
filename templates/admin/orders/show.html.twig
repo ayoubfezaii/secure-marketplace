@@ -1,0 +1,62 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% set page_title = 'Order ' ~ order.number %}
+{% set page_subtitle = 'Placed on ' ~ order.createdAt|date('d M Y \\a\\t H:i') ~ ' by ' ~ order.buyer.email %}
+{% set crumbs = [['Dashboard', path('admin_dashboard')], ['Orders', path('admin_orders')], [order.number, null]] %}
+
+{% block page_actions %}
+    {# SECURITY (rules 3, 4, 10, 14): POST + CSRF + OrderVoter; status change and stock restoration in one locked
+       transaction (OrderManager); audit-logged. #}
+    {% if is_granted('ORDER_ADMIN_CANCEL', order) %}
+        {{ ui.confirm_delete_form(path('admin_order_cancel', {uuid: order.uuid}), 'admin-order-cancel-' ~ order.uuid, 'Cancel order', 'The order is cancelled and every item goes back in stock.', 'btn btn-outline-danger', 'x-circle', {}, 'Cancel order', 'Cancel this order?') }}
+    {% endif %}
+    {% if is_granted('ORDER_REFUND', order) %}
+        {{ ui.confirm_delete_form(path('admin_order_refund', {uuid: order.uuid}), 'admin-order-refund-' ~ order.uuid, 'Refund', 'The order is refunded (simulated) and every item goes back in stock.', 'btn btn-danger', 'arrow-counterclockwise', {}, 'Refund ' ~ order.total|format_currency('EUR'), 'Refund this order?') }}
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+    <div class="row g-4">
+        <div class="col-xl-8">
+            <section class="panel">
+                <div class="panel-head"><h2>Items</h2>{{ ui.status_badge(order.status) }}</div>
+                <div class="table-responsive">
+                    <table class="table table-cards align-middle">
+                        <thead><tr><th scope="col">Product</th><th scope="col">Seller</th><th scope="col" class="text-end">Qty</th><th scope="col" class="text-end">Total</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Action</span></th></tr></thead>
+                        <tbody>
+                            {% for item in order.items %}
+                                <tr>
+                                    <td class="cell-main"><div class="cell-product"><span class="thumb">{{ ui.product_image(item.product ? item.product.mainImageFilename : null, item.productName) }}</span><span class="name">{{ item.productName }}</span></div></td>
+                                    <td data-label="Seller" class="small">{{ item.seller.shop ? item.seller.shop.name : item.seller.email }}</td>
+                                    <td data-label="Qty" class="text-end">{{ item.quantity }} × {{ item.unitPrice|format_currency('EUR') }}</td>
+                                    <td data-label="Total" class="text-end fw-semibold">{{ item.lineTotal|format_currency('EUR') }}</td>
+                                    <td data-label="Status">{{ ui.status_badge(item.status) }}</td>
+                                    <td class="text-end text-nowrap">{% include '_partials/item_status_action.html.twig' with {item: item, back: 'order'} %}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="panel-body border-top d-flex justify-content-between"><span class="text-muted">Order total</span><strong>{{ order.total|format_currency('EUR') }}</strong></div>
+            </section>
+        </div>
+        <div class="col-xl-4 d-grid gap-4 align-content-start">
+            <section class="panel">
+                <div class="panel-head"><h2>Buyer</h2></div>
+                <div class="panel-body small">
+                    <a class="fw-semibold" href="{{ path('admin_user_show', {uuid: order.buyer.uuid}) }}">{{ order.buyer.publicName }}</a><br>{{ order.buyer.email }}
+                </div>
+            </section>
+            <section class="panel">
+                <div class="panel-head"><h2>Shipping</h2></div>
+                <div class="panel-body">{% if order.shippingLines is not empty %}<address class="small mb-0">{% for l in order.shippingLines %}{{ l }}<br>{% endfor %}</address>{% else %}<p class="small text-muted mb-0">No address recorded.</p>{% endif %}</div>
+            </section>
+            <section class="panel">
+                <div class="panel-head"><h2>Payment</h2></div>
+                {# SECURITY (rule 11): only the last 4 digits exist. #}
+                <div class="panel-body small">Card •••• {{ order.cardLast4 }} · {{ order.cardHolder }}</div>
+            </section>
+        </div>
+    </div>
+{% endblock %}

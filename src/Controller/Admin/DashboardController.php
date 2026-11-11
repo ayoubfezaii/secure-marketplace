@@ -4,7 +4,7 @@ namespace App\Controller\Admin;
 
 use App\Entity\AuditLog;
 use App\Repository\AuditLogRepository;
-use App\Service\DashboardStats;
+use App\Service\AdminStats;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -15,11 +15,17 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class DashboardController extends AbstractController
 {
     #[Route('/admin', name: 'admin_dashboard', methods: ['GET'])]
-    public function index(DashboardStats $stats, AuditLogRepository $logs): Response
+    public function index(AdminStats $stats, AuditLogRepository $logs): Response
     {
+        $overview = $stats->overview();
+
         return $this->render('admin/dashboard.html.twig', [
-            'stats' => $stats->forAdmin(),
-            'events' => $logs->findRecentByActions(AuditLog::SECURITY_EVENTS, 8),
+            'stats' => $overview,
+            // Charts get their data through escaped data-* attributes (no inline script, rule 13).
+            'daily' => $stats->ordersByDay(30),
+            'roles' => ['labels' => ['Buyers', 'Sellers', 'Admins'], 'data' => [$overview['buyers'], $overview['sellers'], $overview['admins']]],
+            'events' => $logs->findRecent(10),
+            'securityEvents' => $logs->findRecentByActions(AuditLog::SECURITY_EVENTS, 6),
         ]);
     }
 }

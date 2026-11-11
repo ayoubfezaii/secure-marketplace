@@ -1,34 +1,64 @@
-{% extends 'dashboard/_layout.html.twig' %}
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
 
-{% block title %}Admin · {{ parent() }}{% endblock %}
+{% set page_title = 'Administration' %}
+{% set page_subtitle = 'Marketplace health and security at a glance.' %}
+{% set crumbs = [['Dashboard', null]] %}
 
-{% block dash_content %}
-    <h1 class="h3 mb-3">Administration</h1>
+{% block page_actions %}
+    <a class="btn btn-light" href="{{ path('admin_security') }}"><i class="bi bi-shield-check" aria-hidden="true"></i> Security center</a>
+    {% if stats.pendingApplications > 0 %}<a class="btn btn-primary" href="{{ path('admin_applications', {status: 'pending'}) }}"><i class="bi bi-person-badge" aria-hidden="true"></i> Review applications ({{ stats.pendingApplications }})</a>{% endif %}
+{% endblock %}
 
-    {% if not app.user.totpAuthenticationEnabled %}
-        <div class="alert alert-warning d-flex justify-content-between align-items-center">
-            <span><strong>Your admin account has no 2FA.</strong> Administrators should always use two-factor authentication.</span>
-            <a href="{{ path('app_security_settings') }}" class="btn btn-sm btn-warning">Enable 2FA</a>
+{% block content %}
+    <div class="row row-cols-2 row-cols-lg-4 g-3 mb-4">
+        <div class="col"><a class="text-decoration-none" href="{{ path('admin_users') }}">{{ ui.stat_card('Users', stats.buyers + stats.sellers + stats.admins, 'people', 'ink', null, stats.buyers ~ ' buyers · ' ~ stats.sellers ~ ' sellers · ' ~ stats.admins ~ ' admins') }}</a></div>
+        <div class="col">{{ ui.stat_card('New users this week', stats.newUsersWeek, 'person-plus', 'success') }}</div>
+        <div class="col"><a class="text-decoration-none" href="{{ path('admin_products') }}">{{ ui.stat_card('Products', stats.products, 'box-seam', '', null, stats.activeProducts ~ ' active') }}</a></div>
+        <div class="col"><a class="text-decoration-none" href="{{ path('admin_orders') }}">{{ ui.stat_card('Orders', stats.orders, 'receipt', '') }}</a></div>
+        <div class="col">{{ ui.stat_card('Revenue', stats.revenue|format_currency('EUR'), 'currency-euro', 'accent', null, 'Paid, shipped and delivered') }}</div>
+        <div class="col"><a class="text-decoration-none" href="{{ path('admin_applications', {status: 'pending'}) }}">{{ ui.stat_card('Pending applications', stats.pendingApplications, 'person-badge', stats.pendingApplications > 0 ? 'accent' : 'success') }}</a></div>
+        <div class="col"><a class="text-decoration-none" href="{{ path('admin_security') }}">{{ ui.stat_card('Locked accounts', stats.locked, 'lock', stats.locked > 0 ? 'danger' : 'success') }}</a></div>
+        <div class="col"><a class="text-decoration-none" href="{{ path('admin_audit', {action: 'login.failure'}) }}">{{ ui.stat_card('Failed logins (24 h)', stats.failedLogins24h, 'exclamation-triangle', stats.failedLogins24h > 0 ? 'danger' : 'success') }}</a></div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-xl-8">
+            <section class="panel h-100">
+                <div class="panel-head"><h2>Orders &amp; revenue, last 30 days</h2></div>
+                <div class="panel-body">
+                    {# SECURITY (rules 2, 13): JSON in an escaped data-* attribute, rendered by a Stimulus controller. #}
+                    <div class="chart-box" {{ stimulus_controller('chart', {config: {type: 'line', title: 'Orders and revenue per day', labels: daily.labels, datasets: [{label: 'Revenue (€)', data: daily.revenue}, {label: 'Orders', data: daily.orders, axis: 'y1'}]}}) }}><p class="text-muted small">Loading chart…</p></div>
+                </div>
+            </section>
         </div>
-    {% endif %}
-
-    <div class="row row-cols-2 row-cols-md-3 row-cols-xl-6 g-3 mb-4">
-        {% include '_partials/stat_card.html.twig' with {label: 'Buyers', value: stats.buyers} %}
-        {% include '_partials/stat_card.html.twig' with {label: 'Sellers', value: stats.sellers} %}
-        {% include '_partials/stat_card.html.twig' with {label: 'Products', value: stats.products, hint: stats.activeProducts ~ ' active'} %}
-        {% include '_partials/stat_card.html.twig' with {label: 'Orders', value: stats.orders, variant: 'success'} %}
-        {% include '_partials/stat_card.html.twig' with {label: 'Revenue', value: stats.revenue|format_currency('EUR'), variant: 'success'} %}
-        {% include '_partials/stat_card.html.twig' with {label: 'Admins', value: stats.admins} %}
+        <div class="col-xl-4">
+            <section class="panel h-100">
+                <div class="panel-head"><h2>Users by role</h2></div>
+                <div class="panel-body">
+                    <div class="chart-box sm" {{ stimulus_controller('chart', {config: {type: 'doughnut', title: 'Users by role', labels: roles.labels, datasets: [{label: 'Users', data: roles.data}]}}) }}><p class="text-muted small">Loading chart…</p></div>
+                </div>
+            </section>
+        </div>
+        <div class="col-xl-6">
+            <section class="panel h-100">
+                <div class="panel-head"><h2>Orders per day</h2></div>
+                <div class="panel-body">
+                    <div class="chart-box sm" {{ stimulus_controller('chart', {config: {type: 'bar', title: 'Orders per day', labels: daily.labels, datasets: [{label: 'Orders', data: daily.orders}]}}) }}><p class="text-muted small">Loading chart…</p></div>
+                </div>
+            </section>
+        </div>
+        <div class="col-xl-6">
+            <section class="panel h-100">
+                <div class="panel-head"><h2><i class="bi bi-shield-exclamation text-danger me-1" aria-hidden="true"></i> Latest security events</h2><a class="small" href="{{ path('admin_security') }}">Security center</a></div>
+                {% include 'admin/_events_table.html.twig' with {events: securityEvents} %}
+            </section>
+        </div>
+        <div class="col-12">
+            <section class="panel">
+                <div class="panel-head"><h2>Latest audit events</h2><a class="small" href="{{ path('admin_audit') }}">Full audit log <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+                {% include 'admin/_events_table.html.twig' with {events: events} %}
+            </section>
+        </div>
     </div>
-    <div class="row row-cols-1 row-cols-md-3 g-3 mb-4">
-        {% include '_partials/stat_card.html.twig' with {label: 'Locked accounts', value: stats.locked, variant: stats.locked > 0 ? 'warning' : null} %}
-        {% include '_partials/stat_card.html.twig' with {label: 'Failed logins (24 h)', value: stats.failedLogins24h, variant: stats.failedLogins24h > 0 ? 'danger' : null} %}
-        {% include '_partials/stat_card.html.twig' with {label: 'Security events (24 h)', value: stats.securityEvents24h, variant: stats.securityEvents24h > 0 ? 'danger' : null} %}
-    </div>
-
-    <div class="d-flex justify-content-between align-items-center mb-2">
-        <h2 class="h5 mb-0">Latest security events</h2>
-        <a href="{{ path('admin_security') }}" class="small">Security panel &rarr;</a>
-    </div>
-    {% include 'admin/_events_table.html.twig' with {events: events} %}
 {% endblock %}

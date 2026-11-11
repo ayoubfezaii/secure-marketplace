@@ -1,0 +1,41 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+{% import '_ui/table.html.twig' as t %}
+
+{% set page_title = 'Seller applications' %}
+{% set page_subtitle = pendingCount ~ ' waiting for a decision' %}
+{% set crumbs = [['Dashboard', path('admin_dashboard')], ['Seller applications', null]] %}
+
+{% block content %}
+    <section class="panel">
+        <div class="toolbar">
+            {{ t.filter_chips('status', status, {pending: 'Pending', approved: 'Approved', rejected: 'Rejected'}, 'admin_applications', params) }}
+            <form class="search-pill ms-lg-auto" method="get" action="{{ path('admin_applications') }}">
+                {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+                <label class="visually-hidden" for="q">Search</label><i class="bi bi-search" aria-hidden="true"></i>
+                <input class="form-control" id="q" type="search" name="q" maxlength="100" value="{{ q }}" placeholder="Shop or email…">
+            </form>
+        </div>
+        {% if pager.total == 0 %}
+            <div class="panel-body">{{ ui.empty_state('No applications', 'Applications from buyers who want to sell will appear here.', null, null, 'person-badge') }}</div>
+        {% else %}
+            <div class="table-responsive">
+                <table class="table table-hover table-cards align-middle">
+                    <thead><tr><th scope="col">Shop</th><th scope="col">Applicant</th><th scope="col">Sent</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+                    <tbody>
+                        {% for a in pager.items %}
+                            <tr>
+                                <td class="cell-main fw-semibold">{{ a.shopName }}</td>
+                                <td data-label="Applicant" class="text-break small">{{ a.applicant.email }}</td>
+                                <td data-label="Sent" class="small">{{ a.createdAt|date('d M Y') }}</td>
+                                <td data-label="Status">{{ ui.status_badge(a.status) }}</td>
+                                <td class="text-end"><a class="btn btn-sm {{ a.pending ? 'btn-primary' : 'btn-outline-dark' }}" href="{{ path('admin_application_show', {uuid: a.uuid}) }}">{{ a.pending ? 'Review' : 'View' }}</a></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {{ t.pager(pager, 'admin_applications', params) }}
+        {% endif %}
+    </section>
+{% endblock %}

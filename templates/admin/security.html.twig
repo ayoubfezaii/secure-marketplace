@@ -1,33 +1,127 @@
-{% extends 'dashboard/_layout.html.twig' %}
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
 
-{% block title %}Security panel · Admin · {{ parent() }}{% endblock %}
+{% set page_title = 'Security center' %}
+{% set page_subtitle = 'Attacks blocked, locked accounts and the security posture of the platform.' %}
+{% set crumbs = [['Dashboard', path('admin_dashboard')], ['Security center', null]] %}
 
-{% block dash_content %}
-    <h1 class="h3 mb-3">Security panel</h1>
+{% block content %}
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-xl-3">{{ ui.stat_card('Failed logins (24 h)', failed24h, 'exclamation-triangle', failed24h > 0 ? 'danger' : 'success') }}</div>
+        <div class="col-6 col-xl-3">{{ ui.stat_card('Locked accounts', lockedUsers|length, 'lock', lockedUsers is empty ? 'success' : 'danger') }}</div>
+        <div class="col-6 col-xl-3">{{ ui.stat_card('SSRF blocked (7 d)', ssrf7d, 'globe2', ssrf7d > 0 ? 'accent' : 'success') }}</div>
+        <div class="col-6 col-xl-3">{{ ui.stat_card('Uploads rejected (7 d)', uploads7d, 'file-earmark-x', uploads7d > 0 ? 'accent' : 'success') }}</div>
+    </div>
 
-    <h2 class="h5">Currently locked accounts</h2>
-    {% if lockedUsers is empty %}
-        <div class="text-center text-muted py-3 bg-white rounded-3 border small mb-4">No locked accounts.</div>
-    {% else %}
-        <div class="list-group shadow-sm mb-4">
-            {% for u in lockedUsers %}
-                <div class="list-group-item d-flex justify-content-between">
-                    <span>{{ u.email }}</span>
-                    <span class="small">{{ u.blocked ? 'Blocked by an admin' : 'Locked until ' ~ u.lockedUntil|date('d/m H:i') }} · <a href="{{ path('admin_users', {q: u.email}) }}">Manage</a></span>
+    <div class="row g-4">
+        <div class="col-xl-8">
+            <section class="panel h-100">
+                <div class="panel-head">
+                    <h2>Failed logins &amp; 2FA codes</h2>
+                    <div class="btn-group" role="group" aria-label="Period">
+                        <a class="btn btn-sm {{ period == '24h' ? 'btn-primary' : 'btn-outline-dark' }}" href="{{ path('admin_security', {period: '24h'}) }}">24 h</a>
+                        <a class="btn btn-sm {{ period == '7d' ? 'btn-primary' : 'btn-outline-dark' }}" href="{{ path('admin_security', {period: '7d'}) }}">7 days</a>
+                    </div>
                 </div>
-            {% endfor %}
+                <div class="panel-body">
+                    <div class="chart-box" {{ stimulus_controller('chart', {config: {type: 'bar', title: 'Failed logins', labels: failedSeries.labels, datasets: [{label: 'Failures', data: failedSeries.data}]}}) }}><p class="text-muted small">Loading chart…</p></div>
+                </div>
+            </section>
         </div>
-    {% endif %}
+        <div class="col-xl-4">
+            <section class="panel h-100">
+                <div class="panel-head"><h2>Top IPs with failures</h2><span class="small text-muted">7 days</span></div>
+                <div class="panel-body">
+                    {% for row in topIps %}
+                        <div class="d-flex justify-content-between align-items-center {{ not loop.last ? 'mb-2' }}">
+                            <a class="font-monospace small" href="{{ path('admin_audit', {ip: row.ip}) }}">{{ row.ip }}</a>
+                            <span class="small"><span class="badge status-badge status-refunded">{{ row.failures }}</span> <span class="text-muted">{{ row.last|date('d M H:i') }}</span></span>
+                        </div>
+                    {% else %}
+                        <p class="small text-muted mb-0">No failures recorded.</p>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
 
-    <h2 class="h5">Recent failed logins</h2>
-    <div class="mb-4">{% include 'admin/_events_table.html.twig' with {events: failedLogins} %}</div>
+        <div class="col-xl-6">
+            <section class="panel h-100">
+                <div class="panel-head"><h2><i class="bi bi-lock me-1" aria-hidden="true"></i> Currently locked accounts</h2></div>
+                {% if lockedUsers is empty %}
+                    <div class="panel-body small text-muted"><i class="bi bi-check2-circle" aria-hidden="true"></i> No locked account.</div>
+                {% else %}
+                    <div class="table-responsive"><table class="table table-cards align-middle">
+                        <thead><tr><th scope="col">User</th><th scope="col">Reason</th><th scope="col"><span class="visually-hidden">Action</span></th></tr></thead>
+                        <tbody>
+                            {% for u in lockedUsers %}
+                                <tr>
+                                    <td class="cell-main small text-break"><a href="{{ path('admin_user_show', {uuid: u.uuid}) }}">{{ u.email }}</a></td>
+                                    <td data-label="Reason" class="small">{{ u.blocked ? 'Locked by an admin' : 'Too many failed logins until ' ~ u.lockedUntil|date('H:i') }}</td>
+                                    <td class="text-end">
+                                        {% if is_granted('USER_MANAGE', u) %}
+                                            {# SECURITY (rules 3, 4): POST + CSRF + UserManagementVoter + audit. #}
+                                            {{ ui.confirm_delete_form(path('admin_user_unblock', {uuid: u.uuid}), 'admin-user-unblock-' ~ u.uuid, 'Unlock', 'The user will be able to log in again.', 'btn btn-sm btn-outline-dark', 'unlock', {back: 'list'}, 'Unlock', 'Unlock this account?', 'dark') }}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table></div>
+                {% endif %}
+            </section>
+        </div>
+        <div class="col-xl-6">
+            <section class="panel h-100">
+                <div class="panel-head"><h2><i class="bi bi-phone-vibrate me-1" aria-hidden="true"></i> Users without 2FA</h2><span class="small text-muted">{{ without2faCount }} in total</span></div>
+                <div class="panel-body">
+                    {% for u in without2fa %}
+                        <div class="d-flex justify-content-between align-items-center {{ not loop.last ? 'mb-2' }}">
+                            <a class="small text-truncate me-2" href="{{ path('admin_user_show', {uuid: u.uuid}) }}">{{ u.email }}</a>{{ ui.role_badge(u.roles) }}
+                        </div>
+                    {% else %}
+                        <p class="small text-muted mb-0">Every account uses two-factor authentication.</p>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
 
-    <h2 class="h5">Lockouts & rate limiting</h2>
-    <div class="mb-4">{% include 'admin/_events_table.html.twig' with {events: lockouts} %}</div>
-
-    <h2 class="h5">Blocked SSRF & upload attempts</h2>
-    <div class="mb-4">{% include 'admin/_events_table.html.twig' with {events: blocked} %}</div>
-
-    <h2 class="h5">Access denied (possible IDOR probing) & invalid reset tokens</h2>
-    {% include 'admin/_events_table.html.twig' with {events: denied} %}
+        <div class="col-xl-6">
+            <section class="panel">
+                <div class="panel-head"><h2>Blocked SSRF attempts</h2><a class="small" href="{{ path('admin_audit', {action: 'ssrf.blocked'}) }}">All</a></div>
+                {% include 'admin/_events_table.html.twig' with {events: blockedSsrf, details: true} %}
+            </section>
+        </div>
+        <div class="col-xl-6">
+            <section class="panel">
+                <div class="panel-head"><h2>Rejected uploads</h2><a class="small" href="{{ path('admin_audit', {action: 'upload.rejected'}) }}">All</a></div>
+                {% include 'admin/_events_table.html.twig' with {events: blockedUploads, details: true} %}
+            </section>
+        </div>
+        <div class="col-xl-6">
+            <section class="panel">
+                <div class="panel-head"><h2>Access denied &amp; rate limits</h2></div>
+                {% include 'admin/_events_table.html.twig' with {events: denied, details: true} %}
+            </section>
+        </div>
+        <div class="col-xl-6">
+            <section class="panel">
+                <div class="panel-head"><h2>Security headers &amp; controls</h2></div>
+                <ul class="list-unstyled mb-0 small">
+                    {% for item in [
+                        ['Content-Security-Policy', "default-src 'self'; script-src 'self' + nonce; style-src 'self'; frame-ancestors 'none'"],
+                        ['Strict-Transport-Security', 'max-age=31536000; includeSubDomains'],
+                        ['X-Frame-Options', 'DENY'],
+                        ['X-Content-Type-Options', 'nosniff'],
+                        ['Referrer-Policy', 'strict-origin-when-cross-origin'],
+                        ['Permissions-Policy', 'camera, microphone, geolocation, payment, usb disabled'],
+                        ['Session cookie', 'HttpOnly, SameSite=Lax, Secure (__Host- prefix in prod)'],
+                        ['Password hashing', 'Argon2id'],
+                        ['Login protection', 'Rate limiter + lockout after 5 failures (15 min)'],
+                    ] %}
+                        <li class="d-flex gap-3 px-3 py-2 {{ not loop.last ? 'border-bottom' }}"><i class="bi bi-check-circle-fill text-success" aria-hidden="true"></i><span><strong>{{ item[0] }}</strong><br><span class="text-muted font-monospace">{{ item[1] }}</span></span></li>
+                    {% endfor %}
+                </ul>
+            </section>
+        </div>
+    </div>
 {% endblock %}

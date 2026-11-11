@@ -1,22 +1,22 @@
-{# Audit events. SECURITY (rule 2): details, IP and User-Agent are attacker-influenced; all auto-escaped. #}
-{% if events is empty %}
-    <div class="text-center text-muted py-3 bg-white rounded-3 border small">No events.</div>
-{% else %}
-    <div class="table-responsive bg-white rounded-3 border">
-        <table class="table table-sm align-middle mb-0">
-            <thead class="table-light"><tr><th>Date</th><th>Action</th><th>User</th><th>IP</th><th>Details</th>{% if showUa|default(false) %}<th>User-Agent</th>{% endif %}</tr></thead>
-            <tbody>
+{# Audit events. Every value (email, IP, User-Agent, details) is attacker-influenced and auto-escaped (rule 2). #}
+{% set danger = ['login.failure', 'login.blocked', 'account.locked', '2fa.failure', 'rate_limited', 'upload.rejected', 'ssrf.blocked', 'password.reset_invalid_token', 'access.denied'] %}
+<div class="table-responsive">
+    <table class="table table-cards align-middle">
+        <thead><tr><th scope="col">Date</th><th scope="col">Action</th><th scope="col">User</th><th scope="col">IP</th>{% if details|default(false) %}<th scope="col">Details</th>{% endif %}</tr></thead>
+        <tbody>
             {% for e in events %}
                 <tr>
-                    <td class="text-nowrap small">{{ e.createdAt|date('d/m/Y H:i:s') }}</td>
-                    <td><span class="badge {{ e.action in constant('App\\Entity\\AuditLog::SECURITY_EVENTS') ? 'text-bg-danger' : 'text-bg-light border' }}">{{ e.action }}</span></td>
-                    <td class="small">{{ e.user ? e.user.email : '—' }}</td>
-                    <td class="small text-nowrap">{{ e.ip ?? '—' }}</td>
-                    <td class="details-cell">{{ e.details is empty ? '' : e.details|json_encode(constant('JSON_UNESCAPED_SLASHES') b-or constant('JSON_UNESCAPED_UNICODE')) }}</td>
-                    {% if showUa|default(false) %}<td class="details-cell">{{ e.userAgent }}</td>{% endif %}
+                    <td class="cell-main text-nowrap small">{{ e.createdAt|date('d M Y H:i:s') }}</td>
+                    <td data-label="Action"><span class="badge {{ e.action in danger ? 'status-refunded' : 'badge-soft' }} font-monospace">{{ e.action }}</span></td>
+                    <td data-label="User" class="small text-break">{{ e.user ? e.user.email : (e.details.email ?? '—') }}</td>
+                    <td data-label="IP" class="small font-monospace">{{ e.ip ?? '—' }}</td>
+                    {% if details|default(false) %}
+                        <td data-label="Details" class="details-cell">{{ e.details|json_encode(constant('JSON_UNESCAPED_SLASHES') b-or constant('JSON_UNESCAPED_UNICODE')) }}{% if e.userAgent %}<br><span class="opacity-75">UA: {{ e.userAgent }}</span>{% endif %}</td>
+                    {% endif %}
                 </tr>
+            {% else %}
+                <tr><td colspan="5" class="text-muted small">No events.</td></tr>
             {% endfor %}
-            </tbody>
-        </table>
-    </div>
-{% endif %}
+        </tbody>
+    </table>
+</div>

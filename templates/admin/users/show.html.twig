@@ -1,0 +1,110 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% set page_title = user.email %}
+{% set crumbs = [['Dashboard', path('admin_dashboard')], ['Users', path('admin_users')], [user.publicName, null]] %}
+
+{% block content %}
+    <div class="row g-4">
+        <div class="col-xl-4 d-grid gap-4 align-content-start">
+            <section class="panel">
+                <div class="panel-body text-center">
+                    <div class="mb-3">{{ ui.avatar(user.publicName, 'xl', 'ink') }}</div>
+                    <h2 class="h5 mb-1">{{ user.publicName }}</h2>
+                    <p class="small text-muted text-break mb-2">{{ user.email }}</p>
+                    <div class="d-flex justify-content-center gap-2">{{ ui.role_badge(user.roles) }}{{ ui.status_badge(user.locked ? 'locked' : 'active') }}</div>
+                    {#
+                        SECURITY (privilege matrix): the admin never sees the password hash, the TOTP secret or the full
+                        IBAN. Only flags and the masked IBAN are displayed.
+                    #}
+                    <dl class="kv text-start small mt-4 mb-0">
+                        <dt>Created</dt><dd>{{ user.createdAt|date('d M Y H:i') }}</dd>
+                        <dt>Last login</dt><dd>{{ user.lastLoginAt ? user.lastLoginAt|date('d M Y H:i') : '—' }}</dd>
+                        <dt>Two-factor</dt><dd>{{ user.totpAuthenticationEnabled ? 'Enabled' : 'Disabled' }}</dd>
+                        <dt>Phone</dt><dd>{{ user.phone ?? '—' }}</dd>
+                        {% if user.locked and not user.blocked %}<dt>Locked until</dt><dd>{{ user.lockedUntil|date('d M Y H:i') }} (failed logins)</dd>{% endif %}
+                        {% if user.seller %}
+                            <dt>Shop</dt><dd>{% if user.shop %}<a href="{{ path('shop_show', {slug: user.shop.slug}) }}">{{ user.shop.name }}</a>{% else %}—{% endif %}</dd>
+                            <dt>IBAN</dt><dd class="font-monospace">{{ user.maskedIban ?? 'not set' }}</dd>
+                        {% endif %}
+                    </dl>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-head"><h2>Actions</h2></div>
+                <div class="panel-body d-grid gap-2">
+                    {% if not canManage %}
+                        <p class="small text-muted mb-0"><i class="bi bi-info-circle" aria-hidden="true"></i>
+                            {{ user.id == app.user.id ? 'You cannot change your own account from here (no self-lockout, no self-demotion).' : 'Administrator accounts are managed from the console (php bin/console app:create-admin).' }}</p>
+                    {% else %}
+                        {# SECURITY (rules 3, 4, 14): every action is a POST with a per-user, per-action CSRF token; the server
+                           re-checks UserManagementVoter (not myself, not an admin) and writes an audit entry. #}
+                        {% if user.blocked %}
+                            {{ ui.confirm_delete_form(path('admin_user_unblock', {uuid: user.uuid}), 'admin-user-unblock-' ~ user.uuid, 'Unlock account', 'The user will be able to log in again.', 'btn btn-outline-dark w-100', 'unlock', {}, 'Unlock', 'Unlock this account?', 'dark') }}
+                        {% elseif user.locked %}
+                            {{ ui.confirm_delete_form(path('admin_user_unblock', {uuid: user.uuid}), 'admin-user-unblock-' ~ user.uuid, 'Lift the lockout', 'The failed-login lockout will be lifted now.', 'btn btn-outline-dark w-100', 'unlock', {}, 'Unlock', 'Unlock this account?', 'dark') }}
+                            {{ ui.confirm_delete_form(path('admin_user_block', {uuid: user.uuid}), 'admin-user-block-' ~ user.uuid, 'Lock account', 'The user will be logged out and unable to log in until unlocked.', 'btn btn-outline-danger w-100', 'lock', {}, 'Lock account', 'Lock this account?') }}
+                        {% else %}
+                            {{ ui.confirm_delete_form(path('admin_user_block', {uuid: user.uuid}), 'admin-user-block-' ~ user.uuid, 'Lock account', 'The user will be logged out and unable to log in until unlocked.', 'btn btn-outline-danger w-100', 'lock', {}, 'Lock account', 'Lock this account?') }}
+                        {% endif %}
+                        {% set target = user.seller ? 'buyer' : 'seller' %}
+                        {{ ui.confirm_delete_form(path('admin_user_role', {uuid: user.uuid}), 'admin-user-role-' ~ user.uuid, 'Switch to ' ~ target, user.seller ? 'The account becomes a buyer. All its products are hidden from the catalogue and the shop page goes offline.' : 'The account becomes a seller and a shop is created. Its cart is emptied (sellers cannot buy).', 'btn btn-outline-dark w-100', 'arrow-left-right', {role: target}, 'Switch to ' ~ target, 'Change role?', 'dark') }}
+                        {{ ui.confirm_delete_form(path('admin_user_force_reset', {uuid: user.uuid}), 'admin-user-force-reset-' ~ user.uuid, 'Force password reset', 'The current password stops working immediately (all sessions end) and a reset link is e-mailed to the user.', 'btn btn-outline-dark w-100', 'key', {}, 'Force reset', 'Force a password reset?') }}
+                        {% if user.totpAuthenticationEnabled %}
+                            {{ ui.confirm_delete_form(path('admin_user_reset_2fa', {uuid: user.uuid}), 'admin-user-reset-2fa-' ~ user.uuid, 'Reset 2FA', 'Two-factor authentication will be disabled for this user (e.g. lost phone). They can enrol again.', 'btn btn-outline-danger w-100', 'phone-vibrate', {}, 'Reset 2FA', 'Reset two-factor authentication?') }}
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+
+        <div class="col-xl-8 d-grid gap-4 align-content-start">
+            {% if application %}
+                <section class="panel">
+                    <div class="panel-head"><h2>Seller application</h2>{{ ui.status_badge(application.status) }}</div>
+                    <div class="panel-body small"><strong>{{ application.shopName }}</strong> · sent {{ application.createdAt|date('d M Y') }} · <a href="{{ path('admin_application_show', {uuid: application.uuid}) }}">Open</a></div>
+                </section>
+            {% endif %}
+
+            {% if user.buyer %}
+                <section class="panel">
+                    <div class="panel-head"><h2>Latest orders</h2></div>
+                    {% if orders is empty %}<div class="panel-body small text-muted">No orders.</div>{% else %}
+                        <div class="table-responsive"><table class="table table-cards align-middle">
+                            <thead><tr><th scope="col">Order</th><th scope="col">Date</th><th scope="col">Status</th><th scope="col" class="text-end">Total</th></tr></thead>
+                            <tbody>{% for o in orders %}<tr>
+                                <td class="cell-main"><a class="font-monospace fw-semibold" href="{{ path('admin_order_show', {uuid: o.uuid}) }}">{{ o.number }}</a></td>
+                                <td data-label="Date">{{ o.createdAt|date('d M Y') }}</td>
+                                <td data-label="Status">{{ ui.status_badge(o.status) }}</td>
+                                <td data-label="Total" class="text-end">{{ o.total|format_currency('EUR') }}</td>
+                            </tr>{% endfor %}</tbody>
+                        </table></div>
+                    {% endif %}
+                </section>
+            {% endif %}
+
+            {% if user.seller %}
+                <section class="panel">
+                    <div class="panel-head"><h2>Products ({{ products|length }})</h2><a class="small" href="{{ path('admin_products', {seller: user.uuid}) }}">Moderate</a></div>
+                    {% if products is empty %}<div class="panel-body small text-muted">No products.</div>{% else %}
+                        <div class="table-responsive"><table class="table table-cards align-middle">
+                            <thead><tr><th scope="col">Product</th><th scope="col" class="text-end">Price</th><th scope="col" class="text-end">Stock</th><th scope="col">Status</th></tr></thead>
+                            <tbody>{% for p in products|slice(0, 10) %}<tr>
+                                <td class="cell-main"><a href="{{ path('product_show', {uuid: p.uuid}) }}">{{ p.name }}</a></td>
+                                <td data-label="Price" class="text-end">{{ p.price|format_currency('EUR') }}</td>
+                                <td data-label="Stock" class="text-end">{{ p.stock }}</td>
+                                <td data-label="Status">{{ ui.status_badge(p.active ? 'active' : 'inactive') }}</td>
+                            </tr>{% endfor %}</tbody>
+                        </table></div>
+                    {% endif %}
+                </section>
+            {% endif %}
+
+            <section class="panel">
+                <div class="panel-head"><h2>Login history</h2><a class="small" href="{{ path('admin_audit', {user: user.email}) }}">All events</a></div>
+                {% include 'admin/_events_table.html.twig' with {events: loginHistory} %}
+            </section>
+        </div>
+    </div>
+{% endblock %}

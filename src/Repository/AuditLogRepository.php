@@ -21,7 +21,7 @@ class AuditLogRepository extends ServiceEntityRepository
     /**
      * Filtered list for the admin viewer. All filters are bound parameters (rule 1).
      */
-    public function createFilteredQueryBuilder(?string $action, ?string $userEmail, ?\DateTimeImmutable $from, ?\DateTimeImmutable $to): QueryBuilder
+    public function createFilteredQueryBuilder(?string $action, ?string $userEmail, ?\DateTimeImmutable $from, ?\DateTimeImmutable $to, string $ip = ''): QueryBuilder
     {
         $qb = $this->createQueryBuilder('a')
             ->leftJoin('a.user', 'u')->addSelect('u')
@@ -33,6 +33,10 @@ class AuditLogRepository extends ServiceEntityRepository
         if (null !== $userEmail && '' !== $userEmail) {
             // SECURITY: the user's text goes into a bound parameter; LIKE wildcards are escaped too.
             $qb->andWhere('u.email LIKE :email')->setParameter('email', '%'.addcslashes($userEmail, '%_\\').'%');
+        }
+        if ('' !== $ip) {
+            // Prefix match on the (format-checked) IP, bound as a parameter.
+            $qb->andWhere('a.ip LIKE :ip')->setParameter('ip', addcslashes($ip, '%_\\').'%');
         }
         if (null !== $from) {
             $qb->andWhere('a.createdAt >= :from')->setParameter('from', $from);
@@ -74,6 +78,15 @@ class AuditLogRepository extends ServiceEntityRepository
             ->setParameter('actions', [AuditLog::LOGIN_SUCCESS, AuditLog::LOGIN_FAILURE, AuditLog::LOGIN_BLOCKED, AuditLog::TWO_FA_FAILURE, AuditLog::ACCOUNT_LOCKED])
             ->orderBy('a.createdAt', 'DESC')->setMaxResults($limit)
             ->getQuery()->getResult();
+    }
+
+    /**
+     * @return list<AuditLog>
+     */
+    public function findRecent(int $limit = 10): array
+    {
+        return $this->createQueryBuilder('a')->leftJoin('a.user', 'u')->addSelect('u')
+            ->orderBy('a.createdAt', 'DESC')->setMaxResults($limit)->getQuery()->getResult();
     }
 
     public function countSince(string $action, \DateTimeImmutable $since): int

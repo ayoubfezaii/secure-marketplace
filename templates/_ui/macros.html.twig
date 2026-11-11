@@ -98,7 +98,7 @@
 {% macro confirm_delete_form(action, token_id, label = 'Delete', message = 'This cannot be undone.', btn_class = 'btn btn-sm btn-outline-danger', icon = 'trash3', extra = {}, confirm_button = null, title = null, variant = 'danger') %}
     <form method="post" action="{{ action }}" class="d-inline"
           data-confirm="{{ message }}" data-confirm-button="{{ confirm_button ?? label }}"
-          data-confirm-title="{{ title ?? label ~ '?' }}" data-confirm-variant="{{ variant }}">
+          data-confirm-title="{{ title ?? (label ~ '?') }}" data-confirm-variant="{{ variant }}">
         <input type="hidden" name="_token" value="{{ csrf_token(token_id) }}">
         {% for name, value in extra %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
         <button type="submit" class="{{ btn_class }}">{% if icon %}<i class="bi bi-{{ icon }}" aria-hidden="true"></i> {% endif %}{{ label }}</button>
