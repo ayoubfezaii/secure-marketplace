@@ -400,3 +400,20 @@ meter.bar:-moz-meter-sub-sub-optimum::-moz-meter-bar { background: var(--danger)
 .wish-btn form { margin: 0; }
 .object-fit-cover { object-fit: cover; }
 .icon-badge { width: 56px; height: 56px; }
+
+/* ---------- Dashboard extras (R4) ---------- */
+.notif-menu { width: min(320px, calc(100vw - 2rem)); }
+.user-name { max-width: 140px; }
+.user-email { max-width: 220px; }
+.app-sidebar .side-footer .side-link { color: #D8D0C6; text-align: left; }
+.app-sidebar .side-footer .side-link:hover { color: var(--white); }
+.app-sidebar .role-badge { font-size: .65rem; }
+.panel .table-responsive { border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+.toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--line); }
+.toolbar .form-control, .toolbar .form-select { width: auto; min-width: 160px; }
+@media (max-width: 575.98px) { .toolbar .form-control, .toolbar .form-select { width: 100%; } }
+.cell-product { display: flex; align-items: center; gap: .75rem; min-width: 0; }
+.cell-product .name { font-weight: 600; color: var(--ink); text-decoration: none; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1.25rem; margin: 0; font-size: .92rem; }
+.kv dt { color: var(--taupe); font-weight: 500; }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }

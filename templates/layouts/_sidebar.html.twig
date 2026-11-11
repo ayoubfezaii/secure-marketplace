@@ -1,0 +1,27 @@
+{# Dashboard sidebar. The menu comes from DashboardNavigation (role decided server side). Links only: every target
+   route enforces its own access rules (access_control + #[IsGranted] + Voters). #}
+{% set role = dashboard_role() %}
+{% include '_ui/logo.html.twig' with {invert: true} %}
+<div class="px-4 pb-2">
+    {% if role == 'ROLE_ADMIN' %}<span class="badge role-badge role-admin border border-secondary">Admin</span>
+    {% elseif role == 'ROLE_SELLER' %}<span class="badge role-badge role-seller">Seller</span>
+    {% else %}<span class="badge role-badge role-buyer">Buyer</span>{% endif %}
+</div>
+<nav aria-label="Dashboard">
+    {% for section, items in dashboard_menu() %}
+        <div class="side-label">{{ section }}</div>
+        {% for item in items %}
+            <a href="{{ path(item.route) }}" class="side-link {{ item.active ? 'active' }}" {% if item.active %}aria-current="page"{% endif %} title="{{ item.label }}">
+                <i class="bi bi-{{ item.icon }}" aria-hidden="true"></i><span class="label">{{ item.label }}</span>
+            </a>
+        {% endfor %}
+    {% endfor %}
+</nav>
+<div class="side-footer">
+    <a href="{{ path('app_home') }}" class="side-link m-0 mb-1"><i class="bi bi-shop" aria-hidden="true"></i><span class="label">Back to the store</span></a>
+    {# SECURITY (rule 3): logout is a POST with a CSRF token. #}
+    <form method="post" action="{{ path('app_logout') }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
+        <button type="submit" class="side-link m-0 w-100 border-0 bg-transparent"><i class="bi bi-box-arrow-right" aria-hidden="true"></i><span class="label">Log out</span></button>
+    </form>
+</div>

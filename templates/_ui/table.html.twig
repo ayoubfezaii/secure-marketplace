@@ -1,0 +1,45 @@
+{#
+    Table helpers. {% import '_ui/table.html.twig' as t %}
+
+    sort_th(): a sortable column header. Clicking toggles ASC/DESC. The key is only a whitelisted alias: the server
+    maps it to a fixed DQL field (App\Service\ListQuery), so nothing typed in the URL reaches ORDER BY (rule 1).
+    params = the list's current normalised parameters (filters + list.params).
+#}
+{% macro sort_th(label, key, list, route, params = {}, class = '') %}
+    {% set active = list.sort == key %}
+    {% set next = active and list.dir == 'ASC' ? 'DESC' : 'ASC' %}
+    <th scope="col" class="{{ class }}" {% if active %}aria-sort="{{ list.dir == 'ASC' ? 'ascending' : 'descending' }}"{% endif %}>
+        <a href="{{ path(route, params|merge(list.params)|merge({sort: key, dir: next, page: null})|filter(v => v is not null and v != '')) }}" class="{{ active ? 'sorted' }}">
+            {{ label }}
+            <i class="bi {{ active ? (list.dir == 'ASC' ? 'bi-sort-up' : 'bi-sort-down') : 'bi-arrow-down-up opacity-50' }}" aria-hidden="true"></i>
+        </a>
+    </th>
+{% endmacro %}
+
+{# Pagination for dashboard lists (App\Service\Pagination). params = current normalised filters. #}
+{% macro pager(pager, route, params = {}) %}
+    {% if pager.pages > 1 %}
+        <nav class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-3 border-top" aria-label="Pagination">
+            <span class="small text-muted">Page {{ pager.page }} of {{ pager.pages }} · {{ pager.total }} result{{ pager.total != 1 ? 's' }}</span>
+            <ul class="pagination pagination-sm mb-0 flex-wrap">
+                <li class="page-item {{ pager.page <= 1 ? 'disabled' }}"><a class="page-link" href="{{ path(route, params|merge({page: pager.page - 1})) }}" aria-label="Previous page"><i class="bi bi-chevron-left" aria-hidden="true"></i></a></li>
+                {% for p in max(1, pager.page - 2)..min(pager.pages, pager.page + 2) %}
+                    <li class="page-item {{ p == pager.page ? 'active' }}"><a class="page-link" href="{{ path(route, params|merge({page: p})) }}" {% if p == pager.page %}aria-current="page"{% endif %}>{{ p }}</a></li>
+                {% endfor %}
+                <li class="page-item {{ pager.page >= pager.pages ? 'disabled' }}"><a class="page-link" href="{{ path(route, params|merge({page: pager.page + 1})) }}" aria-label="Next page"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></li>
+            </ul>
+        </nav>
+    {% elseif pager.total > 0 %}
+        <p class="small text-muted px-3 py-3 mb-0 border-top">{{ pager.total }} result{{ pager.total != 1 ? 's' }}</p>
+    {% endif %}
+{% endmacro %}
+
+{# Simple status filter chips. options: value => label. #}
+{% macro filter_chips(name, current, options, route, params = {}) %}
+    <div class="d-flex flex-wrap gap-2" role="group" aria-label="Filter">
+        <a class="chip {{ current is empty ? 'active' }}" href="{{ path(route, params|merge({(name): null, page: null})|filter(v => v is not null and v != '')) }}">All</a>
+        {% for value, label in options %}
+            <a class="chip {{ current == value ? 'active' }}" href="{{ path(route, params|merge({(name): value, page: null})|filter(v => v is not null and v != '')) }}">{{ label }}</a>
+        {% endfor %}
+    </div>
+{% endmacro %}
