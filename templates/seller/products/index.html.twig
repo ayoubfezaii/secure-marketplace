@@ -1,19 +1,92 @@
-{% extends 'dashboard/_layout.html.twig' %}
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+{% import '_ui/table.html.twig' as t %}
 
-{% block title %}My products · {{ parent() }}{% endblock %}
+{% set page_title = 'Products' %}
+{% set page_subtitle = pager.total ~ ' product' ~ (pager.total != 1 ? 's') ~ ' in your shop' %}
+{% set crumbs = [['Dashboard', path('seller_dashboard')], ['Products', null]] %}
 
-{% block dash_content %}
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h3 mb-0">My products</h1>
-        <a href="{{ path('seller_product_new') }}" class="btn btn-primary">New product</a>
-    </div>
+{% block page_actions %}
+    <a class="btn btn-primary" href="{{ path('seller_product_new') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> New product</a>
+{% endblock %}
 
-    {% if products is empty %}
-        <div class="text-center text-muted py-5 bg-white rounded-3 border">
-            <p class="mb-2">You haven't listed any product yet.</p>
-            <a href="{{ path('seller_product_new') }}" class="btn btn-outline-primary btn-sm">Create your first product</a>
-        </div>
-    {% else %}
-        {% include 'seller/products/_table.html.twig' with {products: products, back: 'products'} %}
-    {% endif %}
+{% block content %}
+    <section class="panel">
+        <form class="toolbar" method="get" action="{{ path('seller_products') }}" {{ stimulus_controller('autosubmit') }}>
+            <div class="search-pill flex-grow-1">
+                <label class="visually-hidden" for="q">Search products</label>
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input class="form-control" id="q" type="search" name="q" maxlength="100" value="{{ list.q }}" placeholder="Search by name…">
+            </div>
+            <label class="visually-hidden" for="status">Status</label>
+            <select class="form-select" id="status" name="status" {{ stimulus_action('autosubmit', 'submit', 'change') }}>
+                <option value="">All statuses</option>
+                <option value="active" {{ status == 'active' ? 'selected' }}>Active</option>
+                <option value="inactive" {{ status == 'inactive' ? 'selected' }}>Hidden</option>
+            </select>
+            <label class="visually-hidden" for="stock">Stock</label>
+            <select class="form-select" id="stock" name="stock" {{ stimulus_action('autosubmit', 'submit', 'change') }}>
+                <option value="">Any stock</option>
+                <option value="low" {{ stock == 'low' ? 'selected' }}>Low stock (&lt; 5)</option>
+            </select>
+            <input type="hidden" name="sort" value="{{ list.sort }}"><input type="hidden" name="dir" value="{{ list.dir }}">
+            <button class="btn btn-outline-dark" type="submit">Filter</button>
+            {% if filters is not empty %}<a class="btn btn-link" href="{{ path('seller_products') }}">Reset</a>{% endif %}
+        </form>
+
+        {% if pager.total == 0 %}
+            <div class="panel-body">
+                {{ filters is empty ? ui.empty_state('No products yet', 'Create your first listing: name, price, stock and up to 4 photos.', 'Create a product', path('seller_product_new'), 'box-seam')
+                                    : ui.empty_state('No product matches', 'Try another search or reset the filters.', 'Reset filters', path('seller_products'), 'search') }}
+            </div>
+        {% else %}
+            <div class="table-responsive">
+                <table class="table table-hover table-cards align-middle">
+                    <thead>
+                        <tr>
+                            {{ t.sort_th('Product', 'name', list, 'seller_products', filters) }}
+                            <th scope="col">Category</th>
+                            {{ t.sort_th('Price', 'price', list, 'seller_products', filters, 'text-end') }}
+                            {{ t.sort_th('Stock', 'stock', list, 'seller_products', filters, 'text-end') }}
+                            <th scope="col" class="text-end">Sold</th>
+                            <th scope="col">Status</th>
+                            <th scope="col"><span class="visually-hidden">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in products %}
+                            <tr>
+                                <td class="cell-main">
+                                    <div class="cell-product">
+                                        <span class="thumb">{{ ui.product_image(product.mainImageFilename, product.name) }}</span>
+                                        <span class="min-w-0"><a class="name d-block text-truncate" href="{{ path('seller_product_edit', {uuid: product.uuid}) }}">{{ product.name }}</a>
+                                        {% if product.ratingCount > 0 %}<span class="small">{{ ui.rating_stars(product.ratingAverage, product.ratingCount) }}</span>{% endif %}</span>
+                                    </div>
+                                </td>
+                                <td data-label="Category">{{ product.categoryLabel }}</td>
+                                <td data-label="Price" class="text-end">{{ ui.price(product.price, product.compareAtPrice) }}</td>
+                                <td data-label="Stock" class="text-end"><span class="{{ product.stock < 5 ? 'text-danger fw-semibold' }}">{{ product.stock }}</span></td>
+                                <td data-label="Sold" class="text-end">{{ sales[product.id] ?? 0 }}</td>
+                                <td data-label="Status">
+                                    {# SECURITY (rules 3, 4): POST + per-product CSRF token; ProductVoter::EDIT (owner) on the server. #}
+                                    <form method="post" action="{{ path('seller_product_toggle', {uuid: product.uuid}) }}">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('toggle-product-' ~ product.uuid) }}">
+                                        <button type="submit" class="btn btn-sm p-0 border-0 bg-transparent" title="{{ product.active ? 'Hide from the catalogue' : 'Show in the catalogue' }}" aria-label="{{ product.active ? 'Hide' : 'Show' }} {{ product.name }}">
+                                            {{ ui.status_badge(product.active ? 'active' : 'inactive') }} <i class="bi bi-arrow-repeat small text-muted" aria-hidden="true"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    <a class="btn btn-sm btn-light" href="{{ path('product_show', {uuid: product.uuid}) }}" aria-label="Preview {{ product.name }}"><i class="bi bi-eye" aria-hidden="true"></i></a>
+                                    <a class="btn btn-sm btn-outline-dark" href="{{ path('seller_product_edit', {uuid: product.uuid}) }}"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</a>
+                                    {{ ui.confirm_delete_form(path('seller_product_delete', {uuid: product.uuid}), 'delete-product-' ~ product.uuid, 'Delete', '“' ~ product.name ~ '” will be permanently deleted with its images. Past orders keep their copy.', 'btn btn-sm btn-outline-danger', 'trash3', {}, 'Delete product', 'Delete this product?') }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {{ t.pager(pager, 'seller_products', params) }}
+        {% endif %}
+    </section>
 {% endblock %}

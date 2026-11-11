@@ -1,0 +1,58 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% set page_title = 'Payouts' %}
+{% set page_subtitle = 'Your bank account and payout history (simulated).' %}
+{% set crumbs = [['Dashboard', path('seller_dashboard')], ['Payouts', null]] %}
+
+{% block content %}
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">{{ ui.stat_card('Next payout (this month)', balance|format_currency('EUR'), 'calendar-check', 'accent') }}</div>
+        <div class="col-md-4">{{ ui.stat_card('Paid out so far', paidTotal|format_currency('EUR'), 'bank', 'success') }}</div>
+        <div class="col-md-4">{{ ui.stat_card('Payout account', maskedIban ?? 'Not set', 'safe', maskedIban ? 'ink' : 'danger') }}</div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-xl-5">
+            <section class="panel">
+                <div class="panel-head"><h2><i class="bi bi-safe me-1" aria-hidden="true"></i> Payout account</h2></div>
+                <div class="panel-body">
+                    {# SECURITY (rule 11): only the last 4 characters are ever displayed; the IBAN is encrypted with
+                       libsodium before it is stored and is never pre-filled in the form. #}
+                    <p class="mb-3">Current IBAN: <strong class="font-monospace">{{ maskedIban ?? 'none' }}</strong></p>
+                    {{ form_start(form, {attr: {novalidate: 'novalidate', autocomplete: 'off'}}) }}
+                        {{ form_row(form.iban) }}
+                        {% if maskedIban %}{{ form_row(form.removeIban) }}{% else %}{% do form.removeIban.setRendered %}{% endif %}
+                        <button class="btn btn-primary" type="submit">Save</button>
+                    {{ form_end(form) }}
+                </div>
+            </section>
+        </div>
+        <div class="col-xl-7">
+            <section class="panel">
+                <div class="panel-head"><h2>Payout history</h2><span class="small text-muted">Delivered items, {{ commission }}% marketplace fee</span></div>
+                {% if payouts is empty %}
+                    <div class="panel-body">{{ ui.empty_state('No payouts yet', 'Payouts are computed from delivered items, once a month.', null, null, 'bank') }}</div>
+                {% else %}
+                    <div class="table-responsive">
+                        <table class="table table-cards align-middle">
+                            <thead><tr><th scope="col">Month</th><th scope="col" class="text-end">Items</th><th scope="col" class="text-end">Gross</th><th scope="col" class="text-end">Fee</th><th scope="col" class="text-end">Net</th><th scope="col">Status</th></tr></thead>
+                            <tbody>
+                                {% for p in payouts %}
+                                    <tr>
+                                        <td class="cell-main fw-semibold">{{ p.month|date('F Y') }}</td>
+                                        <td data-label="Items" class="text-end">{{ p.items }}</td>
+                                        <td data-label="Gross" class="text-end">{{ p.gross|format_currency('EUR') }}</td>
+                                        <td data-label="Fee" class="text-end text-muted">−{{ p.fee|format_currency('EUR') }}</td>
+                                        <td data-label="Net" class="text-end fw-semibold">{{ p.net|format_currency('EUR') }}</td>
+                                        <td data-label="Status">{% if p.status == 'paid' %}<span class="badge status-badge status-delivered">Paid{{ maskedIban ? ' to ' ~ maskedIban|slice(-4) }}</span>{% else %}<span class="badge status-badge status-pending">Scheduled</span>{% endif %}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </div>
+{% endblock %}

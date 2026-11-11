@@ -1,0 +1,72 @@
+{% extends 'layouts/dashboard.html.twig' %}
+{% import '_ui/macros.html.twig' as ui %}
+
+{% set page_title = 'Analytics' %}
+{% set page_subtitle = 'Your sales over the last ' ~ days ~ ' days (cancelled and refunded items excluded).' %}
+{% set crumbs = [['Dashboard', path('seller_dashboard')], ['Analytics', null]] %}
+
+{% block page_actions %}
+    {# SECURITY (rule 15): only the whitelisted presets are accepted by the server. #}
+    <div class="btn-group" role="group" aria-label="Date range">
+        {% for r in ranges %}
+            <a class="btn btn-sm {{ r == range ? 'btn-primary' : 'btn-outline-dark' }}" href="{{ path('seller_analytics', {range: r}) }}" {% if r == range %}aria-current="true"{% endif %}>{{ r }}</a>
+        {% endfor %}
+    </div>
+{% endblock %}
+
+{% block content %}
+    {% set delta = previous.revenue > 0 ? ((totals.revenue - previous.revenue) / previous.revenue * 100)|round(1) : null %}
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-xl-3">{{ ui.stat_card('Revenue', totals.revenue|format_currency('EUR'), 'currency-euro', 'accent', null, delta is not null ? (delta >= 0 ? '+' : '') ~ delta ~ '% vs previous ' ~ days ~ ' days' : 'No previous data') }}</div>
+        <div class="col-6 col-xl-3">{{ ui.stat_card('Orders', totals.orders, 'receipt', 'ink') }}</div>
+        <div class="col-6 col-xl-3">{{ ui.stat_card('Units sold', totals.units, 'bag-check', 'success') }}</div>
+        <div class="col-6 col-xl-3">{{ ui.stat_card('Average order', avgOrder|format_currency('EUR'), 'calculator', '') }}</div>
+    </div>
+    <div class="row g-4">
+        <div class="col-xl-8">
+            <section class="panel h-100">
+                <div class="panel-head"><h2>Revenue by day</h2></div>
+                <div class="panel-body">
+                    <div class="chart-box" {{ stimulus_controller('chart', {config: {type: 'bar', title: 'Revenue by day', labels: chart.labels, datasets: [{label: 'Revenue (€)', data: chart.revenue}]}}) }}><p class="text-muted small">Loading chart…</p></div>
+                </div>
+            </section>
+        </div>
+        <div class="col-xl-4">
+            <section class="panel h-100">
+                <div class="panel-head"><h2>Revenue by category</h2></div>
+                <div class="panel-body">
+                    {% if byCategory.data is empty %}
+                        <p class="small text-muted mb-0">No sales in this period.</p>
+                    {% else %}
+                        <div class="chart-box" {{ stimulus_controller('chart', {config: {type: 'doughnut', title: 'Revenue by category', labels: byCategory.labels, datasets: [{label: 'Revenue (€)', data: byCategory.data}]}}) }}><p class="text-muted small">Loading chart…</p></div>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+        <div class="col-12">
+            <section class="panel">
+                <div class="panel-head"><h2>Best sellers</h2></div>
+                {% if bestSellers is empty %}
+                    <div class="panel-body small text-muted">No sales in this period.</div>
+                {% else %}
+                    <div class="table-responsive">
+                        <table class="table table-cards align-middle">
+                            <thead><tr><th scope="col">#</th><th scope="col">Product</th><th scope="col" class="text-end">Units</th><th scope="col" class="text-end">Revenue</th><th scope="col">Share</th></tr></thead>
+                            <tbody>
+                                {% for row in bestSellers %}
+                                    <tr>
+                                        <td data-label="Rank">{{ loop.index }}</td>
+                                        <td class="cell-main"><div class="cell-product"><span class="thumb">{{ ui.product_image(row.product.mainImageFilename, row.product.name) }}</span><a class="name" href="{{ path('seller_product_edit', {uuid: row.product.uuid}) }}">{{ row.product.name }}</a></div></td>
+                                        <td data-label="Units" class="text-end">{{ row.units }}</td>
+                                        <td data-label="Revenue" class="text-end fw-semibold">{{ row.revenue|format_currency('EUR') }}</td>
+                                        <td data-label="Share" class="w-25"><progress class="bar ink" value="{{ row.revenue }}" max="{{ max(totals.revenue, 1) }}" aria-label="{{ (row.revenue / max(totals.revenue, 1) * 100)|round }}% of revenue"></progress></td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </div>
+{% endblock %}
