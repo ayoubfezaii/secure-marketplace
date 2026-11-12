@@ -18,3 +18,8 @@
 /public/assets/
 /assets/vendor/
 ###< symfony/asset-mapper ###
+
+###> IDE ###
+# SECURITY: IDE settings can leak local paths/DB data sources; keep them out of Git.
+.idea/
+###< IDE ###
