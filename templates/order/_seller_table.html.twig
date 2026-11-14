@@ -7,7 +7,7 @@
         {% for order in orders %}
             {% for item in order.itemsForSeller(app.user) %}
                 <tr>
-                    <td class="cell-main"><a class="fw-semibold font-monospace" href="{{ path('seller_order_show', {uuid: order.uuid}) }}">{{ order.number }}</a></td>
+                    <td class="cell-main"><a class="fw-semibold font-monospace" href="{{ path('seller_order_show', {uuid: order.uuid}) }}">{{ order.number }}</a>{% if order.cashOnDelivery %}<br><span class="small text-muted text-nowrap"><i class="bi bi-cash-coin" aria-hidden="true"></i> Cash · {{ order.paymentStatus.label|lower }}</span>{% endif %}</td>
                     <td data-label="Date">{{ order.createdAt|date('d M Y') }}</td>
                     <td data-label="Ship to">{{ order.shippingName ?? '—' }}</td>
                     <td data-label="Product" class="text-truncate">{{ item.productName }}</td>

@@ -10,6 +10,7 @@ use App\Entity\Product;
 use App\Entity\Review;
 use App\Entity\User;
 use App\Entity\WishlistItem;
+use App\Enum\PaymentStatus;
 use App\Repository\ProductRepository;
 use App\Repository\AuditLogRepository;
 use App\Repository\UserRepository;
@@ -40,10 +41,12 @@ final class DashboardStats
     public function forBuyer(User $buyer): array
     {
         $orders = $this->em->createQueryBuilder()
-            ->select('COUNT(o.id) AS cnt, COALESCE(SUM(o.total), 0) AS spent')
+            // "Spent" only counts money really paid: an uncollected cash order is an order, not a spend.
+            ->select('COUNT(o.id) AS cnt, COALESCE(SUM(CASE WHEN o.paymentStatus IN (:settled) THEN o.total ELSE 0 END), 0) AS spent')
             ->from(Order::class, 'o')
             ->where('o.buyer = :u')->andWhere('o.status != :cancelled')
             ->setParameter('u', $buyer)->setParameter('cancelled', Order::STATUS_CANCELLED)
+            ->setParameter('settled', PaymentStatus::settledValues())
             ->getQuery()->getSingleResult();
 
         return [
@@ -108,9 +111,11 @@ final class DashboardStats
     {
         $sales = $this->em->createQueryBuilder()
             ->select('COALESCE(SUM(i.quantity), 0) AS units, COALESCE(SUM(i.unitPrice * i.quantity), 0) AS revenue')
-            ->from(OrderItem::class, 'i')
+            ->from(OrderItem::class, 'i')->innerJoin('i.order', 'o')
             ->where('i.seller = :u')->andWhere('i.status IN (:sold)')
             ->setParameter('u', $seller)->setParameter('sold', self::SOLD)
+            // Cash on delivery counts only once the cash is collected.
+            ->andWhere('o.paymentStatus IN (:settled)')->setParameter('settled', PaymentStatus::settledValues())
             ->getQuery()->getSingleResult();
 
         $rating = $this->em->createQueryBuilder()
@@ -123,7 +128,7 @@ final class DashboardStats
             'activeProducts' => $this->scalar('SELECT COUNT(p.id) FROM '.Product::class.' p WHERE p.seller = :u AND p.isActive = true', ['u' => $seller]),
             'unitsSold' => (int) $sales['units'],
             'revenue' => number_format((float) $sales['revenue'], 2, '.', ''),
-            'pendingShipments' => $this->scalar('SELECT COUNT(i.id) FROM '.OrderItem::class.' i WHERE i.seller = :u AND i.status = :paid', ['u' => $seller, 'paid' => Order::STATUS_PAID]),
+            'pendingShipments' => $this->scalar('SELECT COUNT(i.id) FROM '.OrderItem::class.' i WHERE i.seller = :u AND i.status IN (:toShip)', ['u' => $seller, 'toShip' => Order::AWAITING_SHIPMENT]),
             'avgRating' => null !== $rating['avg'] ? round((float) $rating['avg'], 1) : null,
             'reviewCount' => (int) $rating['cnt'],
         ];
@@ -143,6 +148,7 @@ final class DashboardStats
             ->from(OrderItem::class, 'i')->innerJoin('i.order', 'o')
             ->where('i.seller = :u')->andWhere('i.status IN (:sold)')->andWhere('o.createdAt >= :since')
             ->setParameter('u', $seller)->setParameter('sold', self::SOLD)->setParameter('since', $since)
+            ->andWhere('o.paymentStatus IN (:settled)')->setParameter('settled', PaymentStatus::settledValues())
             ->getQuery()->getArrayResult();
 
         $revenue = [];
@@ -187,6 +193,7 @@ final class DashboardStats
         $revenue = $this->em->createQueryBuilder()
             ->select('COALESCE(SUM(o.total), 0)')->from(Order::class, 'o')
             ->where('o.status != :c')->setParameter('c', Order::STATUS_CANCELLED)
+            ->andWhere('o.paymentStatus IN (:settled)')->setParameter('settled', PaymentStatus::settledValues())
             ->getQuery()->getSingleScalarResult();
 
         return [

@@ -16,7 +16,9 @@
         <div class="col">{{ ui.stat_card('New users this week', stats.newUsersWeek, 'person-plus', 'success') }}</div>
         <div class="col"><a class="text-decoration-none" href="{{ path('admin_products') }}">{{ ui.stat_card('Products', stats.products, 'box-seam', '', null, stats.activeProducts ~ ' active') }}</a></div>
         <div class="col"><a class="text-decoration-none" href="{{ path('admin_orders') }}">{{ ui.stat_card('Orders', stats.orders, 'receipt', '') }}</a></div>
-        <div class="col">{{ ui.stat_card('Revenue', stats.revenue|format_currency('EUR'), 'currency-euro', 'accent', null, 'Paid, shipped and delivered') }}</div>
+        <div class="col">{{ ui.stat_card('Revenue', stats.revenue|format_currency('EUR'), 'currency-euro', 'accent', null, 'Card paid + cash collected') }}</div>
+        {# Cash on delivery not collected yet: NOT in the revenue above. Links to the filtered order list. #}
+        <div class="col"><a class="text-decoration-none" href="{{ path('admin_orders', {payment: 'cash_on_delivery', payment_status: 'pending'}) }}">{{ ui.stat_card('Cash to collect', stats.cashToCollect|format_currency('EUR'), 'cash-coin', stats.cashToCollectCount > 0 ? 'accent' : 'success', null, stats.cashToCollectCount ~ ' pending cash order' ~ (stats.cashToCollectCount != 1 ? 's')) }}</a></div>
         <div class="col"><a class="text-decoration-none" href="{{ path('admin_applications', {status: 'pending'}) }}">{{ ui.stat_card('Pending applications', stats.pendingApplications, 'person-badge', stats.pendingApplications > 0 ? 'accent' : 'success') }}</a></div>
         <div class="col"><a class="text-decoration-none" href="{{ path('admin_security') }}">{{ ui.stat_card('Locked accounts', stats.locked, 'lock', stats.locked > 0 ? 'danger' : 'success') }}</a></div>
         <div class="col"><a class="text-decoration-none" href="{{ path('admin_audit', {action: 'login.failure'}) }}">{{ ui.stat_card('Failed logins (24 h)', stats.failedLogins24h, 'exclamation-triangle', stats.failedLogins24h > 0 ? 'danger' : 'success') }}</a></div>

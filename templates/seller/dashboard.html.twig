@@ -14,7 +14,7 @@
     <div class="row row-cols-2 row-cols-lg-3 row-cols-xxl-5 g-3 mb-4">
         <div class="col">{{ ui.stat_card('Revenue this month', overview.revenueMonth|format_currency('EUR'), 'currency-euro', 'accent', overview.revenueDelta) }}</div>
         <div class="col">{{ ui.stat_card('Units sold this month', overview.unitsMonth, 'bag-check', 'ink') }}</div>
-        <div class="col"><a class="text-decoration-none" href="{{ path('seller_orders', {status: 'paid'}) }}">{{ ui.stat_card('Pending shipments', overview.pendingShipments, 'truck', overview.pendingShipments > 0 ? 'danger' : 'success', null, overview.pendingShipments > 0 ? 'To ship now' : 'All shipped') }}</a></div>
+        <div class="col"><a class="text-decoration-none" href="{{ path('seller_orders', {status: 'to_ship'}) }}">{{ ui.stat_card('Pending shipments', overview.pendingShipments, 'truck', overview.pendingShipments > 0 ? 'danger' : 'success', null, overview.pendingShipments > 0 ? 'To ship now' : 'All shipped') }}</a></div>
         <div class="col">{{ ui.stat_card('Active products', overview.activeProducts, 'box-seam', '') }}</div>
         <div class="col">{{ ui.stat_card('Average rating', overview.avgRating is not null ? overview.avgRating ~ ' / 5' : '—', 'star', 'success', null, overview.reviewCount ~ ' review' ~ (overview.reviewCount != 1 ? 's')) }}</div>
     </div>
@@ -51,7 +51,7 @@
 
         <div class="col-xl-8">
             <section class="panel h-100">
-                <div class="panel-head"><h2>Orders to ship</h2><a class="small" href="{{ path('seller_orders', {status: 'paid'}) }}">All <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+                <div class="panel-head"><h2>Orders to ship</h2><a class="small" href="{{ path('seller_orders', {status: 'to_ship'}) }}">All <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
                 {% if toShip is empty %}
                     <div class="panel-body text-muted small"><i class="bi bi-check2-circle" aria-hidden="true"></i> Nothing waiting. Well done!</div>
                 {% else %}

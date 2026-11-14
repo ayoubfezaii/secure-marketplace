@@ -57,10 +57,10 @@ final class NotificationProvider
                 $add('exclamation-triangle', $plural($failed, 'failed login').' in the last 24 h', 'admin_security', [], 'danger');
             }
         } elseif ($user->isSeller()) {
-            $toShip = (int) $this->em->createQuery('SELECT COUNT(i.id) FROM '.OrderItem::class.' i WHERE i.seller = :u AND i.status = :paid')
-                ->setParameter('u', $user)->setParameter('paid', Order::STATUS_PAID)->getSingleScalarResult();
+            $toShip = (int) $this->em->createQuery('SELECT COUNT(i.id) FROM '.OrderItem::class.' i WHERE i.seller = :u AND i.status IN (:toShip)')
+                ->setParameter('u', $user)->setParameter('toShip', Order::AWAITING_SHIPMENT)->getSingleScalarResult();
             if ($toShip > 0) {
-                $add('truck', $plural($toShip, 'item').' waiting to be shipped', 'seller_orders', ['status' => 'paid'], 'accent');
+                $add('truck', $plural($toShip, 'item').' waiting to be shipped', 'seller_orders', ['status' => 'to_ship'], 'accent');
             }
             $low = (int) $this->em->createQuery('SELECT COUNT(p.id) FROM '.Product::class.' p WHERE p.seller = :u AND p.isActive = true AND p.stock < 5')
                 ->setParameter('u', $user)->getSingleScalarResult();

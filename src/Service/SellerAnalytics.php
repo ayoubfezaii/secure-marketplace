@@ -7,6 +7,7 @@ use App\Entity\OrderItem;
 use App\Entity\Product;
 use App\Entity\Review;
 use App\Entity\User;
+use App\Enum\PaymentStatus;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -15,6 +16,9 @@ use Doctrine\ORM\EntityManagerInterface;
  * SECURITY (rule 4 + privilege matrix "seller can never see other sellers' revenue"): every query has
  * "i.seller = :seller" (or "p.seller = :seller") bound to the User object given by the controller, which is always
  * the logged-in seller. DQL with bound parameters only (rule 1).
+ *
+ * Revenue rule: an item counts only when its order's payment was really received (paymentStatus paid or collected).
+ * A cash-on-delivery order therefore enters the figures when the seller confirms "Cash collected", never before.
  */
 final class SellerAnalytics
 {
@@ -40,6 +44,7 @@ final class SellerAnalytics
             ->andWhere('o.createdAt >= :from')->andWhere('o.createdAt < :to')
             ->setParameter('seller', $seller)->setParameter('sold', Order::SOLD_STATUSES)
             ->setParameter('from', $from)->setParameter('to', $to)
+            ->andWhere('o.paymentStatus IN (:settled)')->setParameter('settled', PaymentStatus::settledValues())
             ->getQuery()->getSingleResult();
 
         return ['revenue' => round((float) $row['revenue'], 2), 'units' => (int) $row['units'], 'orders' => (int) $row['orders']];
@@ -71,8 +76,8 @@ final class SellerAnalytics
             'revenueMonth' => $current['revenue'],
             'revenueDelta' => $previous['revenue'] > 0 ? round(($current['revenue'] - $previous['revenue']) / $previous['revenue'] * 100, 1) : null,
             'unitsMonth' => $current['units'],
-            'pendingShipments' => (int) $this->em->createQuery('SELECT COUNT(i.id) FROM '.OrderItem::class.' i WHERE i.seller = :s AND i.status = :p')
-                ->setParameter('s', $seller)->setParameter('p', Order::STATUS_PAID)->getSingleScalarResult(),
+            'pendingShipments' => (int) $this->em->createQuery('SELECT COUNT(i.id) FROM '.OrderItem::class.' i WHERE i.seller = :s AND i.status IN (:p)')
+                ->setParameter('s', $seller)->setParameter('p', Order::AWAITING_SHIPMENT)->getSingleScalarResult(),
             'activeProducts' => (int) $this->em->createQuery('SELECT COUNT(p.id) FROM '.Product::class.' p WHERE p.seller = :s AND p.isActive = true')
                 ->setParameter('s', $seller)->getSingleScalarResult(),
             'avgRating' => null !== $rating['avg'] ? round((float) $rating['avg'], 1) : null,
@@ -93,6 +98,7 @@ final class SellerAnalytics
             ->from(OrderItem::class, 'i')->innerJoin('i.order', 'o')
             ->where('i.seller = :seller')->andWhere('i.status IN (:sold)')->andWhere('o.createdAt >= :since')
             ->setParameter('seller', $seller)->setParameter('sold', Order::SOLD_STATUSES)->setParameter('since', $since)
+            ->andWhere('o.paymentStatus IN (:settled)')->setParameter('settled', PaymentStatus::settledValues())
             ->getQuery()->getArrayResult();
 
         $revenue = [];
@@ -127,6 +133,7 @@ final class SellerAnalytics
             ->where('i.seller = :seller')->andWhere('i.status IN (:sold)')->andWhere('o.createdAt >= :since')
             ->setParameter('seller', $seller)->setParameter('sold', Order::SOLD_STATUSES)
             ->setParameter('since', new \DateTimeImmutable(sprintf('-%d days', $days)))
+            ->andWhere('o.paymentStatus IN (:settled)')->setParameter('settled', PaymentStatus::settledValues())
             ->groupBy('c.id')->orderBy('revenue', 'DESC')
             ->getQuery()->getArrayResult();
 
@@ -145,6 +152,7 @@ final class SellerAnalytics
             ->where('i.seller = :seller')->andWhere('i.status IN (:sold)')->andWhere('o.createdAt >= :since')
             ->setParameter('seller', $seller)->setParameter('sold', Order::SOLD_STATUSES)
             ->setParameter('since', new \DateTimeImmutable(sprintf('-%d days', $days)))
+            ->andWhere('o.paymentStatus IN (:settled)')->setParameter('settled', PaymentStatus::settledValues())
             ->groupBy('p.id')->orderBy('units', 'DESC')->setMaxResults($limit)
             ->getQuery()->getResult();
 
@@ -160,8 +168,8 @@ final class SellerAnalytics
     {
         return $this->em->createQueryBuilder()
             ->select('i', 'o')->from(OrderItem::class, 'i')->innerJoin('i.order', 'o')
-            ->where('i.seller = :seller')->andWhere('i.status = :paid')
-            ->setParameter('seller', $seller)->setParameter('paid', Order::STATUS_PAID)
+            ->where('i.seller = :seller')->andWhere('i.status IN (:toShip)')
+            ->setParameter('seller', $seller)->setParameter('toShip', Order::AWAITING_SHIPMENT)
             ->orderBy('o.createdAt', 'ASC')->setMaxResults($limit)
             ->getQuery()->getResult();
     }
@@ -179,6 +187,8 @@ final class SellerAnalytics
             ->from(OrderItem::class, 'i')->innerJoin('i.order', 'o')
             ->where('i.seller = :seller')->andWhere('i.status = :delivered')
             ->setParameter('seller', $seller)->setParameter('delivered', Order::STATUS_DELIVERED)
+            // No payout on money that was never received (cash on delivery not collected yet).
+            ->andWhere('o.paymentStatus IN (:settled)')->setParameter('settled', PaymentStatus::settledValues())
             ->orderBy('o.createdAt', 'DESC')
             ->getQuery()->getArrayResult();
 

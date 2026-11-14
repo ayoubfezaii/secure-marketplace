@@ -18,6 +18,8 @@ class OrderItem
 {
     /** Allowed status transitions for a seller: only forward, one step at a time. */
     public const TRANSITIONS = [
+        // Cash on delivery starts at "placed", card at "paid"; both then follow the same path.
+        Order::STATUS_PLACED => Order::STATUS_SHIPPED,
         Order::STATUS_PAID => Order::STATUS_SHIPPED,
         Order::STATUS_SHIPPED => Order::STATUS_DELIVERED,
     ];
@@ -63,6 +65,8 @@ class OrderItem
     {
         $this->uuid = Uuid::v4();
         $this->order = $order;
+        // "paid" for a card order, "placed" for cash on delivery (decided by the order, never by the request).
+        $this->status = $order->getInitialStatus();
         $this->product = $product;
         $this->seller = $product->getSeller();
         $this->productName = $product->getName();

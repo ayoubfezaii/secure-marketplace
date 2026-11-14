@@ -6,7 +6,9 @@ use App\Entity\AuditLog;
 use App\Entity\Order;
 use App\Entity\Product;
 use App\Entity\User;
+use App\Enum\PaymentStatus;
 use App\Repository\AuditLogRepository;
+use App\Repository\OrderRepository;
 use App\Repository\SellerApplicationRepository;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -21,6 +23,7 @@ final class AdminStats
         private readonly UserRepository $users,
         private readonly AuditLogRepository $logs,
         private readonly SellerApplicationRepository $applications,
+        private readonly OrderRepository $orders,
     ) {
     }
 
@@ -32,7 +35,11 @@ final class AdminStats
         $revenue = $this->em->createQueryBuilder()
             ->select('COALESCE(SUM(o.total), 0)')->from(Order::class, 'o')
             ->where('o.status IN (:sold)')->setParameter('sold', Order::SOLD_STATUSES)
+            // Revenue = money really received: card orders (paid) and cash orders once the cash is collected.
+            ->andWhere('o.paymentStatus IN (:settled)')->setParameter('settled', PaymentStatus::settledValues())
             ->getQuery()->getSingleScalarResult();
+        // Cash on delivery still to be collected by the sellers (pending, not cancelled).
+        $cash = $this->orders->pendingCashTotals();
 
         return [
             'buyers' => $this->users->countByRole(User::ROLE_BUYER),
@@ -44,6 +51,8 @@ final class AdminStats
             'activeProducts' => (int) $this->em->createQuery('SELECT COUNT(p.id) FROM '.Product::class.' p WHERE p.isActive = true')->getSingleScalarResult(),
             'orders' => (int) $this->em->createQuery('SELECT COUNT(o.id) FROM '.Order::class.' o')->getSingleScalarResult(),
             'revenue' => round((float) $revenue, 2),
+            'cashToCollect' => (float) $cash['total'],
+            'cashToCollectCount' => $cash['count'],
             'pendingApplications' => $this->applications->countPending(),
             'locked' => count($this->users->findLocked()),
             'failedLogins24h' => $this->logs->countSince(AuditLog::LOGIN_FAILURE, new \DateTimeImmutable('-24 hours')),
@@ -51,7 +60,8 @@ final class AdminStats
     }
 
     /**
-     * Orders and revenue per day (last $days days, all statuses for the count, sold statuses for revenue).
+     * Orders and revenue per day (last $days days, all statuses for the count; revenue = sold statuses whose
+     * payment was received, so an uncollected cash order counts as an order but not as revenue).
      *
      * @return array{labels: list<string>, orders: list<int>, revenue: list<float>}
      */
@@ -59,7 +69,7 @@ final class AdminStats
     {
         $since = (new \DateTimeImmutable('today'))->modify(sprintf('-%d days', $days - 1));
         $rows = $this->em->createQueryBuilder()
-            ->select('o.createdAt AS createdAt, o.total AS total, o.status AS status')
+            ->select('o.createdAt AS createdAt, o.total AS total, o.status AS status, o.paymentStatus AS paymentStatus')
             ->from(Order::class, 'o')->where('o.createdAt >= :since')->setParameter('since', $since)
             ->getQuery()->getArrayResult();
 
@@ -75,7 +85,8 @@ final class AdminStats
                 continue;
             }
             ++$orders[$key];
-            if (in_array($row['status'], Order::SOLD_STATUSES, true)) {
+            $paymentStatus = $row['paymentStatus'] instanceof PaymentStatus ? $row['paymentStatus']->value : (string) $row['paymentStatus'];
+            if (in_array($row['status'], Order::SOLD_STATUSES, true) && in_array($paymentStatus, PaymentStatus::settledValues(), true)) {
                 $revenue[$key] += (float) $row['total'];
             }
         }

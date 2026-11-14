@@ -56,6 +56,11 @@ class AuditLog
     public const ORDER_STATUS_CHANGED = 'order.status_changed';
     public const ORDER_CANCELLED = 'order.cancelled';
     public const ORDER_REFUNDED = 'order.refunded';
+    // Cash on delivery
+    public const CASH_ORDER_PLACED = 'order.cash_placed';
+    public const CASH_COLLECTED = 'order.cash_collected';
+    public const CASH_REFUSED = 'order.cash_refused';
+    public const CASH_ORDER_BLOCKED = 'order.cash_blocked';
     public const REVIEW_POSTED = 'review.posted';
     public const REVIEW_DELETED = 'review.deleted';
     public const REVIEW_UPDATED = 'review.updated';
@@ -76,7 +81,7 @@ class AuditLog
     public const SECURITY_EVENTS = [
         self::LOGIN_FAILURE, self::LOGIN_BLOCKED, self::ACCOUNT_LOCKED, self::TWO_FA_FAILURE,
         self::RATE_LIMITED, self::UPLOAD_REJECTED, self::SSRF_BLOCKED, self::PASSWORD_RESET_INVALID,
-        self::ACCESS_DENIED,
+        self::ACCESS_DENIED, self::CASH_ORDER_BLOCKED,
     ];
 
     #[ORM\Id]

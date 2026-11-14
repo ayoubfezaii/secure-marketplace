@@ -16,6 +16,7 @@ use App\Entity\SellerApplication;
 use App\Entity\Shop;
 use App\Entity\User;
 use App\Entity\WishlistItem;
+use App\Enum\PaymentMethod;
 use App\Service\ImageStorage;
 use App\Service\PlaceholderImageGenerator;
 use Doctrine\Bundle\FixturesBundle\Fixture;
@@ -235,7 +236,7 @@ final class AppFixtures extends Fixture
             $age = $o < 3 ? $o : mt_rand(0, 59);
             $date = $now->modify(sprintf('-%d days -%d hours -%d minutes', $age, mt_rand(0, 12), mt_rand(0, 59)));
 
-            $order = new Order($buyer, (string) $buyer->getDisplayName(), (string) mt_rand(1000, 9999));
+            $order = new Order($buyer, PaymentMethod::Card, (string) $buyer->getDisplayName(), (string) mt_rand(1000, 9999));
             $order->setShippingAddress($addresses[$b]);
             $order->backdate($date);
 
@@ -265,6 +266,55 @@ final class AppFixtures extends Fixture
                 }
             }
         }
+        // ---------------------------------------------------------------- Cash on delivery: one order per state
+        // Same rules as the real checkout: a single seller per order, total under the cash limit, and never more
+        // than 2 pending cash orders per buyer.
+        // [buyer index, seller index, age in days, state]
+        $cashDemo = [
+            [0, 0, 0, 'placed'],     // buyer1: can still cancel it; seller1 must ship it
+            [1, 0, 2, 'shipped'],    // seller1 can mark it "Refused at delivery"
+            [2, 0, 5, 'delivered'],  // seller1 can confirm "Cash collected" (or a refusal)
+            [3, 1, 4, 'delivered'],  // same demo for seller2
+            [4, 1, 3, 'shipped'],    // seller2: on its way, can be refused
+            [3, 0, 12, 'collected'], // counted in seller1's revenue
+            [4, 1, 20, 'collected'],
+            [5, 0, 8, 'refused'],    // refused at delivery: cancelled, stock restored
+            [1, 2, 6, 'cancelled'],  // cancelled by the buyer before shipping
+        ];
+        $cashOrders = 0;
+        foreach ($cashDemo as $n => [$b, $sellerIndex, $age, $state]) {
+            // First affordable active product of that seller (keeps every demo order under the cash limit).
+            $candidates = array_values(array_filter($active, static fn (Product $p) => $p->getSeller() === $sellers[$sellerIndex] && (float) $p->getPrice() <= 250));
+            if ([] === $candidates) {
+                continue;
+            }
+            $product = $candidates[$n % count($candidates)];
+            $date = $now->modify(sprintf('-%d days -%d hours -%d minutes', $age, 2 + $n, 7 * $n));
+
+            $order = new Order($buyers[$b], PaymentMethod::CashOnDelivery);
+            $order->setShippingAddress($addresses[$b]);
+            $order->backdate($date);
+            $order->addItem(new OrderItem($order, $product, 1));
+
+            // The states are reached through the real state machine (same transitions as the application).
+            if (in_array($state, ['shipped', 'refused'], true)) {
+                $this->advanceAll($order, Order::STATUS_SHIPPED, false);
+            } elseif (in_array($state, ['delivered', 'collected'], true)) {
+                $this->advanceAll($order, Order::STATUS_DELIVERED, false);
+            }
+            if ('collected' === $state) {
+                $order->markCashCollected();
+            } elseif ('refused' === $state) {
+                $order->markRefusedAtDelivery();
+            } elseif ('cancelled' === $state) {
+                $order->markCancelled();
+            }
+            $manager->persist($order);
+            $orders[] = $order;
+            ++$cashOrders;
+        }
+        $out->writeln(sprintf('<info>%d cash-on-delivery orders created (placed, shipped, delivered, collected, refused, cancelled).</info>', $cashOrders));
+
         // Stock values as declared (low-stock alerts, sold-out product).
         foreach ($products as $i => $product) {
             $product->setStock($finalStock[$i]);
@@ -396,8 +446,18 @@ final class AppFixtures extends Fixture
 
         // Orders placed.
         foreach ($orders as $order) {
-            $log(AuditLog::ORDER_PLACED, ['order' => (string) $order->getUuid(), 'total' => $order->getTotal(), 'items' => $order->getItems()->count()], $order->getBuyer(), '192.0.2.50', $order->getCreatedAt());
+            $log($order->isCashOnDelivery() ? AuditLog::CASH_ORDER_PLACED : AuditLog::ORDER_PLACED, ['order' => (string) $order->getUuid(), 'total' => $order->getTotal(), 'items' => $order->getItems()->count(), 'payment' => $order->getPaymentMethod()->value], $order->getBuyer(), '192.0.2.50', $order->getCreatedAt());
+            // Cash on delivery outcome, confirmed by the seller of the order.
+            if ($order->isCashOnDelivery() && 'collected' === $order->getPaymentStatus()->value) {
+                $log(AuditLog::CASH_COLLECTED, ['order' => (string) $order->getUuid(), 'total' => $order->getTotal(), 'by' => 'seller'], $order->getItems()->first()->getSeller(), '192.0.2.11', $order->getCreatedAt()->modify('+3 days'));
+            } elseif ($order->isCashOnDelivery() && Order::STATUS_CANCELLED === $order->getStatus() && $order->getCreatedAt() < $now->modify('-7 days')) {
+                $log(AuditLog::CASH_REFUSED, ['order' => (string) $order->getUuid(), 'total' => $order->getTotal(), 'by' => 'seller'], $order->getItems()->first()->getSeller(), '192.0.2.11', $order->getCreatedAt()->modify('+3 days'));
+            }
         }
+        // Cash on delivery attempts blocked by the anti-abuse rules (security panel demo).
+        $log(AuditLog::CASH_ORDER_BLOCKED, ['reason' => 'max_total', 'total' => '1249.00'], $buyers[5], '192.0.2.25', $now->modify('-1 day -2 hours'));
+        $log(AuditLog::CASH_ORDER_BLOCKED, ['reason' => 'max_pending', 'total' => '89.00'], $buyers[3], '192.0.2.23', $now->modify('-3 hours'));
+        $log(AuditLog::CASH_ORDER_BLOCKED, ['reason' => 'rate_limit'], $buyers[3], '192.0.2.23', $now->modify('-2 hours -55 minutes'));
 
         // Brute force from two "attacker" IPs (documentation ranges) against the admin and unknown emails.
         foreach (['203.0.113.7' => 26, '198.51.100.23' => 14, '203.0.113.99' => 6] as $ip => $count) {
@@ -461,7 +521,8 @@ final class AppFixtures extends Fixture
             $out->writeln(sprintf('  SELLER   %-20s %-27s %s', $email, $shop, 3 === $i ? '2FA ON, TOTP secret '.self::DEMO_TOTP_SECRET : ''));
         }
         $notes = [
-            0 => 'cart with 2 items, 2 orders "paid" (cancel demo), wishlist',
+            0 => 'cart with 2 items, 2 orders "paid" (cancel demo), 1 cash order "placed", wishlist',
+            3 => 'cash orders: 1 delivered (to collect), 1 collected',
             2 => 'pending seller application',
             4 => 'rejected seller application (reason shown)',
             5 => 'pending seller application',

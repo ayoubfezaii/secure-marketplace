@@ -22,9 +22,28 @@
 
 {# ---------- Status badge. Unknown values fall back to a neutral style. ---------- #}
 {% macro status_badge(status) %}
-    {% set known = ['paid', 'shipped', 'delivered', 'cancelled', 'refunded', 'pending', 'approved', 'rejected', 'active', 'inactive', 'locked'] %}
-    {% set labels = {paid: 'Paid', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled', refunded: 'Refunded', pending: 'Pending', approved: 'Approved', rejected: 'Rejected', active: 'Active', inactive: 'Inactive', locked: 'Locked'} %}
+    {% set known = ['placed', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded', 'pending', 'collected', 'approved', 'rejected', 'active', 'inactive', 'locked'] %}
+    {% set labels = {placed: 'Placed', collected: 'Collected', paid: 'Paid', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled', refunded: 'Refunded', pending: 'Pending', approved: 'Approved', rejected: 'Rejected', active: 'Active', inactive: 'Inactive', locked: 'Locked'} %}
     <span class="badge status-badge {{ status in known ? 'status-' ~ status : 'badge-soft' }}">{{ labels[status] ?? status|capitalize }}</span>
+{% endmacro %}
+
+{#
+    ---------- Payment of an order: method (icon + label) and payment status badge ----------
+    Labels and classes come from the PaymentMethod / PaymentStatus enums (fixed lists), never from user input.
+    A cancelled cash order was never paid: it shows "Not collected" instead of a misleading "Pending".
+#}
+{% macro payment_method(order) %}
+    <span class="text-nowrap"><i class="bi bi-{{ order.paymentMethod.icon }}" aria-hidden="true"></i> {{ order.paymentMethod.label }}</span>
+{% endmacro %}
+
+{% macro payment_status_badge(order) %}
+    {% if order.cashOnDelivery and order.paymentStatus.value == 'pending' and order.status == 'cancelled' %}
+        <span class="badge status-badge status-cancelled">Not collected</span>
+    {% elseif order.cashOnDelivery and order.paymentStatus.value == 'pending' %}
+        <span class="badge status-badge status-pending">To pay on delivery</span>
+    {% else %}
+        {{ _self.status_badge(order.paymentStatus.value) }}
+    {% endif %}
 {% endmacro %}
 
 {# ---------- Role badge ---------- #}

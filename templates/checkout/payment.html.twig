@@ -2,33 +2,88 @@
 {% set step = 2 %}
 
 {% block step %}
+    {% set cash_value = constant('App\\Enum\\PaymentMethod::CashOnDelivery').value %}
+    {% set cash_selected = form.paymentMethod.vars.value == cash_value %}
+    {% set option_text = {
+        card: ['Pay by card', 'Simulated card payment, charged now.'],
+        cash_on_delivery: ['Cash on delivery', 'Pay in cash when your order arrives'],
+    } %}
+    {% set option_icon = {card: 'credit-card', cash_on_delivery: 'cash-coin'} %}
     <section class="panel">
         <div class="panel-head">
             <h2>Payment</h2>
             <a class="small" href="{{ path('checkout') }}">Shipping to {{ address.label }} · change</a>
         </div>
         <div class="panel-body">
-            <div class="card-visual mb-4" aria-hidden="true">
-                <div class="d-flex justify-content-between"><i class="bi bi-cpu fs-3 text-warning"></i><i class="bi bi-wifi fs-5"></i></div>
-                <div class="font-monospace fs-5">•••• •••• •••• ••••</div>
-                <div class="d-flex justify-content-between small text-white-50"><span>CARD HOLDER</span><span>MM/YY</span></div>
-            </div>
-            <div class="alert alert-light border small d-flex gap-2"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Simulated payment. Use a test number such as <strong>4242 4242 4242 4242</strong>, any future expiry date and any 3-digit CVV.</span></div>
             {#
                 SECURITY (rules 9, 10, 11): only payment fields; no price, total, quantity or product field exists.
-                The card number and CVV are validated (Luhn, expiry) and immediately discarded; only the last 4 digits
-                are kept. The CVV field is a password field, never re-rendered with its value.
+                The payment method is a whitelisted enum on the server: the radio values below are the only two it
+                accepts. The card number and CVV are validated (Luhn, expiry) and immediately discarded; only the last
+                4 digits are kept. The CVV field is a password field, never re-rendered with its value.
+                The Stimulus controller only shows/hides the card form; every rule is re-checked on the server.
             #}
             {{ form_start(form, {attr: {autocomplete: 'on'}}) }}
-                {# Form-level errors, e.g. "This form should not contain extra fields" when a request was tampered with. #}
+              <div {{ stimulus_controller('payment-method', {cash: cash_value}) }}>
+                {# Form-level errors: tampered request ("extra fields") or a cash-on-delivery rule that blocks the order. #}
                 {{ form_errors(form) }}
-                {{ form_row(form.cardHolder) }}
-                {{ form_row(form.cardNumber) }}
-                <div class="row g-2">
-                    <div class="col-6">{{ form_row(form.expiry) }}</div>
-                    <div class="col-6">{{ form_row(form.cvv) }}</div>
+
+                <fieldset class="mb-4">
+                    <legend class="h6 mb-3">How would you like to pay?</legend>
+                    <div class="row g-3">
+                        {% for child in form.paymentMethod %}
+                            <div class="col-sm-6">
+                                <label class="payment-option" for="{{ child.vars.id }}">
+                                    {# Rendered by hand to get the "radio card" layout; name, value and id come from the form. #}
+                                    <input class="form-check-input" type="radio" id="{{ child.vars.id }}" name="{{ child.vars.full_name }}" value="{{ child.vars.value }}"
+                                           {{ child.vars.checked ? 'checked' }} required
+                                           data-payment-method-target="choice" data-action="payment-method#toggle">
+                                    <i class="bi bi-{{ option_icon[child.vars.value] ?? 'wallet2' }}" aria-hidden="true"></i>
+                                    <span>
+                                        <span class="d-block fw-semibold">{{ option_text[child.vars.value][0] ?? child.vars.label }}</span>
+                                        <span class="d-block small text-muted">{{ option_text[child.vars.value][1] ?? '' }}</span>
+                                    </span>
+                                </label>
+                            </div>
+                            {% do child.setRendered %}
+                        {% endfor %}
+                    </div>
+                    {{ form_errors(form.paymentMethod) }}
+                    {% do form.paymentMethod.setRendered %}
+                </fieldset>
+
+                {# ---------- Card form: only when "Pay by card" is selected ---------- #}
+                <div id="payment-card-info" data-payment-method-target="card" {{ cash_selected ? 'hidden' }}>
+                    <div class="card-visual mb-4" aria-hidden="true">
+                        <div class="d-flex justify-content-between"><i class="bi bi-cpu fs-3 text-warning"></i><i class="bi bi-wifi fs-5"></i></div>
+                        <div class="font-monospace fs-5">•••• •••• •••• ••••</div>
+                        <div class="d-flex justify-content-between small text-white-50"><span>CARD HOLDER</span><span>MM/YY</span></div>
+                    </div>
+                    <div class="alert alert-light border small d-flex gap-2"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Simulated payment. Use a test number such as <strong>4242 4242 4242 4242</strong>, any future expiry date and any 3-digit CVV.</span></div>
+                    {{ form_row(form.cardHolder) }}
+                    {{ form_row(form.cardNumber) }}
+                    <div class="row g-2">
+                        <div class="col-6">{{ form_row(form.expiry) }}</div>
+                        <div class="col-6">{{ form_row(form.cvv) }}</div>
+                    </div>
                 </div>
+
+                {# ---------- Cash on delivery: the rules, shown before the buyer continues ---------- #}
+                <div id="payment-cash-info" data-payment-method-target="cash" {{ not cash_selected ? 'hidden' }}>
+                    <div class="alert alert-light border small d-flex gap-2 mb-3">
+                        <i class="bi bi-cash-coin" aria-hidden="true"></i>
+                        <div>
+                            <p class="fw-semibold mb-1">Pay in cash when your order arrives</p>
+                            <ul class="mb-0 ps-3">
+                                <li>Available for orders up to {{ cashLimit|format_currency('EUR') }}, from a single shop.</li>
+                                <li>At most {{ cashMaxPending }} cash orders waiting to be paid at the same time.</li>
+                                <li>Please have the exact amount ready: {{ summary.total|format_currency('EUR') }}.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
                 <button class="btn btn-primary btn-lg w-100 mt-2" type="submit">Review your order <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i></button>
+              </div>
             {{ form_end(form) }}
         </div>
     </section>

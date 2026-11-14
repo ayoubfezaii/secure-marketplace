@@ -19,7 +19,7 @@ use Symfony\Component\HttpFoundation\RequestStack;
 final class AuditLogger
 {
     private const WARNING_ACTIONS = ['login.failure', 'login.blocked', 'account.locked', '2fa.failure', 'rate_limited',
-        'upload.rejected', 'ssrf.blocked', 'password.reset_invalid_token', 'access.denied'];
+        'upload.rejected', 'ssrf.blocked', 'password.reset_invalid_token', 'access.denied', 'order.cash_blocked'];
 
     public function __construct(
         private readonly Connection $connection,

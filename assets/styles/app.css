@@ -88,7 +88,8 @@ a { text-underline-offset: 3px; }
 .badge-outline { border: 1px solid var(--line); color: var(--ink); background: var(--white); }
 .status-badge { display: inline-flex; align-items: center; gap: .35rem; font-size: .75rem; }
 .status-badge::before { content: ''; width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; }
-.status-paid { background: #EAF0F6; color: #2C5677; }
+.status-paid, .status-placed { background: #EAF0F6; color: #2C5677; }
+.status-collected { background: #E3F2EA; color: #1F5C42; }
 .status-shipped { background: #FFF3DD; color: #7A5A00; }
 .status-delivered { background: #E3F2EA; color: #1F5C42; }
 .status-cancelled { background: #EFEDEA; color: #5B534C; }
@@ -299,6 +300,12 @@ meter.bar:-moz-meter-sub-sub-optimum::-moz-meter-bar { background: var(--danger)
 .address-option { display: block; border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1rem 1rem 2.75rem; position: relative; cursor: pointer; background: var(--white); }
 .address-option .form-check-input { position: absolute; left: 1rem; top: 1.15rem; }
 .address-option:has(.form-check-input:checked) { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+/* Payment method radio cards (card / cash on delivery). The real radio stays in the DOM: keyboard + screen readers. */
+.payment-option { display: flex; gap: .85rem; align-items: flex-start; height: 100%; border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1rem 1rem 2.75rem; position: relative; cursor: pointer; background: var(--white); }
+.payment-option .form-check-input { position: absolute; left: 1rem; top: 1.15rem; }
+.payment-option .bi { font-size: 1.5rem; line-height: 1; color: var(--ink); }
+.payment-option:has(.form-check-input:checked) { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.payment-option:has(.form-check-input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 2px; }
 .summary-card { position: sticky; top: 96px; }
 .card-visual { border-radius: var(--radius-lg); background: linear-gradient(135deg, #1d1d1d, #3a2f27); color: var(--cream); padding: 1.4rem; aspect-ratio: 1.6 / 1; max-width: 360px; display: flex; flex-direction: column; justify-content: space-between; }
 

@@ -4,11 +4,15 @@ namespace App\Repository;
 
 use App\Entity\Order;
 use App\Entity\User;
+use App\Enum\PaymentMethod;
+use App\Enum\PaymentStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 
 /**
+ * SECURITY (rule 1): QueryBuilder/DQL with bound parameters only; filter values are whitelisted before use.
+ *
  * @extends ServiceEntityRepository<Order>
  */
 class OrderRepository extends ServiceEntityRepository
@@ -65,27 +69,31 @@ class OrderRepository extends ServiceEntityRepository
 
     /**
      * Seller list: orders containing at least one of the seller's items; optional filter on the status of THOSE items.
+     *
+     * @param list<string> $itemStatuses empty = no filter; values outside the whitelist are dropped
      */
-    public function createSellerQueryBuilder(User $seller, ?string $itemStatus): QueryBuilder
+    public function createSellerQueryBuilder(User $seller, array $itemStatuses = []): QueryBuilder
     {
+        // SECURITY (rule 15): whitelist.
+        $itemStatuses = array_values(array_intersect($itemStatuses, Order::STATUSES));
         $sub = 'SELECT IDENTITY(i.order) FROM App\Entity\OrderItem i WHERE i.seller = :seller';
-        if (null !== $itemStatus && in_array($itemStatus, Order::STATUSES, true)) {
-            $sub .= ' AND i.status = :istatus';
+        if ([] !== $itemStatuses) {
+            $sub .= ' AND i.status IN (:istatuses)';
         }
         $qb = $this->createQueryBuilder('o')
             ->andWhere('o.id IN ('.$sub.')')->setParameter('seller', $seller)
             ->orderBy('o.createdAt', 'DESC');
-        if (null !== $itemStatus && in_array($itemStatus, Order::STATUSES, true)) {
-            $qb->setParameter('istatus', $itemStatus);
+        if ([] !== $itemStatuses) {
+            $qb->setParameter('istatuses', $itemStatuses);
         }
 
         return $qb;
     }
 
     /**
-     * Admin list. The status filter is checked against the whitelist before use.
+     * Admin list. Every filter is an already-validated value (status whitelist, enums) bound as a parameter.
      */
-    public function createAdminQueryBuilder(?string $status): QueryBuilder
+    public function createAdminQueryBuilder(?string $status, ?PaymentMethod $paymentMethod = null, ?PaymentStatus $paymentStatus = null): QueryBuilder
     {
         $qb = $this->createQueryBuilder('o')
             ->innerJoin('o.buyer', 'b')->addSelect('b')
@@ -94,7 +102,47 @@ class OrderRepository extends ServiceEntityRepository
         if (null !== $status && in_array($status, Order::STATUSES, true)) {
             $qb->andWhere('o.status = :status')->setParameter('status', $status);
         }
+        if (null !== $paymentMethod) {
+            $qb->andWhere('o.paymentMethod = :pmethod')->setParameter('pmethod', $paymentMethod->value);
+        }
+        if (null !== $paymentStatus) {
+            $qb->andWhere('o.paymentStatus = :pstatus')->setParameter('pstatus', $paymentStatus->value);
+        }
 
         return $qb;
+    }
+
+    /**
+     * Cash-on-delivery orders of $buyer that are still running and not paid (anti-abuse limit).
+     * Cancelled / refused orders don't count: they no longer reserve stock.
+     */
+    public function countPendingCashOrders(User $buyer): int
+    {
+        return (int) $this->pendingCashQueryBuilder()
+            ->select('COUNT(o.id)')
+            ->andWhere('o.buyer = :buyer')->setParameter('buyer', $buyer)
+            ->getQuery()->getSingleScalarResult();
+    }
+
+    /**
+     * Admin "Cash to collect": number and total of the pending cash orders.
+     *
+     * @return array{count: int, total: string}
+     */
+    public function pendingCashTotals(): array
+    {
+        $row = $this->pendingCashQueryBuilder()
+            ->select('COUNT(o.id) AS cnt, COALESCE(SUM(o.total), 0) AS total')
+            ->getQuery()->getSingleResult();
+
+        return ['count' => (int) $row['cnt'], 'total' => number_format((float) $row['total'], 2, '.', '')];
+    }
+
+    private function pendingCashQueryBuilder(): QueryBuilder
+    {
+        return $this->createQueryBuilder('o')
+            ->andWhere('o.paymentMethod = :cash')->setParameter('cash', PaymentMethod::CashOnDelivery->value)
+            ->andWhere('o.paymentStatus = :pending')->setParameter('pending', PaymentStatus::Pending->value)
+            ->andWhere('o.status IN (:active)')->setParameter('active', Order::ACTIVE_STATUSES);
     }
 }

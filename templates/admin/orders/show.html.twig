@@ -54,8 +54,15 @@
             </section>
             <section class="panel">
                 <div class="panel-head"><h2>Payment</h2></div>
-                {# SECURITY (rule 11): only the last 4 digits exist. #}
-                <div class="panel-body small">Card •••• {{ order.cardLast4 }} · {{ order.cardHolder }}</div>
+                <div class="panel-body small">
+                    <div class="d-flex justify-content-between align-items-center mb-2"><span>{{ ui.payment_method(order) }}</span>{{ ui.payment_status_badge(order) }}</div>
+                    {% if order.cashOnDelivery %}
+                        {{ order.cashPending ? 'To be collected in cash by the seller at delivery: ' ~ order.total|format_currency('EUR') ~ '.' : (order.paymentStatus.value == 'collected' ? 'Cash collected by the seller.' : 'Nothing was collected.') }}
+                    {% else %}
+                        {# SECURITY (rule 11): only the last 4 digits exist. #}
+                        Card •••• {{ order.cardLast4 }} · {{ order.cardHolder }}
+                    {% endif %}
+                </div>
             </section>
         </div>
     </div>

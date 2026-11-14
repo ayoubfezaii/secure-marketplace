@@ -38,6 +38,38 @@
             </section>
         </div>
         <div class="col-lg-4 d-grid gap-4 align-content-start">
+            {% if order.cashOnDelivery %}
+                {#
+                    Cash on delivery. SECURITY (privilege matrix): the seller sees the method and the amount to collect,
+                    never any card data. Both actions are POST forms with a per-order CSRF token (rule 3); the server
+                    re-checks OrderVoter::CASH_COLLECT / CASH_REFUSE (seller of every item, right state) and changes
+                    the order inside a locked transaction (OrderManager). Nothing in the form carries an amount.
+                #}
+                <section class="panel">
+                    <div class="panel-head"><h2><i class="bi bi-cash-coin me-1" aria-hidden="true"></i> Cash on delivery</h2>{{ ui.payment_status_badge(order) }}</div>
+                    <div class="panel-body">
+                        {% if order.paymentStatus.value == 'collected' %}
+                            <p class="mb-0">You collected <strong>{{ order.total|format_currency('EUR') }}</strong> in cash. This order counts in your revenue.</p>
+                        {% elseif order.status == 'cancelled' %}
+                            <p class="text-muted mb-0">This order was cancelled or refused. Nothing was collected and the items are back in stock.</p>
+                        {% else %}
+                            <p class="mb-3">Amount to collect at delivery: <strong>{{ order.total|format_currency('EUR') }}</strong></p>
+                            {% if is_granted('ORDER_CASH_COLLECT', order) or is_granted('ORDER_CASH_REFUSE', order) %}
+                                <div class="d-grid gap-2">
+                                    {% if is_granted('ORDER_CASH_COLLECT', order) %}
+                                        {{ ui.confirm_delete_form(path('seller_order_cash_collected', {uuid: order.uuid}), 'cash-collected-' ~ order.uuid, 'Cash collected', 'Confirm that the buyer paid ' ~ order.total|format_currency('EUR') ~ ' in cash. This cannot be undone.', 'btn btn-primary w-100', 'cash-coin', {}, 'Yes, cash collected', 'Confirm cash collected?', 'dark') }}
+                                    {% endif %}
+                                    {% if is_granted('ORDER_CASH_REFUSE', order) %}
+                                        {{ ui.confirm_delete_form(path('seller_order_refused', {uuid: order.uuid}), 'cash-refused-' ~ order.uuid, 'Refused at delivery', 'The buyer refused the parcel: the order is cancelled and the items go back in stock. This cannot be undone.', 'btn btn-outline-danger w-100', 'x-circle', {}, 'Yes, refused', 'Mark as refused at delivery?') }}
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <p class="small text-muted mb-0">Ship and deliver the items first. You can then confirm the cash, or mark the parcel as refused once it has shipped.</p>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </section>
+            {% endif %}
             <section class="panel">
                 <div class="panel-head"><h2><i class="bi bi-geo-alt me-1" aria-hidden="true"></i> Ship to</h2></div>
                 <div class="panel-body">
@@ -52,7 +84,11 @@
             </section>
             <section class="surface p-3 small">
                 <p class="fw-semibold mb-2"><i class="bi bi-truck" aria-hidden="true"></i> Fulfilment steps</p>
-                <p class="text-muted mb-0">Paid → Shipped → Delivered. Each step can only move forward, one at a time. Cancelled or refunded items can't be changed.</p>
+                {% if order.cashOnDelivery %}
+                    <p class="text-muted mb-0">Placed → Shipped → Delivered, then confirm <strong>Cash collected</strong>. Each step can only move forward, one at a time. If the buyer refuses the parcel, mark it <strong>Refused at delivery</strong>: the order is cancelled and the stock restored.</p>
+                {% else %}
+                    <p class="text-muted mb-0">Paid → Shipped → Delivered. Each step can only move forward, one at a time. Cancelled or refunded items can't be changed.</p>
+                {% endif %}
             </section>
         </div>
     </div>

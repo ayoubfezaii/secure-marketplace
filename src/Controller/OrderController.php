@@ -24,7 +24,7 @@ class OrderController extends AbstractController
 {
     /** Status filter labels (also the whitelist of accepted values). */
     public const STATUS_LABELS = [
-        Order::STATUS_PAID => 'Paid', Order::STATUS_SHIPPED => 'Shipped', Order::STATUS_DELIVERED => 'Delivered',
+        Order::STATUS_PLACED => 'Placed', Order::STATUS_PAID => 'Paid', Order::STATUS_SHIPPED => 'Shipped', Order::STATUS_DELIVERED => 'Delivered',
         Order::STATUS_CANCELLED => 'Cancelled', Order::STATUS_REFUNDED => 'Refunded',
     ];
 
@@ -68,7 +68,8 @@ class OrderController extends AbstractController
     }
 
     /**
-     * Buyer cancels their own order while it is still "paid". Stock is restored in the same transaction.
+     * Buyer cancels their own order while nothing has shipped ("paid" card order or "placed" cash order). Stock is
+     * restored in the same transaction.
      */
     #[IsGranted('ROLE_BUYER')]
     #[Route('/buyer/orders/{uuid}/cancel', name: 'buyer_order_cancel', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
@@ -83,7 +84,7 @@ class OrderController extends AbstractController
 
         try {
             $orders->cancel($order, 'buyer');
-            $this->addFlash('success', 'Your order has been cancelled. You will not be charged.');
+            $this->addFlash('success', $order->isCashOnDelivery() ? 'Your order has been cancelled. There is nothing to pay.' : 'Your order has been cancelled. You will not be charged.');
         } catch (\DomainException $e) {
             $this->addFlash('error', $e->getMessage());
         }
@@ -92,7 +93,8 @@ class OrderController extends AbstractController
     }
 
     /**
-     * Seller (own items) or admin (any item) moves an item one step forward: paid -> shipped -> delivered.
+     * Seller (own items) or admin (any item) moves an item one step forward: paid -> shipped -> delivered
+     * (cash on delivery: placed -> shipped -> delivered).
      */
     #[IsGranted(new \Symfony\Component\ExpressionLanguage\Expression("is_granted('ROLE_SELLER') or is_granted('ROLE_ADMIN')"))]
     #[Route('/order-items/{uuid}/status', name: 'order_item_status', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]

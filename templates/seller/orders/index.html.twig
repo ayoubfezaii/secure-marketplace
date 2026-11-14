@@ -8,7 +8,7 @@
 
 {% block content %}
     <section class="panel">
-        <div class="toolbar">{{ t.filter_chips('status', status, statuses|filter((l, k) => k in ['paid', 'shipped', 'delivered', 'cancelled', 'refunded']), 'seller_orders') }}</div>
+        <div class="toolbar">{{ t.filter_chips('status', status, statuses, 'seller_orders') }}</div>
         {% if pager.total == 0 %}
             <div class="panel-body">{{ ui.empty_state(status ? 'Nothing here' : 'No orders yet', status ? 'No order has items with this status.' : 'Orders for your products will appear here.', status ? 'Show all' : null, status ? path('seller_orders') : null, 'receipt') }}</div>
         {% else %}

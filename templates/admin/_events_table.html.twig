@@ -1,5 +1,5 @@
 {# Audit events. Every value (email, IP, User-Agent, details) is attacker-influenced and auto-escaped (rule 2). #}
-{% set danger = ['login.failure', 'login.blocked', 'account.locked', '2fa.failure', 'rate_limited', 'upload.rejected', 'ssrf.blocked', 'password.reset_invalid_token', 'access.denied'] %}
+{% set danger = ['login.failure', 'login.blocked', 'account.locked', '2fa.failure', 'rate_limited', 'upload.rejected', 'ssrf.blocked', 'password.reset_invalid_token', 'access.denied', 'order.cash_blocked'] %}
 <div class="table-responsive">
     <table class="table table-cards align-middle">
         <thead><tr><th scope="col">Date</th><th scope="col">Action</th><th scope="col">User</th><th scope="col">IP</th>{% if details|default(false) %}<th scope="col">Details</th>{% endif %}</tr></thead>

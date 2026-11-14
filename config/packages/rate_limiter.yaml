@@ -33,6 +33,12 @@ framework:
             policy: sliding_window
             limit: 5
             interval: '1 hour'
+        # Cash on delivery: per buyer account. A cash order reserves stock without any payment, so the number of
+        # attempts (accepted or blocked) is capped: no scripted loop of place / cancel to freeze a shop's stock.
+        cash_order:
+            policy: sliding_window
+            limit: 5
+            interval: '1 hour'
         # Newsletter sign-up: per IP. Stops flooding the subscriber table / signing up lists of third-party emails.
         newsletter:
             policy: sliding_window

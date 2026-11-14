@@ -9,6 +9,8 @@ use App\Entity\ProductImage;
 use App\Entity\Review;
 use App\Entity\ReviewReply;
 use App\Entity\User;
+use App\Enum\PaymentMethod;
+use App\Enum\PaymentStatus;
 use App\Repository\CategoryRepository;
 use App\Repository\OrderRepository;
 use App\Repository\ProductRepository;
@@ -124,8 +126,12 @@ class ModerationController extends AbstractController
         $from = self::date($request->query->getString('from'));
         $to = self::date($request->query->getString('to'));
         $seller = $this->sellerFilter($request, $users);
+        // SECURITY (rule 15): the payment filters are converted to enums with tryFrom(); an unknown value is ignored
+        // (null) and never reaches the query.
+        $paymentMethod = PaymentMethod::tryFrom($request->query->getString('payment'));
+        $paymentStatus = PaymentStatus::tryFrom($request->query->getString('payment_status'));
 
-        $qb = $orders->createAdminQueryBuilder($status);
+        $qb = $orders->createAdminQueryBuilder($status, $paymentMethod, $paymentStatus);
         if ('' !== $list->q) {
             // Buyer email or name (bound, LIKE-escaped).
             $qb->andWhere('(b.email LIKE :q OR b.displayName LIKE :q)')->setParameter('q', ListQuery::like($list->q));
@@ -141,13 +147,17 @@ class ModerationController extends AbstractController
         }
         $list->applySort($qb);
 
-        $filters = array_filter(['status' => $status, 'from' => $from?->format('Y-m-d'), 'to' => $to?->format('Y-m-d'), 'seller' => $seller ? (string) $seller->getUuid() : null, 'q' => $list->q]);
+        $filters = array_filter(['status' => $status, 'payment' => $paymentMethod?->value, 'payment_status' => $paymentStatus?->value, 'from' => $from?->format('Y-m-d'), 'to' => $to?->format('Y-m-d'), 'seller' => $seller ? (string) $seller->getUuid() : null, 'q' => $list->q]);
 
         return $this->render('admin/orders/index.html.twig', [
             'pager' => Pagination::fromQueryBuilder($qb, $request, 20),
             'list' => $list,
             'status' => $status,
             'statuses' => Order::STATUSES,
+            'paymentMethod' => $paymentMethod,
+            'paymentMethods' => PaymentMethod::cases(),
+            'paymentStatus' => $paymentStatus,
+            'paymentStatuses' => PaymentStatus::cases(),
             'seller' => $seller,
             'sellers' => $users->createAdminQueryBuilder(null, User::ROLE_SELLER)->getQuery()->getResult(),
             'filters' => $filters,

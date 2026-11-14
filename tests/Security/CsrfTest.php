@@ -23,6 +23,8 @@ final class CsrfTest extends AppWebTestCase
         yield 'delete address' => ['buyer1@shop.test', 'address-delete'];
         yield 'delete product' => ['seller1@shop.test', 'product-delete'];
         yield 'toggle product' => ['seller1@shop.test', 'product-toggle'];
+        yield 'seller cash collected' => ['seller2@shop.test', 'cash-collected'];
+        yield 'seller refused at delivery' => ['seller1@shop.test', 'cash-refused'];
         yield 'admin lock user' => ['admin@shop.test', 'admin-block'];
         yield 'admin refund' => ['admin@shop.test', 'admin-refund'];
     }
@@ -67,6 +69,9 @@ final class CsrfTest extends AppWebTestCase
             'address-delete' => '/buyer/addresses/'.$this->findOne(Address::class, 'SELECT a FROM App\Entity\Address a JOIN a.user u WHERE u.email = :e', ['e' => 'buyer1@shop.test'])->getUuid().'/delete',
             'product-delete' => '/seller/products/'.$product('seller1@shop.test')->getUuid().'/delete',
             'product-toggle' => '/seller/products/'.$product('seller1@shop.test')->getUuid().'/toggle',
+            // Cash on delivery: the seller owns the order (voter passes), so the 403 really comes from the CSRF check.
+            'cash-collected' => '/seller/orders/'.$this->findOne(Order::class, "SELECT o FROM App\Entity\Order o JOIN o.items i JOIN i.seller s WHERE s.email = :e AND o.paymentMethod = 'cash_on_delivery' AND o.paymentStatus = 'pending' AND o.status = 'delivered'", ['e' => 'seller2@shop.test'])->getUuid().'/cash-collected',
+            'cash-refused' => '/seller/orders/'.$this->findOne(Order::class, "SELECT o FROM App\Entity\Order o JOIN o.items i JOIN i.seller s WHERE s.email = :e AND o.paymentMethod = 'cash_on_delivery' AND o.paymentStatus = 'pending' AND o.status = 'shipped'", ['e' => 'seller1@shop.test'])->getUuid().'/refused',
             'admin-block' => '/admin/users/'.$this->user('buyer3@shop.test')->getUuid().'/block',
             'admin-refund' => '/admin/orders/'.$this->findOne(Order::class, "SELECT o FROM App\Entity\Order o WHERE o.status = 'delivered'")->getUuid().'/refund',
             default => throw new \LogicException($action),
