@@ -3,6 +3,7 @@
 University cybersecurity project: a multi-vendor marketplace where **security is the main grading criterion**.
 Buyers browse, add to cart, check out (simulated payment) and review products; sellers manage their products
 (image upload / import from URL) and orders; admins manage users and read the audit log.
+Prices are in Tunisian dinars (TND, shown as `1 250,500 DT`, 3 decimals); payment by simulated card or cash on delivery.
 
 Every feature is built to be secure by design: Doctrine parameterized queries, Twig auto-escaping, CSRF tokens,
 Voters + UUIDs against IDOR, Argon2id + TOTP 2FA, rate limiting + account lockout, hardened file upload,
