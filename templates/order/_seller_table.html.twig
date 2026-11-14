@@ -12,7 +12,7 @@
                     <td data-label="Ship to">{{ order.shippingName ?? '—' }}</td>
                     <td data-label="Product" class="text-truncate">{{ item.productName }}</td>
                     <td data-label="Qty" class="text-end">{{ item.quantity }}</td>
-                    <td data-label="Amount" class="text-end">{{ item.lineTotal|format_currency('EUR') }}</td>
+                    <td data-label="Amount" class="text-end">{{ item.lineTotal|price }}</td>
                     <td data-label="Status">{{ ui.status_badge(item.status) }}</td>
                     <td class="text-end text-nowrap">{% include '_partials/item_status_action.html.twig' with {item: item, back: back|default('orders')} %}</td>
                 </tr>

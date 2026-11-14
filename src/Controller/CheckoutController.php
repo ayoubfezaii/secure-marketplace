@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Service\Money;
 use App\Dto\PaymentDto;
 use App\Entity\Address;
 use App\Entity\CartItem;
@@ -327,14 +328,14 @@ class CheckoutController extends AbstractController
      */
     private function summary(array $lines): array
     {
-        $subtotal = '0.00';
+        $subtotal = Money::ZERO;
         $units = 0;
         foreach ($lines as $line) {
-            $subtotal = bcadd($subtotal, $line->getLineTotal(), 2);
+            $subtotal = bcadd($subtotal, $line->getLineTotal(), Money::SCALE);
             $units += $line->getQuantity();
         }
 
-        return ['lines' => $lines, 'subtotal' => $subtotal, 'shipping' => '0.00', 'total' => $subtotal, 'units' => $units];
+        return ['lines' => $lines, 'subtotal' => $subtotal, 'shipping' => Money::ZERO, 'total' => $subtotal, 'units' => $units];
     }
 
     private function emptyCart(): Response

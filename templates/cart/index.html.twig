@@ -27,8 +27,8 @@
                                         </div>
                                         {# Current DB price (display only; checkout recomputes it under lock, rule 10). #}
                                         <div class="text-end text-nowrap">
-                                            <div class="fw-semibold">{{ line.lineTotal|format_currency('EUR') }}</div>
-                                            <div class="small text-muted">{{ p.price|format_currency('EUR') }} each</div>
+                                            <div class="fw-semibold">{{ line.lineTotal|price }}</div>
+                                            <div class="small text-muted">{{ p.price|price }} each</div>
                                         </div>
                                     </div>
                                     <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
@@ -60,9 +60,9 @@
                     <div class="panel-head"><h2>Order summary</h2></div>
                     <div class="panel-body">
                         <dl class="d-grid gap-2 mb-3">
-                            <div class="d-flex justify-content-between"><dt class="fw-normal text-muted">Subtotal</dt><dd class="mb-0">{{ total|format_currency('EUR') }}</dd></div>
+                            <div class="d-flex justify-content-between"><dt class="fw-normal text-muted">Subtotal</dt><dd class="mb-0">{{ total|price }}</dd></div>
                             <div class="d-flex justify-content-between"><dt class="fw-normal text-muted">Shipping</dt><dd class="mb-0 text-success">Free</dd></div>
-                            <div class="d-flex justify-content-between border-top pt-2 fs-5"><dt>Total</dt><dd class="mb-0 fw-bold">{{ total|format_currency('EUR') }}</dd></div>
+                            <div class="d-flex justify-content-between border-top pt-2 fs-5"><dt>Total</dt><dd class="mb-0 fw-bold">{{ total|price }}</dd></div>
                         </dl>
                         <a href="{{ path('checkout') }}" class="btn btn-primary btn-lg w-100">Checkout <i class="bi bi-lock ms-1" aria-hidden="true"></i></a>
                         <p class="small text-muted mt-3 mb-0"><i class="bi bi-shield-check" aria-hidden="true"></i> Prices and stock are confirmed by our servers when you place the order.</p>

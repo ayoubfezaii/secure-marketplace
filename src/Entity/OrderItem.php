@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Service\Money;
 use App\Repository\OrderItemRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -49,7 +50,7 @@ class OrderItem
     #[Assert\Length(max: 120)]
     private string $productName;
 
-    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 2)]
+    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 3)]
     #[Assert\Positive]
     private string $unitPrice;
 
@@ -117,7 +118,7 @@ class OrderItem
 
     public function getLineTotal(): string
     {
-        return bcmul($this->unitPrice, (string) $this->quantity, 2);
+        return bcmul($this->unitPrice, (string) $this->quantity, Money::SCALE);
     }
 
     public function getStatus(): string

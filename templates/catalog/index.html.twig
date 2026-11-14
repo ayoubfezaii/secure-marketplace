@@ -38,13 +38,13 @@
                     </div>
 
                     <div class="filter-group">
-                        <h2>Price (€)</h2>
+                        <h2>Price (DT)</h2>
                         <div class="d-flex gap-2 align-items-center">
                             <label class="visually-hidden" for="min">Minimum price</label>
-                            <input class="form-control" id="min" type="number" name="min" min="0" max="100000" step="1" value="{{ criteria.minPrice }}" placeholder="{{ priceBounds.min|round(0, 'floor') }}">
+                            <input class="form-control" id="min" type="number" name="min" min="0" max="300000" step="1" value="{{ criteria.minPrice }}" placeholder="{{ priceBounds.min|round(0, 'floor') }}">
                             <span class="text-muted">–</span>
                             <label class="visually-hidden" for="max">Maximum price</label>
-                            <input class="form-control" id="max" type="number" name="max" min="0" max="100000" step="1" value="{{ criteria.maxPrice }}" placeholder="{{ priceBounds.max|round(0, 'ceil') }}">
+                            <input class="form-control" id="max" type="number" name="max" min="0" max="300000" step="1" value="{{ criteria.maxPrice }}" placeholder="{{ priceBounds.max|round(0, 'ceil') }}">
                         </div>
                     </div>
 
@@ -112,7 +112,7 @@
                 <div class="d-flex flex-wrap gap-2 mb-3">
                     {% if criteria.query %}<a class="chip" href="{{ path('product_index', criteria.toQuery({q: null})) }}">“{{ criteria.query }}” <i class="bi bi-x" aria-label="Remove"></i></a>{% endif %}
                     {% if category %}<a class="chip" href="{{ path('product_index', criteria.toQuery({category: null})) }}">{{ category.name }} <i class="bi bi-x" aria-label="Remove"></i></a>{% endif %}
-                    {% if criteria.minPrice or criteria.maxPrice %}<a class="chip" href="{{ path('product_index', criteria.toQuery({min: null, max: null})) }}">€{{ criteria.minPrice ?? 0 }} – €{{ criteria.maxPrice ?? '∞' }} <i class="bi bi-x" aria-label="Remove"></i></a>{% endif %}
+                    {% if criteria.minPrice or criteria.maxPrice %}<a class="chip" href="{{ path('product_index', criteria.toQuery({min: null, max: null})) }}">{{ (criteria.minPrice ?? 0)|price }} – {{ criteria.maxPrice ? criteria.maxPrice|price : '∞' }}<i class="bi bi-x" aria-label="Remove"></i></a>{% endif %}
                     {% if criteria.minRating %}<a class="chip" href="{{ path('product_index', criteria.toQuery({rating: null})) }}">{{ criteria.minRating }}★ &amp; up <i class="bi bi-x" aria-label="Remove"></i></a>{% endif %}
                     {% if criteria.inStock %}<a class="chip" href="{{ path('product_index', criteria.toQuery({stock: null})) }}">In stock <i class="bi bi-x" aria-label="Remove"></i></a>{% endif %}
                     {% if criteria.deals %}<a class="chip" href="{{ path('product_index', criteria.toQuery({deals: null})) }}">On sale <i class="bi bi-x" aria-label="Remove"></i></a>{% endif %}

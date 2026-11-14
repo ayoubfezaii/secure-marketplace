@@ -22,9 +22,9 @@
                                             <span class="name">{{ item.productName }}</span>
                                         </div>
                                     </td>
-                                    <td data-label="Unit price" class="text-end">{{ item.unitPrice|format_currency('EUR') }}</td>
+                                    <td data-label="Unit price" class="text-end">{{ item.unitPrice|price }}</td>
                                     <td data-label="Qty" class="text-end">{{ item.quantity }}</td>
-                                    <td data-label="Total" class="text-end fw-semibold">{{ item.lineTotal|format_currency('EUR') }}</td>
+                                    <td data-label="Total" class="text-end fw-semibold">{{ item.lineTotal|price }}</td>
                                     <td data-label="Status">{{ ui.status_badge(item.status) }}</td>
                                     <td class="text-end text-nowrap">{% include '_partials/item_status_action.html.twig' with {item: item, back: 'order'} %}</td>
                                 </tr>
@@ -33,7 +33,7 @@
                     </table>
                 </div>
                 <div class="panel-body border-top d-flex justify-content-between">
-                    <span class="text-muted">Your share of this order</span><strong>{{ subtotal|format_currency('EUR') }}</strong>
+                    <span class="text-muted">Your share of this order</span><strong>{{ subtotal|price }}</strong>
                 </div>
             </section>
         </div>
@@ -49,15 +49,15 @@
                     <div class="panel-head"><h2><i class="bi bi-cash-coin me-1" aria-hidden="true"></i> Cash on delivery</h2>{{ ui.payment_status_badge(order) }}</div>
                     <div class="panel-body">
                         {% if order.paymentStatus.value == 'collected' %}
-                            <p class="mb-0">You collected <strong>{{ order.total|format_currency('EUR') }}</strong> in cash. This order counts in your revenue.</p>
+                            <p class="mb-0">You collected <strong>{{ order.total|price }}</strong> in cash. This order counts in your revenue.</p>
                         {% elseif order.status == 'cancelled' %}
                             <p class="text-muted mb-0">This order was cancelled or refused. Nothing was collected and the items are back in stock.</p>
                         {% else %}
-                            <p class="mb-3">Amount to collect at delivery: <strong>{{ order.total|format_currency('EUR') }}</strong></p>
+                            <p class="mb-3">Amount to collect at delivery: <strong>{{ order.total|price }}</strong></p>
                             {% if is_granted('ORDER_CASH_COLLECT', order) or is_granted('ORDER_CASH_REFUSE', order) %}
                                 <div class="d-grid gap-2">
                                     {% if is_granted('ORDER_CASH_COLLECT', order) %}
-                                        {{ ui.confirm_delete_form(path('seller_order_cash_collected', {uuid: order.uuid}), 'cash-collected-' ~ order.uuid, 'Cash collected', 'Confirm that the buyer paid ' ~ order.total|format_currency('EUR') ~ ' in cash. This cannot be undone.', 'btn btn-primary w-100', 'cash-coin', {}, 'Yes, cash collected', 'Confirm cash collected?', 'dark') }}
+                                        {{ ui.confirm_delete_form(path('seller_order_cash_collected', {uuid: order.uuid}), 'cash-collected-' ~ order.uuid, 'Cash collected', 'Confirm that the buyer paid ' ~ order.total|price ~ ' in cash. This cannot be undone.', 'btn btn-primary w-100', 'cash-coin', {}, 'Yes, cash collected', 'Confirm cash collected?', 'dark') }}
                                     {% endif %}
                                     {% if is_granted('ORDER_CASH_REFUSE', order) %}
                                         {{ ui.confirm_delete_form(path('seller_order_refused', {uuid: order.uuid}), 'cash-refused-' ~ order.uuid, 'Refused at delivery', 'The buyer refused the parcel: the order is cancelled and the items go back in stock. This cannot be undone.', 'btn btn-outline-danger w-100', 'x-circle', {}, 'Yes, refused', 'Mark as refused at delivery?') }}

@@ -51,7 +51,7 @@ final class DashboardStats
 
         return [
             'orders' => (int) $orders['cnt'],
-            'spent' => number_format((float) $orders['spent'], 2, '.', ''),
+            'spent' => Money::decimal($orders['spent']),
             'cartUnits' => $this->scalar('SELECT COALESCE(SUM(c.quantity), 0) FROM '.CartItem::class.' c WHERE c.user = :u', ['u' => $buyer]),
             'reviews' => $this->scalar('SELECT COUNT(r.id) FROM '.Review::class.' r WHERE r.author = :u', ['u' => $buyer]),
             'wishlist' => $this->scalar('SELECT COUNT(w.id) FROM '.WishlistItem::class.' w WHERE w.user = :u', ['u' => $buyer]),
@@ -127,7 +127,7 @@ final class DashboardStats
         return [
             'activeProducts' => $this->scalar('SELECT COUNT(p.id) FROM '.Product::class.' p WHERE p.seller = :u AND p.isActive = true', ['u' => $seller]),
             'unitsSold' => (int) $sales['units'],
-            'revenue' => number_format((float) $sales['revenue'], 2, '.', ''),
+            'revenue' => Money::decimal($sales['revenue']),
             'pendingShipments' => $this->scalar('SELECT COUNT(i.id) FROM '.OrderItem::class.' i WHERE i.seller = :u AND i.status IN (:toShip)', ['u' => $seller, 'toShip' => Order::AWAITING_SHIPMENT]),
             'avgRating' => null !== $rating['avg'] ? round((float) $rating['avg'], 1) : null,
             'reviewCount' => (int) $rating['cnt'],
@@ -160,14 +160,14 @@ final class DashboardStats
         foreach ($rows as $row) {
             $key = $row['createdAt']->format('Y-m-d');
             if (isset($revenue[$key])) {
-                $revenue[$key] += (float) bcmul((string) $row['unitPrice'], (string) $row['quantity'], 2);
+                $revenue[$key] += (float) bcmul((string) $row['unitPrice'], (string) $row['quantity'], Money::SCALE);
                 $units[$key] += (int) $row['quantity'];
             }
         }
 
         return [
             'labels' => array_map(static fn (string $k) => (new \DateTimeImmutable($k))->format('d/m'), array_keys($revenue)),
-            'revenue' => array_map(static fn (float $v) => round($v, 2), array_values($revenue)),
+            'revenue' => array_map(static fn (float $v) => round($v, Money::SCALE), array_values($revenue)),
             'units' => array_values($units),
         ];
     }
@@ -203,7 +203,7 @@ final class DashboardStats
             'products' => $this->scalar('SELECT COUNT(p.id) FROM '.Product::class.' p'),
             'activeProducts' => $this->scalar('SELECT COUNT(p.id) FROM '.Product::class.' p WHERE p.isActive = true'),
             'orders' => $this->scalar('SELECT COUNT(o.id) FROM '.Order::class.' o'),
-            'revenue' => number_format((float) $revenue, 2, '.', ''),
+            'revenue' => Money::decimal($revenue),
             'locked' => count($this->users->findLocked()),
             'failedLogins24h' => $this->auditLogs->countSince(AuditLog::LOGIN_FAILURE, new \DateTimeImmutable('-24 hours')),
             'securityEvents24h' => $this->scalar('SELECT COUNT(a.id) FROM '.AuditLog::class.' a WHERE a.action IN (:actions) AND a.createdAt >= :since', [

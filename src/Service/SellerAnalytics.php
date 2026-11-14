@@ -47,7 +47,7 @@ final class SellerAnalytics
             ->andWhere('o.paymentStatus IN (:settled)')->setParameter('settled', PaymentStatus::settledValues())
             ->getQuery()->getSingleResult();
 
-        return ['revenue' => round((float) $row['revenue'], 2), 'units' => (int) $row['units'], 'orders' => (int) $row['orders']];
+        return ['revenue' => round((float) $row['revenue'], Money::SCALE), 'units' => (int) $row['units'], 'orders' => (int) $row['orders']];
     }
 
     /**
@@ -110,14 +110,14 @@ final class SellerAnalytics
         foreach ($rows as $row) {
             $key = $row['createdAt']->format('Y-m-d');
             if (isset($revenue[$key])) {
-                $revenue[$key] += (float) bcmul((string) $row['unitPrice'], (string) $row['quantity'], 2);
+                $revenue[$key] += (float) bcmul((string) $row['unitPrice'], (string) $row['quantity'], Money::SCALE);
                 $units[$key] += (int) $row['quantity'];
             }
         }
 
         return [
             'labels' => array_map(static fn (string $k) => (new \DateTimeImmutable($k))->format('d M'), array_keys($revenue)),
-            'revenue' => array_map(static fn (float $v) => round($v, 2), array_values($revenue)),
+            'revenue' => array_map(static fn (float $v) => round($v, Money::SCALE), array_values($revenue)),
             'units' => array_values($units),
         ];
     }
@@ -137,7 +137,7 @@ final class SellerAnalytics
             ->groupBy('c.id')->orderBy('revenue', 'DESC')
             ->getQuery()->getArrayResult();
 
-        return ['labels' => array_column($rows, 'name'), 'data' => array_map(static fn ($r) => round((float) $r['revenue'], 2), $rows)];
+        return ['labels' => array_column($rows, 'name'), 'data' => array_map(static fn ($r) => round((float) $r['revenue'], Money::SCALE), $rows)];
     }
 
     /**
@@ -156,7 +156,7 @@ final class SellerAnalytics
             ->groupBy('p.id')->orderBy('units', 'DESC')->setMaxResults($limit)
             ->getQuery()->getResult();
 
-        return array_map(static fn (array $r) => ['product' => $r[0], 'units' => (int) $r['units'], 'revenue' => round((float) $r['revenue'], 2)], $rows);
+        return array_map(static fn (array $r) => ['product' => $r[0], 'units' => (int) $r['units'], 'revenue' => round((float) $r['revenue'], Money::SCALE)], $rows);
     }
 
     /**
@@ -195,20 +195,20 @@ final class SellerAnalytics
         $months = [];
         foreach ($rows as $row) {
             $key = $row['createdAt']->format('Y-m');
-            $months[$key] ??= ['gross' => '0.00', 'items' => 0];
-            $months[$key]['gross'] = bcadd($months[$key]['gross'], bcmul((string) $row['unitPrice'], (string) $row['quantity'], 2), 2);
+            $months[$key] ??= ['gross' => Money::ZERO, 'items' => 0];
+            $months[$key]['gross'] = bcadd($months[$key]['gross'], bcmul((string) $row['unitPrice'], (string) $row['quantity'], Money::SCALE), Money::SCALE);
             $months[$key]['items'] += (int) $row['quantity'];
         }
 
         $current = (new \DateTimeImmutable())->format('Y-m');
         $result = [];
         foreach ($months as $key => $m) {
-            $fee = bcmul($m['gross'], self::COMMISSION, 2);
+            $fee = bcmul($m['gross'], self::COMMISSION, Money::SCALE);
             $result[] = [
                 'month' => new \DateTimeImmutable($key.'-01'),
                 'gross' => $m['gross'],
                 'fee' => $fee,
-                'net' => bcsub($m['gross'], $fee, 2),
+                'net' => bcsub($m['gross'], $fee, Money::SCALE),
                 'items' => $m['items'],
                 'status' => $key === $current ? 'scheduled' : 'paid',
             ];

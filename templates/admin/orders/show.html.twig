@@ -12,7 +12,7 @@
         {{ ui.confirm_delete_form(path('admin_order_cancel', {uuid: order.uuid}), 'admin-order-cancel-' ~ order.uuid, 'Cancel order', 'The order is cancelled and every item goes back in stock.', 'btn btn-outline-danger', 'x-circle', {}, 'Cancel order', 'Cancel this order?') }}
     {% endif %}
     {% if is_granted('ORDER_REFUND', order) %}
-        {{ ui.confirm_delete_form(path('admin_order_refund', {uuid: order.uuid}), 'admin-order-refund-' ~ order.uuid, 'Refund', 'The order is refunded (simulated) and every item goes back in stock.', 'btn btn-danger', 'arrow-counterclockwise', {}, 'Refund ' ~ order.total|format_currency('EUR'), 'Refund this order?') }}
+        {{ ui.confirm_delete_form(path('admin_order_refund', {uuid: order.uuid}), 'admin-order-refund-' ~ order.uuid, 'Refund', 'The order is refunded (simulated) and every item goes back in stock.', 'btn btn-danger', 'arrow-counterclockwise', {}, 'Refund ' ~ order.total|price, 'Refund this order?') }}
     {% endif %}
 {% endblock %}
 
@@ -29,8 +29,8 @@
                                 <tr>
                                     <td class="cell-main"><div class="cell-product"><span class="thumb">{{ ui.product_image(item.product ? item.product.mainImageFilename : null, item.productName) }}</span><span class="name">{{ item.productName }}</span></div></td>
                                     <td data-label="Seller" class="small">{{ item.seller.shop ? item.seller.shop.name : item.seller.email }}</td>
-                                    <td data-label="Qty" class="text-end">{{ item.quantity }} × {{ item.unitPrice|format_currency('EUR') }}</td>
-                                    <td data-label="Total" class="text-end fw-semibold">{{ item.lineTotal|format_currency('EUR') }}</td>
+                                    <td data-label="Qty" class="text-end">{{ item.quantity }} × {{ item.unitPrice|price }}</td>
+                                    <td data-label="Total" class="text-end fw-semibold">{{ item.lineTotal|price }}</td>
                                     <td data-label="Status">{{ ui.status_badge(item.status) }}</td>
                                     <td class="text-end text-nowrap">{% include '_partials/item_status_action.html.twig' with {item: item, back: 'order'} %}</td>
                                 </tr>
@@ -38,7 +38,7 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="panel-body border-top d-flex justify-content-between"><span class="text-muted">Order total</span><strong>{{ order.total|format_currency('EUR') }}</strong></div>
+                <div class="panel-body border-top d-flex justify-content-between"><span class="text-muted">Order total</span><strong>{{ order.total|price }}</strong></div>
             </section>
         </div>
         <div class="col-xl-4 d-grid gap-4 align-content-start">
@@ -57,7 +57,7 @@
                 <div class="panel-body small">
                     <div class="d-flex justify-content-between align-items-center mb-2"><span>{{ ui.payment_method(order) }}</span>{{ ui.payment_status_badge(order) }}</div>
                     {% if order.cashOnDelivery %}
-                        {{ order.cashPending ? 'To be collected in cash by the seller at delivery: ' ~ order.total|format_currency('EUR') ~ '.' : (order.paymentStatus.value == 'collected' ? 'Cash collected by the seller.' : 'Nothing was collected.') }}
+                        {{ order.cashPending ? 'To be collected in cash by the seller at delivery: ' ~ order.total|price ~ '.' : (order.paymentStatus.value == 'collected' ? 'Cash collected by the seller.' : 'Nothing was collected.') }}
                     {% else %}
                         {# SECURITY (rule 11): only the last 4 digits exist. #}
                         Card •••• {{ order.cardLast4 }} · {{ order.cardHolder }}

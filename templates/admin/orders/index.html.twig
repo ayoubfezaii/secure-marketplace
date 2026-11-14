@@ -63,7 +63,7 @@
                                 <td data-label="Items">{{ o.items|length }}</td>
                                 <td data-label="Status">{{ ui.status_badge(o.status) }}</td>
                                 <td data-label="Payment"><span class="small d-block">{{ ui.payment_method(o) }}</span>{{ ui.payment_status_badge(o) }}</td>
-                                <td data-label="Total" class="text-end fw-semibold">{{ o.total|format_currency('EUR') }}</td>
+                                <td data-label="Total" class="text-end fw-semibold">{{ o.total|price }}</td>
                                 <td class="text-end"><a class="btn btn-sm btn-outline-dark" href="{{ path('admin_order_show', {uuid: o.uuid}) }}">Details</a></td>
                             </tr>
                         {% endfor %}

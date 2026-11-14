@@ -51,7 +51,7 @@
                                 <td class="cell-main"><div class="cell-product"><span class="thumb">{{ ui.product_image(p.mainImageFilename, p.name) }}</span><a class="name text-truncate" href="{{ path('product_show', {uuid: p.uuid}) }}">{{ p.name }}</a></div></td>
                                 <td data-label="Seller" class="small text-break">{{ p.shop ? p.shop.name : p.seller.email }}</td>
                                 <td data-label="Category" class="small">{{ p.categoryLabel }}</td>
-                                <td data-label="Price" class="text-end">{{ p.price|format_currency('EUR') }}</td>
+                                <td data-label="Price" class="text-end">{{ p.price|price }}</td>
                                 <td data-label="Stock" class="text-end">{{ p.stock }}</td>
                                 <td data-label="Status">{{ ui.status_badge(p.active ? 'active' : 'inactive') }}</td>
                                 <td class="text-end text-nowrap">

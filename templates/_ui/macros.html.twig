@@ -133,8 +133,8 @@
 
 {# ---------- Price with optional old price ---------- #}
 {% macro price(price, old = null) %}
-    <span class="price">{{ price|format_currency('EUR') }}</span>
-    {%- if old and old > price %}<span class="price-old"><span class="visually-hidden">was </span>{{ old|format_currency('EUR') }}</span>{% endif %}
+    <span class="price">{{ price|price }}</span>
+    {%- if old and old > price %}<span class="price-old"><span class="visually-hidden">was </span>{{ old|price }}</span>{% endif %}
 {% endmacro %}
 
 {# ---------- Product image (served by MediaController from outside public/) ---------- #}

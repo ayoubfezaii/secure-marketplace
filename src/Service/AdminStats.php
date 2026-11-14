@@ -50,7 +50,7 @@ final class AdminStats
             'products' => (int) $this->em->createQuery('SELECT COUNT(p.id) FROM '.Product::class.' p')->getSingleScalarResult(),
             'activeProducts' => (int) $this->em->createQuery('SELECT COUNT(p.id) FROM '.Product::class.' p WHERE p.isActive = true')->getSingleScalarResult(),
             'orders' => (int) $this->em->createQuery('SELECT COUNT(o.id) FROM '.Order::class.' o')->getSingleScalarResult(),
-            'revenue' => round((float) $revenue, 2),
+            'revenue' => round((float) $revenue, Money::SCALE),
             'cashToCollect' => (float) $cash['total'],
             'cashToCollectCount' => $cash['count'],
             'pendingApplications' => $this->applications->countPending(),
@@ -94,7 +94,7 @@ final class AdminStats
         return [
             'labels' => array_map(static fn (string $k) => (new \DateTimeImmutable($k))->format('d M'), array_keys($orders)),
             'orders' => array_values($orders),
-            'revenue' => array_map(static fn (float $v) => round($v, 2), array_values($revenue)),
+            'revenue' => array_map(static fn (float $v) => round($v, Money::SCALE), array_values($revenue)),
         ];
     }
 

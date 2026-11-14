@@ -6,6 +6,7 @@ use App\Entity\Order;
 use App\Entity\User;
 use App\Enum\PaymentMethod;
 use App\Enum\PaymentStatus;
+use App\Service\Money;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
@@ -135,7 +136,7 @@ class OrderRepository extends ServiceEntityRepository
             ->select('COUNT(o.id) AS cnt, COALESCE(SUM(o.total), 0) AS total')
             ->getQuery()->getSingleResult();
 
-        return ['count' => (int) $row['cnt'], 'total' => number_format((float) $row['total'], 2, '.', '')];
+        return ['count' => (int) $row['cnt'], 'total' => Money::decimal($row['total'])];
     }
 
     private function pendingCashQueryBuilder(): QueryBuilder

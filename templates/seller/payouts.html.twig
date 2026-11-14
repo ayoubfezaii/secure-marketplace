@@ -7,8 +7,8 @@
 
 {% block content %}
     <div class="row g-3 mb-4">
-        <div class="col-md-4">{{ ui.stat_card('Next payout (this month)', balance|format_currency('EUR'), 'calendar-check', 'accent') }}</div>
-        <div class="col-md-4">{{ ui.stat_card('Paid out so far', paidTotal|format_currency('EUR'), 'bank', 'success') }}</div>
+        <div class="col-md-4">{{ ui.stat_card('Next payout (this month)', balance|price, 'calendar-check', 'accent') }}</div>
+        <div class="col-md-4">{{ ui.stat_card('Paid out so far', paidTotal|price, 'bank', 'success') }}</div>
         <div class="col-md-4">{{ ui.stat_card('Payout account', maskedIban ?? 'Not set', 'safe', maskedIban ? 'ink' : 'danger') }}</div>
     </div>
 
@@ -43,9 +43,9 @@
                                     <tr>
                                         <td class="cell-main fw-semibold">{{ p.month|date('F Y') }}</td>
                                         <td data-label="Items" class="text-end">{{ p.items }}</td>
-                                        <td data-label="Gross" class="text-end">{{ p.gross|format_currency('EUR') }}</td>
-                                        <td data-label="Fee" class="text-end text-muted">−{{ p.fee|format_currency('EUR') }}</td>
-                                        <td data-label="Net" class="text-end fw-semibold">{{ p.net|format_currency('EUR') }}</td>
+                                        <td data-label="Gross" class="text-end">{{ p.gross|price }}</td>
+                                        <td data-label="Fee" class="text-end text-muted">−{{ p.fee|price }}</td>
+                                        <td data-label="Net" class="text-end fw-semibold">{{ p.net|price }}</td>
                                         <td data-label="Status">{% if p.status == 'paid' %}<span class="badge status-badge status-delivered">Paid{{ maskedIban ? ' to ' ~ maskedIban|slice(-4) }}</span>{% else %}<span class="badge status-badge status-pending">Scheduled</span>{% endif %}</td>
                                     </tr>
                                 {% endfor %}

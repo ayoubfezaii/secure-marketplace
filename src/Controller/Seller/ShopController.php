@@ -2,6 +2,7 @@
 
 namespace App\Controller\Seller;
 
+use App\Service\Money;
 use App\Dto\IbanDto;
 use App\Entity\AuditLog;
 use App\Entity\User;
@@ -111,13 +112,13 @@ class ShopController extends AbstractController
         }
 
         $payouts = $analytics->payouts($seller);
-        $balance = '0.00';
-        $paid = '0.00';
+        $balance = Money::ZERO;
+        $paid = Money::ZERO;
         foreach ($payouts as $p) {
             if ('scheduled' === $p['status']) {
-                $balance = bcadd($balance, $p['net'], 2);
+                $balance = bcadd($balance, $p['net'], Money::SCALE);
             } else {
-                $paid = bcadd($paid, $p['net'], 2);
+                $paid = bcadd($paid, $p['net'], Money::SCALE);
             }
         }
 

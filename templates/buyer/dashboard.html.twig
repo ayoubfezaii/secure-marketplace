@@ -12,7 +12,7 @@
 {% block content %}
     <div class="row g-3 mb-4">
         <div class="col-6 col-xl-3">{{ ui.stat_card('Orders', stats.orders, 'box-seam', 'ink') }}</div>
-        <div class="col-6 col-xl-3">{{ ui.stat_card('Total spent', stats.spent|format_currency('EUR'), 'wallet2', 'accent') }}</div>
+        <div class="col-6 col-xl-3">{{ ui.stat_card('Total spent', stats.spent|price, 'wallet2', 'accent') }}</div>
         <div class="col-6 col-xl-3"><a class="text-decoration-none" href="{{ path('buyer_wishlist') }}">{{ ui.stat_card('Wishlist', stats.wishlist, 'heart', 'danger') }}</a></div>
         <div class="col-6 col-xl-3"><a class="text-decoration-none" href="{{ path('buyer_reviews') }}">{{ ui.stat_card('Reviews written', stats.reviews, 'star', 'success') }}</a></div>
     </div>

@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Service\Money;
 use App\Repository\CartItemRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -75,6 +76,6 @@ class CartItem
     /** Line total from the CURRENT product price in the database. */
     public function getLineTotal(): string
     {
-        return bcmul($this->product->getPrice(), (string) $this->quantity, 2);
+        return bcmul($this->product->getPrice(), (string) $this->quantity, Money::SCALE);
     }
 }

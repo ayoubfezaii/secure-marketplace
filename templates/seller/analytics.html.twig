@@ -17,17 +17,17 @@
 {% block content %}
     {% set delta = previous.revenue > 0 ? ((totals.revenue - previous.revenue) / previous.revenue * 100)|round(1) : null %}
     <div class="row g-3 mb-4">
-        <div class="col-6 col-xl-3">{{ ui.stat_card('Revenue', totals.revenue|format_currency('EUR'), 'currency-euro', 'accent', null, delta is not null ? (delta >= 0 ? '+' : '') ~ delta ~ '% vs previous ' ~ days ~ ' days' : 'No previous data') }}</div>
+        <div class="col-6 col-xl-3">{{ ui.stat_card('Revenue', totals.revenue|price, 'cash-stack', 'accent', null, delta is not null ? (delta >= 0 ? '+' : '') ~ delta ~ '% vs previous ' ~ days ~ ' days' : 'No previous data') }}</div>
         <div class="col-6 col-xl-3">{{ ui.stat_card('Orders', totals.orders, 'receipt', 'ink') }}</div>
         <div class="col-6 col-xl-3">{{ ui.stat_card('Units sold', totals.units, 'bag-check', 'success') }}</div>
-        <div class="col-6 col-xl-3">{{ ui.stat_card('Average order', avgOrder|format_currency('EUR'), 'calculator', '') }}</div>
+        <div class="col-6 col-xl-3">{{ ui.stat_card('Average order', avgOrder|price, 'calculator', '') }}</div>
     </div>
     <div class="row g-4">
         <div class="col-xl-8">
             <section class="panel h-100">
                 <div class="panel-head"><h2>Revenue by day</h2></div>
                 <div class="panel-body">
-                    <div class="chart-box" {{ stimulus_controller('chart', {config: {type: 'bar', title: 'Revenue by day', labels: chart.labels, datasets: [{label: 'Revenue (€)', data: chart.revenue}]}}) }}><p class="text-muted small">Loading chart…</p></div>
+                    <div class="chart-box" {{ stimulus_controller('chart', {config: {type: 'bar', title: 'Revenue by day', labels: chart.labels, datasets: [{label: 'Revenue (DT)', money: true, data: chart.revenue}]}}) }}><p class="text-muted small">Loading chart…</p></div>
                 </div>
             </section>
         </div>
@@ -38,7 +38,7 @@
                     {% if byCategory.data is empty %}
                         <p class="small text-muted mb-0">No sales in this period.</p>
                     {% else %}
-                        <div class="chart-box" {{ stimulus_controller('chart', {config: {type: 'doughnut', title: 'Revenue by category', labels: byCategory.labels, datasets: [{label: 'Revenue (€)', data: byCategory.data}]}}) }}><p class="text-muted small">Loading chart…</p></div>
+                        <div class="chart-box" {{ stimulus_controller('chart', {config: {type: 'doughnut', title: 'Revenue by category', labels: byCategory.labels, datasets: [{label: 'Revenue (DT)', money: true, data: byCategory.data}]}}) }}><p class="text-muted small">Loading chart…</p></div>
                     {% endif %}
                 </div>
             </section>
@@ -58,7 +58,7 @@
                                         <td data-label="Rank">{{ loop.index }}</td>
                                         <td class="cell-main"><div class="cell-product"><span class="thumb">{{ ui.product_image(row.product.mainImageFilename, row.product.name) }}</span><a class="name" href="{{ path('seller_product_edit', {uuid: row.product.uuid}) }}">{{ row.product.name }}</a></div></td>
                                         <td data-label="Units" class="text-end">{{ row.units }}</td>
-                                        <td data-label="Revenue" class="text-end fw-semibold">{{ row.revenue|format_currency('EUR') }}</td>
+                                        <td data-label="Revenue" class="text-end fw-semibold">{{ row.revenue|price }}</td>
                                         <td data-label="Share" class="w-25"><progress class="bar ink" value="{{ row.revenue }}" max="{{ max(totals.revenue, 1) }}" aria-label="{{ (row.revenue / max(totals.revenue, 1) * 100)|round }}% of revenue"></progress></td>
                                     </tr>
                                 {% endfor %}

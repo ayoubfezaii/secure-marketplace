@@ -77,7 +77,7 @@
                                 <td class="cell-main"><a class="font-monospace fw-semibold" href="{{ path('admin_order_show', {uuid: o.uuid}) }}">{{ o.number }}</a></td>
                                 <td data-label="Date">{{ o.createdAt|date('d M Y') }}</td>
                                 <td data-label="Status">{{ ui.status_badge(o.status) }}</td>
-                                <td data-label="Total" class="text-end">{{ o.total|format_currency('EUR') }}</td>
+                                <td data-label="Total" class="text-end">{{ o.total|price }}</td>
                             </tr>{% endfor %}</tbody>
                         </table></div>
                     {% endif %}
@@ -92,7 +92,7 @@
                             <thead><tr><th scope="col">Product</th><th scope="col" class="text-end">Price</th><th scope="col" class="text-end">Stock</th><th scope="col">Status</th></tr></thead>
                             <tbody>{% for p in products|slice(0, 10) %}<tr>
                                 <td class="cell-main"><a href="{{ path('product_show', {uuid: p.uuid}) }}">{{ p.name }}</a></td>
-                                <td data-label="Price" class="text-end">{{ p.price|format_currency('EUR') }}</td>
+                                <td data-label="Price" class="text-end">{{ p.price|price }}</td>
                                 <td data-label="Stock" class="text-end">{{ p.stock }}</td>
                                 <td data-label="Status">{{ ui.status_badge(p.active ? 'active' : 'inactive') }}</td>
                             </tr>{% endfor %}</tbody>

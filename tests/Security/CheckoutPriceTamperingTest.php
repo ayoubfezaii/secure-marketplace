@@ -6,6 +6,7 @@ use App\Entity\CartItem;
 use App\Entity\Order;
 use App\Entity\Product;
 use App\Repository\CartItemRepository;
+use App\Service\Money;
 use App\Tests\AppWebTestCase;
 
 /**
@@ -50,12 +51,12 @@ final class CheckoutPriceTamperingTest extends AppWebTestCase
         self::assertResponseRedirects('/cart');
 
         // Expected total = current DB prices x quantities of the whole cart.
-        $expected = '0.00';
+        $expected = Money::ZERO;
         $lines = static::getContainer()->get(CartItemRepository::class)->findForUser($this->user('buyer1@shop.test'));
         self::assertNotEmpty($lines);
         foreach ($lines as $line) {
             \assert($line instanceof CartItem);
-            $expected = bcadd($expected, bcmul($line->getProduct()->getPrice(), (string) $line->getQuantity(), 2), 2);
+            $expected = bcadd($expected, bcmul($line->getProduct()->getPrice(), (string) $line->getQuantity(), Money::SCALE), Money::SCALE);
         }
         $stockBefore = $product->getStock();
         $quantity = 0;

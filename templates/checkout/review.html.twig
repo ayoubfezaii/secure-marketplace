@@ -17,7 +17,7 @@
                         <div class="d-flex justify-content-between"><h3 class="h6 mb-2">Pay with</h3><a class="small" href="{{ path('checkout_payment') }}">Change</a></div>
                         {% if cash %}
                             {# Cash on delivery: no card data exists at all. #}
-                            <p class="small text-muted mb-0"><i class="bi bi-cash-coin" aria-hidden="true"></i> <strong class="text-body">Cash on delivery</strong><br>Pay {{ summary.total|format_currency('EUR') }} in cash when your order arrives.</p>
+                            <p class="small text-muted mb-0"><i class="bi bi-cash-coin" aria-hidden="true"></i> <strong class="text-body">Cash on delivery</strong><br>Pay {{ summary.total|price }} in cash when your order arrives.</p>
                         {% else %}
                             {# Only the masked card is available here: the full number was never kept (rule 11). #}
                             <p class="small text-muted mb-0"><i class="bi bi-credit-card" aria-hidden="true"></i> Card ending in <strong class="text-body">{{ payment.last4 }}</strong><br>{{ payment.holder }} · exp. {{ payment.expiry }}</p>
@@ -29,7 +29,7 @@
             <h3 class="h6">Items</h3>
             <ul class="list-unstyled small mb-4">
                 {% for line in lines %}
-                    <li class="d-flex justify-content-between py-1 border-bottom"><span>{{ line.quantity }} × {{ line.product.name }}</span><span>{{ line.lineTotal|format_currency('EUR') }}</span></li>
+                    <li class="d-flex justify-content-between py-1 border-bottom"><span>{{ line.quantity }} × {{ line.product.name }}</span><span>{{ line.lineTotal|price }}</span></li>
                 {% endfor %}
             </ul>
 
@@ -41,7 +41,7 @@
             <form method="post" action="{{ path('checkout_place') }}">
                 <input type="hidden" name="_token" value="{{ csrf_token('checkout-place') }}">
                 <input type="hidden" name="payment_token" value="{{ payment.token }}">
-                <button class="btn btn-primary btn-lg w-100" type="submit"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i> Place order · {{ summary.total|format_currency('EUR') }}</button>
+                <button class="btn btn-primary btn-lg w-100" type="submit"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i> Place order · {{ summary.total|price }}</button>
             </form>
             {% if cash %}<p class="small text-muted mt-3 mb-0 text-center"><i class="bi bi-cash-coin" aria-hidden="true"></i> Nothing is charged now. You pay the courier in cash at delivery.</p>{% endif %}
             <p class="small text-muted mt-3 mb-0 text-center">By placing your order you agree to our terms. You can cancel it yourself until it ships.</p>

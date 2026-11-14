@@ -21,15 +21,15 @@
                         <li class="d-flex gap-3 align-items-center py-2">
                             <span class="thumb position-relative">{{ ui.product_image(line.product.mainImageFilename, line.product.name) }}</span>
                             <span class="flex-grow-1 min-w-0"><span class="d-block text-truncate small fw-semibold">{{ line.product.name }}</span><span class="small text-muted">Qty {{ line.quantity }}</span></span>
-                            <span class="small fw-semibold">{{ line.lineTotal|format_currency('EUR') }}</span>
+                            <span class="small fw-semibold">{{ line.lineTotal|price }}</span>
                         </li>
                     {% endfor %}
                 </ul>
                 <div class="panel-body border-top">
                     <dl class="d-grid gap-2 mb-0">
-                        <div class="d-flex justify-content-between"><dt class="fw-normal text-muted">Subtotal</dt><dd class="mb-0">{{ summary.subtotal|format_currency('EUR') }}</dd></div>
+                        <div class="d-flex justify-content-between"><dt class="fw-normal text-muted">Subtotal</dt><dd class="mb-0">{{ summary.subtotal|price }}</dd></div>
                         <div class="d-flex justify-content-between"><dt class="fw-normal text-muted">Shipping</dt><dd class="mb-0 text-success">Free</dd></div>
-                        <div class="d-flex justify-content-between border-top pt-2 fs-5"><dt>Total</dt><dd class="mb-0 fw-bold">{{ summary.total|format_currency('EUR') }}</dd></div>
+                        <div class="d-flex justify-content-between border-top pt-2 fs-5"><dt>Total</dt><dd class="mb-0 fw-bold">{{ summary.total|price }}</dd></div>
                     </dl>
                     <p class="small text-muted mt-3 mb-0"><i class="bi bi-shield-lock" aria-hidden="true"></i> Display only: the final price and stock are re-checked by the server when you place the order.</p>
                 </div>

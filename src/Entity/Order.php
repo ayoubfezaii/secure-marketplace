@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Service\Money;
 use App\Enum\PaymentMethod;
 use App\Enum\PaymentStatus;
 use App\Repository\OrderRepository;
@@ -63,9 +64,10 @@ class Order
     private User $buyer;
 
     // SECURITY: computed server side from DB prices (rule 10).
-    #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 2)]
+    // Dinars with 3 decimals (millimes).
+    #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 3)]
     #[Assert\PositiveOrZero]
-    private string $total = '0.00';
+    private string $total = Money::ZERO;
 
     #[ORM\Column(length: 16)]
     // SECURITY (rule 15): whitelist of statuses.
@@ -144,7 +146,7 @@ class Order
     public function addItem(OrderItem $item): void
     {
         $this->items->add($item);
-        $this->total = bcadd($this->total, $item->getLineTotal(), 2);
+        $this->total = bcadd($this->total, $item->getLineTotal(), Money::SCALE);
     }
 
     /**

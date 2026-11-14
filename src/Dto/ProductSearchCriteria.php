@@ -2,6 +2,7 @@
 
 namespace App\Dto;
 
+use App\Service\Money;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -128,7 +129,7 @@ final class ProductSearchCriteria
     {
         $raw = str_replace(',', '.', trim($raw));
         // SECURITY: strict decimal format and range; anything else is ignored.
-        if (1 !== preg_match('/^\d{1,6}(\.\d{1,2})?$/', $raw) || (float) $raw > 100000) {
+        if (1 !== preg_match(Money::PATTERN, $raw) || (float) $raw > Money::MAX_PRICE) {
             return null;
         }
 

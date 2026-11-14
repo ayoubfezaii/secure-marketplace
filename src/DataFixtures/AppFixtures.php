@@ -74,52 +74,53 @@ final class AppFixtures extends Fixture
         ['buyer7@shop.test', 'Giulia Rossi'], ['buyer8@shop.test', 'Hannah Weber'],
     ];
 
-    /** [name, category, price, compare-at price|null, final stock, seller index, description] — 40 products */
+    /** [name, category, price in DT (3 decimals), compare-at price|null, final stock, seller index, description] — 40 products.
+     *  Tunisian price levels: a mug 28 DT, a shirt 89 DT, a leather bag 180 DT, headphones 320 DT, a gold signet ring 1 800 DT. */
     private const PRODUCTS = [
-        ['Linen Wrap Dress', 'clothing', '129.00', '159.00', 12, 0, "Washed French linen, adjustable wrap waist and deep pockets.\nGets softer with every wash."],
-        ['Merino Crew Sweater', 'clothing', '98.00', null, 18, 0, 'Fine-gauge merino from a mulesing-free farm. Breathable, warm, never itchy.'],
-        ['Wide-Leg Wool Trousers', 'clothing', '115.00', null, 3, 0, 'High-waisted trousers in a soft wool twill, fully lined, with side buttons.'],
-        ['Organic Cotton Shirt', 'clothing', '69.00', '89.00', 24, 0, 'Relaxed fit shirt in organic poplin with mother-of-pearl buttons.'],
-        ['Quilted Barn Jacket', 'clothing', '189.00', null, 0, 0, 'Recycled-fill quilted jacket with corduroy collar. Currently sold out.'],
-        ['Leather Tote Bag', 'bags', '165.00', null, 9, 0, 'Vegetable-tanned leather tote that ages into a rich patina. Fits a 14" laptop.'],
-        ['Canvas Weekender', 'bags', '119.00', '139.00', 7, 0, 'Waxed canvas holdall with leather handles and a separate shoe pocket.'],
-        ['Woven Raffia Basket Bag', 'bags', '58.00', null, 15, 0, 'Hand-woven raffia with leather straps. Perfect for markets and beaches.'],
-        ['Silk Twill Scarf', 'bags', '75.00', null, 20, 0, 'Pure silk twill, hand-rolled edges, printed with an original botanical pattern.'],
-        ['Leather Card Holder', 'bags', '39.00', null, 40, 0, 'Slim card holder with four slots, saddle-stitched by hand.'],
-        ['Speckled Stoneware Mug', 'ceramics', '28.00', null, 36, 1, 'Wheel-thrown mug in speckled clay with a satin oatmeal glaze. 350 ml.'],
-        ['Hand-thrown Serving Bowl', 'ceramics', '64.00', '79.00', 8, 1, 'Generous salad bowl with a glossy celadon interior and raw clay foot.'],
-        ['Porcelain Pour-Over Set', 'ceramics', '72.00', null, 2, 1, 'Dripper, carafe and two cups in translucent porcelain.'],
-        ['Stoneware Dinner Plates (x4)', 'ceramics', '96.00', null, 11, 1, 'Set of four 27 cm plates with an ash glaze. Dishwasher safe.'],
-        ['Ribbed Bud Vase', 'ceramics', '34.00', null, 25, 1, 'Small ribbed vase for single stems, matt black glaze.'],
-        ['Linen Bedding Set', 'home', '179.00', '219.00', 6, 1, 'Duvet cover and two pillowcases in stonewashed linen. Double size.'],
-        ['Hand-poured Soy Candle', 'home', '32.00', null, 30, 1, 'Fig and cedar soy candle in a reusable ceramic vessel. 50 hours burn time.'],
-        ['Wool Throw Blanket', 'home', '110.00', null, 4, 1, 'Herringbone throw woven from undyed wool. 130 x 180 cm.'],
-        ['Oak Serving Board', 'home', '45.00', null, 14, 1, 'Solid oak board finished with food-safe oil. Each grain is unique.'],
-        ['Rattan Pendant Lamp', 'home', '139.00', null, 5, 1, 'Hand-woven rattan shade, 45 cm diameter, E27 fitting.'],
-        ['Dotted A5 Notebook', 'books', '18.00', null, 60, 2, '160 pages of 120 g recycled paper, lay-flat binding, cotton cover.'],
-        ['The Art of Slow Living', 'books', '26.00', null, 22, 2, 'Essays on craft, attention and living with fewer, better things.'],
-        ['Botanical Illustration Guide', 'books', '34.00', '42.00', 9, 2, 'A practical course in drawing plants, with 120 illustrations.'],
-        ['Brass Fountain Pen', 'books', '58.00', null, 3, 2, 'Solid brass pen that develops a patina. Fine steel nib, converter included.'],
-        ['Letterpress Card Set', 'books', '16.00', null, 45, 2, 'Eight cards and envelopes, printed on a 1960s letterpress.'],
-        ['Rose & Oat Face Oil', 'beauty', '38.00', null, 19, 2, 'Cold-pressed rosehip and oat oil for sensitive skin. 30 ml glass bottle.'],
-        ['Clay Body Polish', 'beauty', '29.00', '35.00', 16, 2, 'Kaolin and sugar body polish with sweet orange essential oil.'],
-        ['Linen Bath Towel Set', 'beauty', '74.00', null, 8, 2, 'Two bath towels in quick-drying waffle linen.'],
-        ['Cedar Bath Salts', 'beauty', '24.00', null, 27, 2, 'Magnesium-rich salts with cedar and lavender. 500 g.'],
-        ['Konjac Facial Sponge', 'beauty', '12.00', null, 50, 2, 'Plant-based sponge for gentle daily cleansing.'],
-        ['Walnut Bluetooth Speaker', 'tech', '149.00', '179.00', 7, 3, 'Compact speaker in a solid walnut cabinet. 20 hours of playback.'],
-        ['Wireless Over-Ear Headphones', 'tech', '219.00', null, 10, 3, 'Active noise cancelling, memory-foam cushions and replaceable battery.'],
-        ['Brass Desk Lamp', 'tech', '129.00', null, 4, 3, 'Dimmable LED lamp with a weighted brass base and USB-C charging.'],
-        ['Leather Wireless Charger', 'tech', '49.00', null, 21, 3, 'Qi charging pad wrapped in vegetable-tanned leather.'],
-        ['Analog Wall Clock', 'tech', '68.00', null, 12, 3, 'Silent sweep movement, ash-wood face, 30 cm.'],
-        ['Recycled Silver Ring', 'jewellery', '85.00', null, 13, 3, 'Hammered band in 100% recycled sterling silver. Made to order in your size.'],
-        ['Gold Vermeil Hoops', 'jewellery', '95.00', '120.00', 9, 3, 'Small hoops in 18k gold vermeil over recycled silver.'],
-        ['Pearl Drop Necklace', 'jewellery', '110.00', null, 6, 3, 'A single freshwater pearl on a fine silver chain, 45 cm.'],
-        ['Signet Pinky Ring', 'jewellery', '120.00', null, 2, 3, 'Oval signet ring, can be engraved with up to three initials.'],
-        ['Hand-stamped Cuff Bracelet', 'jewellery', '78.00', null, 11, 3, 'Open cuff in recycled silver, hand-stamped with a wave pattern.'],
+        ['Linen Wrap Dress', 'clothing', '189.000', '239.000', 12, 0, "Washed French linen, adjustable wrap waist and deep pockets.\nGets softer with every wash."],
+        ['Merino Crew Sweater', 'clothing', '145.000', null, 18, 0, 'Fine-gauge merino from a mulesing-free farm. Breathable, warm, never itchy.'],
+        ['Wide-Leg Wool Trousers', 'clothing', '165.000', null, 3, 0, 'High-waisted trousers in a soft wool twill, fully lined, with side buttons.'],
+        ['Organic Cotton Shirt', 'clothing', '89.000', '119.000', 24, 0, 'Relaxed fit shirt in organic poplin with mother-of-pearl buttons.'],
+        ['Quilted Barn Jacket', 'clothing', '320.000', null, 0, 0, 'Recycled-fill quilted jacket with corduroy collar. Currently sold out.'],
+        ['Leather Tote Bag', 'bags', '180.000', null, 9, 0, 'Vegetable-tanned leather tote that ages into a rich patina. Fits a 14" laptop.'],
+        ['Canvas Weekender', 'bags', '210.000', '260.000', 7, 0, 'Waxed canvas holdall with leather handles and a separate shoe pocket.'],
+        ['Woven Raffia Basket Bag', 'bags', '65.000', null, 15, 0, 'Hand-woven raffia with leather straps. Perfect for markets and beaches.'],
+        ['Silk Twill Scarf', 'bags', '95.000', null, 20, 0, 'Pure silk twill, hand-rolled edges, printed with an original botanical pattern.'],
+        ['Leather Card Holder', 'bags', '45.000', null, 40, 0, 'Slim card holder with four slots, saddle-stitched by hand.'],
+        ['Speckled Stoneware Mug', 'ceramics', '28.000', null, 36, 1, 'Wheel-thrown mug in speckled clay with a satin oatmeal glaze. 350 ml.'],
+        ['Hand-thrown Serving Bowl', 'ceramics', '72.000', '89.000', 8, 1, 'Generous salad bowl with a glossy celadon interior and raw clay foot.'],
+        ['Porcelain Pour-Over Set', 'ceramics', '135.000', null, 2, 1, 'Dripper, carafe and two cups in translucent porcelain.'],
+        ['Stoneware Dinner Plates (x4)', 'ceramics', '120.000', null, 11, 1, 'Set of four 27 cm plates with an ash glaze. Dishwasher safe.'],
+        ['Ribbed Bud Vase', 'ceramics', '38.000', null, 25, 1, 'Small ribbed vase for single stems, matt black glaze.'],
+        ['Linen Bedding Set', 'home', '390.000', '480.000', 6, 1, 'Duvet cover and two pillowcases in stonewashed linen. Double size.'],
+        ['Hand-poured Soy Candle', 'home', '35.000', null, 30, 1, 'Fig and cedar soy candle in a reusable ceramic vessel. 50 hours burn time.'],
+        ['Wool Throw Blanket', 'home', '220.000', null, 4, 1, 'Herringbone throw woven from undyed wool. 130 x 180 cm.'],
+        ['Oak Serving Board', 'home', '55.000', null, 14, 1, 'Solid oak board finished with food-safe oil. Each grain is unique.'],
+        ['Rattan Pendant Lamp', 'home', '175.000', null, 5, 1, 'Hand-woven rattan shade, 45 cm diameter, E27 fitting.'],
+        ['Dotted A5 Notebook', 'books', '18.500', null, 60, 2, '160 pages of 120 g recycled paper, lay-flat binding, cotton cover.'],
+        ['The Art of Slow Living', 'books', '42.000', null, 22, 2, 'Essays on craft, attention and living with fewer, better things.'],
+        ['Botanical Illustration Guide', 'books', '59.000', '75.000', 9, 2, 'A practical course in drawing plants, with 120 illustrations.'],
+        ['Brass Fountain Pen', 'books', '110.000', null, 3, 2, 'Solid brass pen that develops a patina. Fine steel nib, converter included.'],
+        ['Letterpress Card Set', 'books', '22.000', null, 45, 2, 'Eight cards and envelopes, printed on a 1960s letterpress.'],
+        ['Rose & Oat Face Oil', 'beauty', '48.000', null, 19, 2, 'Cold-pressed rosehip and oat oil for sensitive skin. 30 ml glass bottle.'],
+        ['Clay Body Polish', 'beauty', '32.500', '39.900', 16, 2, 'Kaolin and sugar body polish with sweet orange essential oil.'],
+        ['Linen Bath Towel Set', 'beauty', '98.000', null, 8, 2, 'Two bath towels in quick-drying waffle linen.'],
+        ['Cedar Bath Salts', 'beauty', '24.900', null, 27, 2, 'Magnesium-rich salts with cedar and lavender. 500 g.'],
+        ['Konjac Facial Sponge', 'beauty', '12.500', null, 50, 2, 'Plant-based sponge for gentle daily cleansing.'],
+        ['Walnut Bluetooth Speaker', 'tech', '280.000', '349.000', 7, 3, 'Compact speaker in a solid walnut cabinet. 20 hours of playback.'],
+        ['Wireless Over-Ear Headphones', 'tech', '320.000', null, 10, 3, 'Active noise cancelling, memory-foam cushions and replaceable battery.'],
+        ['Brass Desk Lamp', 'tech', '160.000', null, 4, 3, 'Dimmable LED lamp with a weighted brass base and USB-C charging.'],
+        ['Leather Wireless Charger', 'tech', '79.000', null, 21, 3, 'Qi charging pad wrapped in vegetable-tanned leather.'],
+        ['Analog Wall Clock', 'tech', '85.000', null, 12, 3, 'Silent sweep movement, ash-wood face, 30 cm.'],
+        ['Recycled Silver Ring', 'jewellery', '150.000', null, 13, 3, 'Hammered band in 100% recycled sterling silver. Made to order in your size.'],
+        ['Gold Vermeil Hoops', 'jewellery', '240.000', '300.000', 9, 3, 'Small hoops in 18k gold vermeil over recycled silver.'],
+        ['Pearl Drop Necklace', 'jewellery', '290.000', null, 6, 3, 'A single freshwater pearl on a fine silver chain, 45 cm.'],
+        ['Signet Pinky Ring', 'jewellery', '1800.000', null, 2, 3, 'Oval signet ring, can be engraved with up to three initials.'],
+        ['Hand-stamped Cuff Bracelet', 'jewellery', '130.000', null, 11, 3, 'Open cuff in recycled silver, hand-stamped with a wave pattern.'],
     ];
 
     private const REVIEW_TEXTS = [
-        5 => ['Absolutely beautiful, even better than the photos.', 'The quality is outstanding. Fast delivery and lovely packaging.', 'Exactly as described, I already ordered a second one as a gift.', 'You can feel the craftsmanship. Worth every euro.'],
+        5 => ['Absolutely beautiful, even better than the photos.', 'The quality is outstanding. Fast delivery and lovely packaging.', 'Exactly as described, I already ordered a second one as a gift.', 'You can feel the craftsmanship. Worth every dinar.'],
         4 => ['Very nice piece, the colour is slightly warmer than expected.', 'Great quality, delivery took a couple of extra days.', 'Lovely, would buy again from this shop.'],
         3 => ['Good, but a little smaller than I imagined.', 'Nice product, the packaging could be more eco-friendly.'],
         2 => ['Not quite what I expected, the finish has small marks.'],
@@ -284,7 +285,7 @@ final class AppFixtures extends Fixture
         $cashOrders = 0;
         foreach ($cashDemo as $n => [$b, $sellerIndex, $age, $state]) {
             // First affordable active product of that seller (keeps every demo order under the cash limit).
-            $candidates = array_values(array_filter($active, static fn (Product $p) => $p->getSeller() === $sellers[$sellerIndex] && (float) $p->getPrice() <= 250));
+            $candidates = array_values(array_filter($active, static fn (Product $p) => $p->getSeller() === $sellers[$sellerIndex] && (float) $p->getPrice() <= 400));
             if ([] === $candidates) {
                 continue;
             }
@@ -455,8 +456,8 @@ final class AppFixtures extends Fixture
             }
         }
         // Cash on delivery attempts blocked by the anti-abuse rules (security panel demo).
-        $log(AuditLog::CASH_ORDER_BLOCKED, ['reason' => 'max_total', 'total' => '1249.00'], $buyers[5], '192.0.2.25', $now->modify('-1 day -2 hours'));
-        $log(AuditLog::CASH_ORDER_BLOCKED, ['reason' => 'max_pending', 'total' => '89.00'], $buyers[3], '192.0.2.23', $now->modify('-3 hours'));
+        $log(AuditLog::CASH_ORDER_BLOCKED, ['reason' => 'max_total', 'total' => '1800.000'], $buyers[5], '192.0.2.25', $now->modify('-1 day -2 hours'));
+        $log(AuditLog::CASH_ORDER_BLOCKED, ['reason' => 'max_pending', 'total' => '89.000'], $buyers[3], '192.0.2.23', $now->modify('-3 hours'));
         $log(AuditLog::CASH_ORDER_BLOCKED, ['reason' => 'rate_limit'], $buyers[3], '192.0.2.23', $now->modify('-2 hours -55 minutes'));
 
         // Brute force from two "attacker" IPs (documentation ranges) against the admin and unknown emails.

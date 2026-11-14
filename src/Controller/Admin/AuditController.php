@@ -2,6 +2,7 @@
 
 namespace App\Controller\Admin;
 
+use App\Service\Money;
 use App\Entity\AuditLog;
 use App\Repository\AuditLogRepository;
 use App\Repository\UserRepository;
@@ -59,7 +60,9 @@ class AuditController extends AbstractController
             }
             // UTF-8 BOM so spreadsheet apps detect the encoding.
             fwrite($out, "\xEF\xBB\xBF");
-            fputcsv($out, ['date', 'action', 'user', 'ip', 'user_agent', 'details'], ',', '"', '');
+            // Amounts are in Tunisian dinars: the currency is stated in the header AND on every row that has an
+            // amount, always with 3 decimals and a dot ("1250.500"), so a spreadsheet can't misread them.
+            fputcsv($out, ['date', 'action', 'user', 'ip', 'user_agent', 'amount', 'currency (Currency: '.Money::CURRENCY.')', 'details'], ',', '"', '');
             /** @var AuditLog $log */
             foreach ($rows as $log) {
                 // SECURITY (CSV injection): every cell goes through CsvSanitizer. A value such as
@@ -71,6 +74,7 @@ class AuditController extends AbstractController
                     $log->getUser()?->getEmail() ?? '',
                     $log->getIp() ?? '',
                     $log->getUserAgent() ?? '',
+                    ...self::amountCells($log->getDetails()),
                     json_encode($log->getDetails(), \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE) ?: '',
                 ]), ',', '"', '');
             }
@@ -83,6 +87,22 @@ class AuditController extends AbstractController
         $response->headers->set('X-Content-Type-Options', 'nosniff');
 
         return $response;
+    }
+
+    /**
+     * Amount of an order event (audit details "total"), as two CSV cells: ["1250.500", "TND"], or two empty cells.
+     *
+     * @param array<string, mixed> $details
+     *
+     * @return array{string, string}
+     */
+    private static function amountCells(array $details): array
+    {
+        $total = $details['total'] ?? null;
+
+        // SECURITY: only a plain decimal number is exported as an amount; anything else stays in the JSON column,
+        // which CsvSanitizer neutralises like every other cell.
+        return is_string($total) && 1 === preg_match('/^\d{1,12}(\.\d{1,3})?$/', $total) ? [Money::decimal($total), Money::CURRENCY] : ['', ''];
     }
 
     #[Route('/security', name: 'admin_security', methods: ['GET'])]

@@ -1,4 +1,5 @@
 import { Controller } from '@hotwired/stimulus';
+import { formatMoney } from '../money.js';
 
 /*
  * Live preview card in the seller product form. Values are copied with textContent (never innerHTML), so what a
@@ -15,10 +16,10 @@ export default class extends Controller {
         const num = (v) => parseFloat(String(v || '').replace(',', '.'));
         const fmt = (v) => {
             const n = num(v);
-            return Number.isFinite(n) ? n.toLocaleString(undefined, { style: 'currency', currency: 'EUR' }) : '';
+            return Number.isFinite(n) ? formatMoney(n) : '';
         };
         if (this.hasNameTarget) this.outNameTarget.textContent = this.nameTarget.value || 'Product name';
-        if (this.hasPriceTarget) this.outPriceTarget.textContent = fmt(this.priceTarget.value) || '€0.00';
+        if (this.hasPriceTarget) this.outPriceTarget.textContent = fmt(this.priceTarget.value) || formatMoney(0);
         if (this.hasCategoryTarget) {
             const opt = this.categoryTarget.selectedOptions[0];
             this.outCategoryTarget.textContent = opt ? opt.textContent : '';

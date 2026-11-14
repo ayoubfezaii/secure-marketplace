@@ -2,6 +2,7 @@
 
 namespace App\Controller\Seller;
 
+use App\Service\Money;
 use App\Entity\User;
 use App\Repository\ProductRepository;
 use App\Service\DashboardStats;
@@ -56,7 +57,7 @@ class DashboardController extends AbstractController
             'days' => $days,
             'totals' => $totals,
             'previous' => $previous,
-            'avgOrder' => $totals['orders'] > 0 ? round($totals['revenue'] / $totals['orders'], 2) : 0,
+            'avgOrder' => $totals['orders'] > 0 ? round($totals['revenue'] / $totals['orders'], Money::SCALE) : 0,
             'chart' => $analytics->salesByDay($seller, $days),
             'byCategory' => $analytics->revenueByCategory($seller, $days),
             'bestSellers' => $analytics->topProducts($seller, $days, 10),

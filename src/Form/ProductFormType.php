@@ -2,6 +2,10 @@
 
 namespace App\Form;
 
+use Symfony\Component\Form\FormEvents;
+use Symfony\Component\Form\FormEvent;
+use Symfony\Component\Form\FormError;
+use App\Service\Money;
 use App\Entity\Category;
 use App\Entity\Product;
 use App\Repository\CategoryRepository;
@@ -45,23 +49,27 @@ class ProductFormType extends AbstractType
                 'help' => 'Plain text, max 5000 characters. HTML is displayed as text.',
                 'attr' => ['rows' => 7, 'maxlength' => 5000],
             ])
+            // Dinars (DT), 3 decimals. SECURITY (rule 15): the HTML min/max/step are only a convenience; the range
+            // (> 0, <= 300 000 DT) and the 3-decimal limit are enforced on the server (Product::$price constraints
+            // and the PRE_SUBMIT check below).
             ->add('price', MoneyType::class, [
-                'label' => 'Price',
-                'currency' => 'EUR',
+                'label' => 'Price (DT)',
+                'help' => 'In Tunisian dinars, up to 3 decimals (millimes). Example: 35.500',
+                'currency' => false,
                 'input' => 'string',
-                'scale' => 2,
+                'scale' => Money::SCALE,
                 'html5' => true,
-                'attr' => ['min' => '0.01', 'max' => '100000', 'step' => '0.01', 'data-preview-target' => 'price', 'data-action' => 'input->preview#update'],
+                'attr' => ['min' => '0.001', 'max' => (string) Money::MAX_PRICE, 'step' => '0.001', 'data-preview-target' => 'price', 'data-action' => 'input->preview#update'],
             ])
             ->add('compareAtPrice', MoneyType::class, [
-                'label' => 'Original price (optional)',
+                'label' => 'Original price (DT, optional)',
                 'help' => 'Shown crossed out with a discount badge. Must be higher than the price.',
                 'required' => false,
-                'currency' => 'EUR',
+                'currency' => false,
                 'input' => 'string',
-                'scale' => 2,
+                'scale' => Money::SCALE,
                 'html5' => true,
-                'attr' => ['min' => '0.01', 'max' => '100000', 'step' => '0.01', 'data-preview-target' => 'oldPrice', 'data-action' => 'input->preview#update'],
+                'attr' => ['min' => '0.001', 'max' => (string) Money::MAX_PRICE, 'step' => '0.001', 'data-preview-target' => 'oldPrice', 'data-action' => 'input->preview#update'],
             ])
             ->add('stock', IntegerType::class, [
                 'label' => 'Stock',
@@ -106,6 +114,18 @@ class ProductFormType extends AbstractType
                 'constraints' => [new Assert\Length(max: 2048)],
             ])
         ;
+
+        // SECURITY (rule 15): MoneyType silently ROUNDS what is typed to 3 decimals, so "9.9999" would be stored as
+        // "10.000" without any error. The raw submitted text is checked first: digits with at most 3 decimals
+        // (dot or comma), nothing else ("1e5", "-3", "0x10", "12.3456" are refused).
+        foreach (['price', 'compareAtPrice'] as $field) {
+            $builder->get($field)->addEventListener(FormEvents::PRE_SUBMIT, static function (FormEvent $event): void {
+                $raw = $event->getData();
+                if (is_string($raw) && '' !== trim($raw) && 1 !== preg_match(Money::PATTERN, str_replace(',', '.', trim($raw)))) {
+                    $event->getForm()->addError(new FormError('Enter an amount in dinars with at most 3 decimals, for example 35.500.'));
+                }
+            });
+        }
 
         if ($existing > 0) {
             // Positions of the product's OWN images (0..3): nothing else can be submitted (choice whitelist).

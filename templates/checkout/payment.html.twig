@@ -74,9 +74,9 @@
                         <div>
                             <p class="fw-semibold mb-1">Pay in cash when your order arrives</p>
                             <ul class="mb-0 ps-3">
-                                <li>Available for orders up to {{ cashLimit|format_currency('EUR') }}, from a single shop.</li>
+                                <li>Available for orders up to {{ cashLimit|price }}, from a single shop.</li>
                                 <li>At most {{ cashMaxPending }} cash orders waiting to be paid at the same time.</li>
-                                <li>Please have the exact amount ready: {{ summary.total|format_currency('EUR') }}.</li>
+                                <li>Please have the exact amount ready: {{ summary.total|price }}.</li>
                             </ul>
                         </div>
                     </div>

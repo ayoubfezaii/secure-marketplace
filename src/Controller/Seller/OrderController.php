@@ -2,6 +2,7 @@
 
 namespace App\Controller\Seller;
 
+use App\Service\Money;
 use App\Entity\Order;
 use App\Entity\OrderItem;
 use App\Entity\User;
@@ -66,9 +67,9 @@ class OrderController extends AbstractController
         $seller = $this->seller();
         $items = $order->getItemsForSeller($seller);
 
-        $subtotal = '0.00';
+        $subtotal = Money::ZERO;
         foreach ($items as $item) {
-            $subtotal = bcadd($subtotal, $item->getLineTotal(), 2);
+            $subtotal = bcadd($subtotal, $item->getLineTotal(), Money::SCALE);
         }
 
         return $this->render('seller/orders/show.html.twig', [

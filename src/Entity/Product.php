@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Service\Money;
 use App\Repository\ProductRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -49,17 +50,20 @@ class Product
     #[Assert\Length(max: 5000)]
     private string $description = '';
 
-    // Decimal stored as string by Doctrine: no float rounding errors on money.
-    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 2)]
+    // Decimal stored as string by Doctrine: no float rounding errors on money. Dinars, 3 decimals (millimes).
+    // SECURITY (rule 15): strictly positive, at most 300 000 DT, at most 3 decimals, digits only (no "1e9", no sign).
+    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 3)]
     #[Assert\NotBlank]
-    #[Assert\Positive]
-    #[Assert\LessThanOrEqual(100000)]
-    private string $price = '0.00';
+    #[Assert\Regex(pattern: Money::PATTERN, message: 'Enter a price in dinars with at most 3 decimals, for example 35.500.')]
+    #[Assert\Positive(message: 'The price must be greater than 0.')]
+    #[Assert\LessThanOrEqual(Money::MAX_PRICE, message: 'The price cannot exceed 300 000 DT.')]
+    private string $price = Money::ZERO;
 
     // "Was" price for the sale badge. Display only: checkout always charges $price read from the DB (rule 10).
-    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 2, nullable: true)]
-    #[Assert\Positive]
-    #[Assert\LessThanOrEqual(100000)]
+    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 3, nullable: true)]
+    #[Assert\Regex(pattern: Money::PATTERN, message: 'Enter a price in dinars with at most 3 decimals, for example 49.900.')]
+    #[Assert\Positive(message: 'The original price must be greater than 0.')]
+    #[Assert\LessThanOrEqual(Money::MAX_PRICE, message: 'The original price cannot exceed 300 000 DT.')]
     private ?string $compareAtPrice = null;
 
     #[ORM\Column]
@@ -113,7 +117,7 @@ class Product
     {
         // SECURITY/consistency: a "was" price must be higher than the real price, otherwise the sale badge would lie.
         if (null !== $this->compareAtPrice && is_numeric($this->compareAtPrice) && is_numeric($this->price)
-            && bccomp($this->compareAtPrice, $this->price, 2) <= 0) {
+            && bccomp($this->compareAtPrice, $this->price, Money::SCALE) <= 0) {
             $context->buildViolation('The original price must be higher than the current price (or empty).')
                 ->atPath('compareAtPrice')->addViolation();
         }
@@ -195,7 +199,7 @@ class Product
 
     public function isOnSale(): bool
     {
-        return null !== $this->compareAtPrice && bccomp($this->compareAtPrice, $this->price, 2) > 0;
+        return null !== $this->compareAtPrice && bccomp($this->compareAtPrice, $this->price, Money::SCALE) > 0;
     }
 
     public function getDiscountPercent(): int

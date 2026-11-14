@@ -15,6 +15,7 @@ use App\Repository\OrderRepository;
 use App\Security\Voter\OrderVoter;
 use App\Service\CashOnDeliveryPolicy;
 use App\Service\CheckoutService;
+use App\Service\Money;
 use App\Service\SellerAnalytics;
 use App\Tests\AppWebTestCase;
 use Symfony\Component\DomCrawler\Crawler;
@@ -57,7 +58,7 @@ final class CashOnDeliveryTest extends AppWebTestCase
         self::assertSame(Order::STATUS_PLACED, $order->getStatus());
         self::assertNull($order->getCardLast4(), 'No card data is stored for a cash order.');
         self::assertNull($order->getCardHolder());
-        self::assertSame(bcmul($product->getPrice(), '2', 2), $order->getTotal(), 'Total computed from the database price.');
+        self::assertSame(bcmul($product->getPrice(), '2', Money::SCALE), $order->getTotal(), 'Total computed from the database price.');
         foreach ($order->getItems() as $item) {
             self::assertSame(Order::STATUS_PLACED, $item->getStatus());
         }
@@ -96,7 +97,7 @@ final class CashOnDeliveryTest extends AppWebTestCase
         // 1. Refused at the payment step, with a clear message.
         $this->submitPayment(['checkout_form[paymentMethod]' => self::CASH]);
         self::assertResponseStatusCodeSame(422);
-        self::assertSelectorTextContains('body', 'Cash on delivery is limited to orders up to');
+        self::assertSelectorTextContains('body', 'Cash on delivery is limited to orders up to 500,000 DT');
         $this->client->request('GET', '/checkout/review');
         self::assertResponseRedirects('/checkout/payment', null, 'No payment session was opened.');
 
@@ -274,7 +275,7 @@ final class CashOnDeliveryTest extends AppWebTestCase
         $fresh = $this->findOne(Order::class, 'SELECT o FROM App\Entity\Order o WHERE o.id = :id', ['id' => $order->getId()]);
         self::assertSame(PaymentStatus::Collected, $fresh->getPaymentStatus());
         // Revenue: the cash order was NOT counted while pending, and is counted once collected.
-        self::assertSame(bcadd($revenueBefore, $fresh->getTotal(), 2), $this->sellerRevenue('seller1@shop.test'));
+        self::assertSame(bcadd($revenueBefore, $fresh->getTotal(), Money::SCALE), $this->sellerRevenue('seller1@shop.test'));
 
         // Replaying the same request does nothing (already collected -> voter refuses).
         $this->client->request('POST', $form->getUri(), $form->getPhpValues());
@@ -343,7 +344,7 @@ final class CashOnDeliveryTest extends AppWebTestCase
     {
         $totals = static::getContainer()->get(SellerAnalytics::class)->totals($this->user($email), new \DateTimeImmutable('-1 year'), new \DateTimeImmutable('+1 day'));
 
-        return number_format($totals['revenue'], 2, '.', '');
+        return Money::decimal($totals['revenue']);
     }
 
     /**
@@ -393,7 +394,7 @@ final class CashOnDeliveryTest extends AppWebTestCase
         $products = $this->em()->createQuery('SELECT p FROM App\Entity\Product p WHERE p.isActive = true AND p.stock > 0 ORDER BY p.price DESC')->getResult();
         foreach ($products as $product) {
             $quantity = min($product->getStock(), CartItem::MAX_QUANTITY);
-            if (bccomp(bcmul($product->getPrice(), (string) $quantity, 2), CashOnDeliveryPolicy::MAX_ORDER_TOTAL, 2) > 0) {
+            if (bccomp(bcmul($product->getPrice(), (string) $quantity, Money::SCALE), CashOnDeliveryPolicy::MAX_ORDER_TOTAL, Money::SCALE) > 0) {
                 return [$product, $quantity];
             }
         }

@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Service\Money;
 use App\Entity\CartItem;
 use App\Entity\Product;
 use App\Entity\User;
@@ -33,10 +34,10 @@ class CartController extends AbstractController
     public function index(): Response
     {
         $lines = $this->cartItems->findForUser($this->getBuyer());
-        $total = '0.00';
+        $total = Money::ZERO;
         foreach ($lines as $line) {
             // Display only: totals come from the CURRENT DB price. Checkout recomputes everything anyway.
-            $total = bcadd($total, $line->getLineTotal(), 2);
+            $total = bcadd($total, $line->getLineTotal(), Money::SCALE);
         }
 
         return $this->render('cart/index.html.twig', ['lines' => $lines, 'total' => $total]);

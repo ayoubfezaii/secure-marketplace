@@ -22,8 +22,8 @@ use App\Repository\OrderRepository;
  */
 final class CashOnDeliveryPolicy
 {
-    /** Highest order total payable in cash. Change it here only. */
-    public const MAX_ORDER_TOTAL = '500.00';
+    /** Highest order total payable in cash, in dinars (DT). Change it here only. */
+    public const MAX_ORDER_TOTAL = '500.000';
 
     /** Cash orders a buyer may have "pending" (not collected, not cancelled) at the same time. */
     public const MAX_PENDING_ORDERS = 2;
@@ -48,8 +48,8 @@ final class CashOnDeliveryPolicy
             throw new CashOnDeliveryException(CashOnDeliveryException::REASON_MULTIPLE_SELLERS, 'Cash on delivery is only available when all the items come from the same shop. Please pay by card or order from one shop at a time.');
         }
         // SECURITY: bcmath comparison on decimal strings (no float rounding trick around the limit).
-        if (bccomp($total, self::MAX_ORDER_TOTAL, 2) > 0) {
-            throw new CashOnDeliveryException(CashOnDeliveryException::REASON_MAX_TOTAL, sprintf('Cash on delivery is limited to orders up to %s €. Please pay by card or reduce your cart.', number_format((float) self::MAX_ORDER_TOTAL, 2, '.', ' ')));
+        if (bccomp($total, self::MAX_ORDER_TOTAL, Money::SCALE) > 0) {
+            throw new CashOnDeliveryException(CashOnDeliveryException::REASON_MAX_TOTAL, sprintf('Cash on delivery is limited to orders up to %s. Please pay by card or reduce your cart.', Money::format(self::MAX_ORDER_TOTAL)));
         }
         if ($this->orders->countPendingCashOrders($buyer) >= self::MAX_PENDING_ORDERS) {
             throw new CashOnDeliveryException(CashOnDeliveryException::REASON_MAX_PENDING, sprintf('You already have %d cash-on-delivery orders waiting to be paid. Please pay by card, or wait until one of them is delivered.', self::MAX_PENDING_ORDERS));
