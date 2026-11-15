@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Twig/MoneyExtension.php
+ * WHAT: Twig extension that adds the |price filter.
+ * ROLE IN THE PROJECT: every price in every template is printed with this filter.
+ * USED BY: all templates that show an amount (everyone).
+ */
+
 namespace App\Twig;
 
 use App\Service\Money;
@@ -15,6 +22,7 @@ use Twig\TwigFilter;
  */
 final class MoneyExtension extends AbstractExtension
 {
+    /** Declares the filter "price", which calls Money::format(). */
     public function getFilters(): array
     {
         return [

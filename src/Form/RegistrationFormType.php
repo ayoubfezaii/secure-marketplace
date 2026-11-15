@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Form/RegistrationFormType.php
+ * WHAT: the "create an account" form (name, email, password twice, accept the terms).
+ * ROLE IN THE PROJECT: best example of the defence against MASS ASSIGNMENT: the role is not a field.
+ * USED BY: RegistrationController::register (visitor).
+ */
+
 namespace App\Form;
 
 use App\Entity\User;
@@ -24,6 +31,12 @@ use Symfony\Component\Validator\Constraints as Assert;
  */
 class RegistrationFormType extends AbstractType
 {
+    /**
+     * Declares the fields of the form.
+     *
+     * @param FormBuilderInterface $builder object used to add fields
+     * @param array                $options options of the form (not used here)
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
@@ -34,6 +47,7 @@ class RegistrationFormType extends AbstractType
                 'constraints' => [new Assert\NotBlank(message: 'Please enter your name.')],
                 'attr' => ['autocomplete' => 'name', 'maxlength' => 60, 'placeholder' => 'Alex Martin'],
             ])
+            // The email format, length and uniqueness are validated by the constraints on User::$email.
             ->add('email', EmailType::class, [
                 'label' => 'Email',
                 'attr' => ['autocomplete' => 'email', 'maxlength' => 180, 'placeholder' => 'you@example.com'],
@@ -54,6 +68,7 @@ class RegistrationFormType extends AbstractType
                 // SECURITY: password policy enforced server side (rule 15). The HTML attributes above are only a convenience.
                 'constraints' => PasswordPolicy::constraints(),
             ])
+            // Checkbox that must be ticked. Not stored (mapped => false).
             ->add('agreeTerms', CheckboxType::class, [
                 'label' => 'I agree to the terms of use and the privacy policy',
                 'mapped' => false,
@@ -62,6 +77,7 @@ class RegistrationFormType extends AbstractType
         ;
     }
 
+    /** Settings of the form: the class it fills (User) and its CSRF protection. */
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([

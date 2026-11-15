@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Form/ShopFormType.php
+ * WHAT: the "my shop" form (name, address in the URL, description, logo).
+ * ROLE IN THE PROJECT: explicit field list for the shop profile; the logo file is checked by ImageStorage.
+ * USED BY: Seller\ShopController::shop (seller).
+ */
+
 namespace App\Form;
 
 use App\Entity\Shop;
@@ -21,6 +28,12 @@ use Symfony\Component\Validator\Constraints as Assert;
  */
 class ShopFormType extends AbstractType
 {
+    /**
+     * Declares the fields of the form.
+     *
+     * @param FormBuilderInterface $builder object used to add fields
+     * @param array                $options options of the form (not used here)
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
@@ -31,6 +44,7 @@ class ShopFormType extends AbstractType
                 'attr' => ['maxlength' => 60, 'pattern' => '[a-z0-9]+(-[a-z0-9]+)*', 'spellcheck' => 'false', 'autocapitalize' => 'off'],
             ])
             ->add('description', TextareaType::class, ['label' => 'About the shop', 'required' => false, 'attr' => ['rows' => 5, 'maxlength' => 2000]])
+            // mapped => false: the file is not copied to the entity; the controller validates and stores it.
             ->add('logoFile', FileType::class, [
                 'label' => 'Logo',
                 'mapped' => false,
@@ -43,6 +57,7 @@ class ShopFormType extends AbstractType
         ;
     }
 
+    /** Settings of the form: the class it fills (Shop) and the name of its CSRF token. */
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([

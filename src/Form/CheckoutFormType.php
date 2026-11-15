@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Form/CheckoutFormType.php
+ * WHAT: the payment form of the checkout (payment method + card fields).
+ * ROLE IN THE PROJECT: shows the defence against PRICE TAMPERING at the form level: no amount can be submitted.
+ * USED BY: CheckoutController::payment (buyer). It fills a PaymentDto, never an entity.
+ */
+
 namespace App\Form;
 
 use App\Dto\PaymentDto;
@@ -24,6 +31,12 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  */
 class CheckoutFormType extends AbstractType
 {
+    /**
+     * Declares the fields of the form.
+     *
+     * @param FormBuilderInterface $builder object used to add fields
+     * @param array                $options options of the form (not used here)
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
@@ -31,9 +44,12 @@ class CheckoutFormType extends AbstractType
             ->add('paymentMethod', EnumType::class, [
                 'class' => PaymentMethod::class,
                 'label' => 'Payment method',
+                // expanded = radio buttons instead of a dropdown.
                 'expanded' => true,
                 'choice_label' => static fn (PaymentMethod $method): string => $method->label(),
             ])
+            // Card fields. "required => false" because they are hidden when cash on delivery is chosen;
+            // the server still requires them for a card payment (validation group "card", see below).
             ->add('cardHolder', TextType::class, [
                 'label' => 'Name on card',
                 'required' => false,
@@ -60,6 +76,9 @@ class CheckoutFormType extends AbstractType
         ;
     }
 
+    /**
+     * Settings of the form: fills a PaymentDto, CSRF token name, and which validation rules apply.
+     */
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([

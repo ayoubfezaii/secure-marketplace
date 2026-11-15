@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Form/ProductFormType.php
+ * WHAT: the form to create or edit a product (name, description, prices, stock, category, visibility, images).
+ * ROLE IN THE PROJECT: explicit field list of the product pages. The image fields are only "transport":
+ *   the real security checks on files and URLs are done by ImageStorage and SafeImageFetcher.
+ * USED BY: Seller\ProductController::new and ::edit (seller).
+ */
+
 namespace App\Form;
 
 use Symfony\Component\Form\FormEvents;
@@ -33,8 +41,16 @@ use Symfony\Component\Validator\Constraints as Assert;
  */
 class ProductFormType extends AbstractType
 {
+    /**
+     * Declares the fields of the form.
+     * The "data-preview-*" and "data-action" attributes connect inputs to the live preview (assets/controllers/preview_controller.js).
+     *
+     * @param FormBuilderInterface $builder object used to add fields
+     * @param array                $options options of the form; $options['data'] is the product being edited
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
+        // Number of images the product already has (0 for a new product). Used for the "remove images" checkboxes.
         /** @var Product|null $product */
         $product = $options['data'] ?? null;
         $existing = null !== $product ? $product->getImages()->count() : 0;
@@ -44,6 +60,7 @@ class ProductFormType extends AbstractType
                 'label' => 'Name',
                 'attr' => ['maxlength' => 120, 'minlength' => 3, 'data-preview-target' => 'name', 'data-action' => 'input->preview#update'],
             ])
+            // SECURITY: XSS - the description is plain text. It is escaped by Twig when displayed, so HTML typed here is shown as text.
             ->add('description', TextareaType::class, [
                 'label' => 'Description',
                 'help' => 'Plain text, max 5000 characters. HTML is displayed as text.',
@@ -56,6 +73,7 @@ class ProductFormType extends AbstractType
                 'label' => 'Price (DT)',
                 'help' => 'In Tunisian dinars, up to 3 decimals (millimes). Example: 35.500',
                 'currency' => false,
+                // 'input' => 'string': the price stays a decimal string (no float).
                 'input' => 'string',
                 'scale' => Money::SCALE,
                 'html5' => true,
@@ -71,6 +89,7 @@ class ProductFormType extends AbstractType
                 'html5' => true,
                 'attr' => ['min' => '0.001', 'max' => (string) Money::MAX_PRICE, 'step' => '0.001', 'data-preview-target' => 'oldPrice', 'data-action' => 'input->preview#update'],
             ])
+            // Whole number between 0 and 1 000 000 (also validated on the entity).
             ->add('stock', IntegerType::class, [
                 'label' => 'Stock',
                 'attr' => ['min' => 0, 'max' => 1000000],
@@ -84,6 +103,7 @@ class ProductFormType extends AbstractType
                 'query_builder' => static fn (CategoryRepository $r) => $r->createQueryBuilder('c')->orderBy('c.position', 'ASC'),
                 'attr' => ['data-preview-target' => 'category', 'data-action' => 'change->preview#update'],
             ])
+            // Checkbox: unchecked = the product is saved but hidden from the catalogue.
             ->add('isActive', CheckboxType::class, [
                 'label' => 'Visible in the catalogue',
                 'required' => false,
@@ -92,6 +112,7 @@ class ProductFormType extends AbstractType
             // bytes (finfo, getimagesize, GD re-encoding) so that every rejected file is audit-logged.
             ->add('imageFiles', FileType::class, [
                 'label' => 'Upload images',
+                // mapped => false: the files are NOT copied to the entity; the controller handles them (handleImages()).
                 'mapped' => false,
                 'required' => false,
                 'multiple' => true,
@@ -140,6 +161,7 @@ class ProductFormType extends AbstractType
         }
     }
 
+    /** Settings of the form: the class it fills (Product) and the name of its CSRF token. */
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([

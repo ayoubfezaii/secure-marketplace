@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Form/SellerApplicationFormType.php
+ * WHAT: the "become a seller" form (shop name, description, accept the seller terms).
+ * ROLE IN THE PROJECT: the buyer can describe their project but cannot set the status of the application.
+ * USED BY: Buyer\SellerApplicationController (buyer).
+ */
+
 namespace App\Form;
 
 use App\Entity\SellerApplication;
@@ -19,6 +26,12 @@ use Symfony\Component\Validator\Constraints as Assert;
  */
 class SellerApplicationFormType extends AbstractType
 {
+    /**
+     * Declares the fields of the form.
+     *
+     * @param FormBuilderInterface $builder object used to add fields
+     * @param array                $options options of the form (not used here)
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
@@ -31,6 +44,7 @@ class SellerApplicationFormType extends AbstractType
                 'help' => 'Tell us about your products, how they are made and where you ship from (30 to 2000 characters).',
                 'attr' => ['rows' => 6, 'maxlength' => 2000],
             ])
+            // Checkbox that must be ticked. Not stored (mapped => false).
             ->add('agreeSellerTerms', CheckboxType::class, [
                 'label' => 'I confirm the information is accurate and I accept the seller terms',
                 'mapped' => false,
@@ -39,6 +53,7 @@ class SellerApplicationFormType extends AbstractType
         ;
     }
 
+    /** Settings of the form: the class it fills (SellerApplication) and the name of its CSRF token. */
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([
