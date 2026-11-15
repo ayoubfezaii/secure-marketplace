@@ -1,3 +1,6 @@
+{# FILE: templates/layouts/_store_footer.html.twig #}
+{# WHAT: the footer of the shop pages (newsletter form, links, contact, payment icons). #}
+{# USED BY: base.html.twig on every shop page (visitor, buyer, seller, admin). #}
 {# Storefront footer: 4 columns, newsletter, social and payment icons (generic SVG shapes, no third-party logos). #}
 {% set categories = store_categories() %}
 <footer class="site-footer mt-5">
@@ -6,9 +9,11 @@
             <div class="col-lg-4">
                 {% include '_ui/logo.html.twig' with {invert: true} %}
                 <p class="mt-3 small">Independent makers and carefully chosen pieces, built to last. Every account is protected by modern security: hashed passwords, optional two-factor authentication and encrypted payout data.</p>
+                {# Newsletter form: POST to NewsletterController::subscribe. #}
                 <form class="mt-3" method="post" action="{{ path('newsletter_subscribe') }}">
                     {# SECURITY (rule 3): CSRF token; the endpoint is also rate limited per IP (rule 6). #}
                     <input type="hidden" name="_token" value="{{ csrf_token('newsletter') }}">
+                    {# "_back" = the page to return to. SECURITY: open redirect - the server only accepts an internal path. #}
                     <input type="hidden" name="_back" value="{{ app.request.pathInfo }}">
                     <label class="form-label small text-white" for="footerNewsletter">Get new arrivals &amp; private sales</label>
                     <div class="d-flex gap-2">
@@ -23,6 +28,7 @@
                     <li><a href="{{ path('product_index') }}">All products</a></li>
                     <li><a href="{{ path('product_index', {sort: 'newest'}) }}">New arrivals</a></li>
                     <li><a href="{{ path('product_index', {deals: 1}) }}">Deals</a></li>
+                    {# First 3 categories from the database. Names are escaped by Twig (SECURITY: XSS). #}
                     {% for c in categories|slice(0, 3) %}<li><a href="{{ path('product_index', {category: c.slug}) }}">{{ c.name }}</a></li>{% endfor %}
                 </ul>
             </div>
@@ -38,8 +44,10 @@
             <div class="col-6 col-md-3 col-lg-2">
                 <h2>Account</h2>
                 <ul class="list-unstyled d-grid gap-2 small">
+                    {# Permission check: links for a logged-in user, or log in / register links for a visitor. #}
                     {% if app.user %}
                         <li><a href="{{ path('app_dashboard') }}">My dashboard</a></li>
+                        {# can_shop() is true only for buyers: sellers and admins have no orders or wishlist. #}
                         {% if can_shop() %}
                             <li><a href="{{ path('buyer_orders') }}">My orders</a></li>
                             <li><a href="{{ path('buyer_wishlist') }}">Wishlist</a></li>

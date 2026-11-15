@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Command/CreateAdminCommand.php
+ * WHAT: console command "php bin/console app:create-admin <email>" that creates an administrator account.
+ * ROLE IN THE PROJECT: admins cannot be created from the website. This is the defence against privilege
+ *   escalation: only someone with access to the server terminal can create an admin.
+ * USED BY: the person who installs the project (run once in the terminal).
+ */
+
 namespace App\Command;
 
 use App\Entity\AuditLog;
@@ -26,6 +34,13 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 #[AsCommand(name: 'app:create-admin', description: 'Create an administrator account (password asked interactively, hidden).')]
 final class CreateAdminCommand extends Command
 {
+    /**
+     * @param UserRepository              $users     to check the email is not already used
+     * @param EntityManagerInterface      $em        Doctrine, to save the new account
+     * @param UserPasswordHasherInterface $hasher    hashes the password (Argon2id)
+     * @param ValidatorInterface          $validator checks the email and the password policy
+     * @param AuditLogger                 $audit     writes into the audit log
+     */
     public function __construct(
         private readonly UserRepository $users,
         private readonly EntityManagerInterface $em,
@@ -36,16 +51,24 @@ final class CreateAdminCommand extends Command
         parent::__construct();
     }
 
+    /** Declares the command argument: the email of the new admin (required). */
     protected function configure(): void
     {
         $this->addArgument('email', InputArgument::REQUIRED, 'Email address of the new administrator');
     }
 
+    /**
+     * Runs the command.
+     *
+     * @return int Command::SUCCESS (0) when the admin was created, an error code otherwise
+     */
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        // Helper for nice terminal output, and the email cleaned like everywhere else (trim + lower case).
         $io = new SymfonyStyle($input, $output);
         $email = mb_strtolower(trim((string) $input->getArgument('email')));
 
+        // SECURITY: validation - the email must be a valid address of at most 180 characters.
         $emailErrors = $this->validator->validate($email, [new Assert\NotBlank(), new Assert\Email(mode: Assert\Email::VALIDATION_MODE_STRICT), new Assert\Length(max: 180)]);
         if (count($emailErrors) > 0) {
             $io->error('Invalid email: '.$emailErrors[0]->getMessage());
@@ -70,6 +93,7 @@ final class CreateAdminCommand extends Command
 
         // SECURITY: hidden input, the password is not echoed on screen.
         $password = (string) $io->askQuestion((new Question('Password'))->setHidden(true)->setHiddenFallback(false));
+        // SECURITY: validation - same password policy as the website (12+ characters, letter, digit, not leaked).
         $errors = $this->validator->validate($password, PasswordPolicy::constraints());
         if (count($errors) > 0) {
             foreach ($errors as $error) {
@@ -79,6 +103,7 @@ final class CreateAdminCommand extends Command
             return Command::FAILURE;
         }
 
+        // Ask a second time and compare (hash_equals compares without leaking timing information).
         $confirm = (string) $io->askQuestion((new Question('Repeat password'))->setHidden(true)->setHiddenFallback(false));
         if (!hash_equals($password, $confirm)) {
             $io->error('The two passwords do not match.');
@@ -86,10 +111,12 @@ final class CreateAdminCommand extends Command
             return Command::FAILURE;
         }
 
+        // Create the account with the admin role.
         $user = (new User())->setEmail($email)->setRoles([User::ROLE_ADMIN])->setIsVerified(true);
         // SECURITY: Argon2id (rule 5).
         $user->setPassword($this->hasher->hashPassword($user, $password));
 
+        // Save, then write the creation in the audit log.
         $this->em->persist($user);
         $this->em->flush();
 

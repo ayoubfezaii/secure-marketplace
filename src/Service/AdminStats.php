@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Service/AdminStats.php
+ * WHAT: service that computes the numbers and chart data of the admin pages.
+ * ROLE IN THE PROJECT: keeps the statistics queries out of the controllers.
+ * USED BY: Admin\DashboardController and Admin\AuditController (security panel). Admin only.
+ */
+
 namespace App\Service;
 
 use App\Entity\AuditLog;
@@ -18,6 +25,13 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 final class AdminStats
 {
+    /**
+     * @param EntityManagerInterface      $em           Doctrine, to run the statistics queries
+     * @param UserRepository              $users        user counts
+     * @param AuditLogRepository          $logs         audit log counts
+     * @param SellerApplicationRepository $applications pending applications count
+     * @param OrderRepository             $orders       cash-on-delivery totals
+     */
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly UserRepository $users,
@@ -28,10 +42,13 @@ final class AdminStats
     }
 
     /**
+     * The numbers of the admin dashboard cards (users per role, products, orders, revenue, alerts).
+     *
      * @return array<string, int|float>
      */
     public function overview(): array
     {
+        // Total revenue: sum of the order totals that were really paid.
         $revenue = $this->em->createQueryBuilder()
             ->select('COALESCE(SUM(o.total), 0)')->from(Order::class, 'o')
             ->where('o.status IN (:sold)')->setParameter('sold', Order::SOLD_STATUSES)
@@ -41,6 +58,7 @@ final class AdminStats
         // Cash on delivery still to be collected by the sellers (pending, not cancelled).
         $cash = $this->orders->pendingCashTotals();
 
+        // Each key is one number displayed on the dashboard.
         return [
             'buyers' => $this->users->countByRole(User::ROLE_BUYER),
             'sellers' => $this->users->countByRole(User::ROLE_SELLER),
@@ -67,30 +85,36 @@ final class AdminStats
      */
     public function ordersByDay(int $days = 30): array
     {
+        // First day of the period (today included).
         $since = (new \DateTimeImmutable('today'))->modify(sprintf('-%d days', $days - 1));
+        // Read the orders of the period (only the 4 columns needed).
         $rows = $this->em->createQueryBuilder()
             ->select('o.createdAt AS createdAt, o.total AS total, o.status AS status, o.paymentStatus AS paymentStatus')
             ->from(Order::class, 'o')->where('o.createdAt >= :since')->setParameter('since', $since)
             ->getQuery()->getArrayResult();
 
+        // Prepare one entry per day with 0, so days without orders still appear in the chart.
         $orders = [];
         $revenue = [];
         for ($d = $since; $d <= new \DateTimeImmutable('today'); $d = $d->modify('+1 day')) {
             $orders[$d->format('Y-m-d')] = 0;
             $revenue[$d->format('Y-m-d')] = 0.0;
         }
+        // Put each order in its day.
         foreach ($rows as $row) {
             $key = $row['createdAt']->format('Y-m-d');
             if (!isset($orders[$key])) {
                 continue;
             }
             ++$orders[$key];
+            // Doctrine may return the enum object or its text value: normalise to text.
             $paymentStatus = $row['paymentStatus'] instanceof PaymentStatus ? $row['paymentStatus']->value : (string) $row['paymentStatus'];
             if (in_array($row['status'], Order::SOLD_STATUSES, true) && in_array($paymentStatus, PaymentStatus::settledValues(), true)) {
                 $revenue[$key] += (float) $row['total'];
             }
         }
 
+        // Format for Chart.js: labels ("05 Nov") and two series.
         return [
             'labels' => array_map(static fn (string $k) => (new \DateTimeImmutable($k))->format('d M'), array_keys($orders)),
             'orders' => array_values($orders),
@@ -105,8 +129,10 @@ final class AdminStats
      */
     public function failedLoginSeries(string $period): array
     {
+        // Two modes: one bar per hour (last 24 hours) or one bar per day (last 7 days).
         $hourly = '24h' === $period;
         $since = $hourly ? new \DateTimeImmutable('-23 hours') : (new \DateTimeImmutable('today'))->modify('-6 days');
+        // Read the dates of the failed logins and failed 2FA codes of the period.
         $rows = $this->em->createQueryBuilder()
             ->select('a.createdAt AS createdAt')->from(AuditLog::class, 'a')
             ->where('a.action IN (:actions)')->andWhere('a.createdAt >= :since')
@@ -114,6 +140,7 @@ final class AdminStats
             ->setParameter('since', $hourly ? $since->setTime((int) $since->format('H'), 0) : $since)
             ->getQuery()->getArrayResult();
 
+        // Prepare the empty buckets (24 hours or 7 days).
         $buckets = [];
         $fmt = $hourly ? 'Y-m-d H' : 'Y-m-d';
         $step = $hourly ? '+1 hour' : '+1 day';
@@ -121,6 +148,7 @@ final class AdminStats
         for ($i = 0; $i < ($hourly ? 24 : 7); ++$i, $cursor = $cursor->modify($step)) {
             $buckets[$cursor->format($fmt)] = 0;
         }
+        // Count each failure in its bucket.
         foreach ($rows as $row) {
             $key = $row['createdAt']->format($fmt);
             if (isset($buckets[$key])) {
@@ -141,6 +169,8 @@ final class AdminStats
      */
     public function topFailingIps(int $limit = 8): array
     {
+        // GROUP BY ip: number of failures and date of the last one, biggest first.
+        // SECURITY: brute force - this list lets the admin spot an address that is attacking the login form.
         $rows = $this->em->createQueryBuilder()
             ->select('a.ip AS ip, COUNT(a.id) AS failures, MAX(a.createdAt) AS last')
             ->from(AuditLog::class, 'a')
@@ -150,6 +180,7 @@ final class AdminStats
             ->groupBy('a.ip')->orderBy('failures', 'DESC')->setMaxResults($limit)
             ->getQuery()->getArrayResult();
 
+        // Convert the raw rows to clean types.
         return array_map(static fn (array $r) => ['ip' => (string) $r['ip'], 'failures' => (int) $r['failures'], 'last' => new \DateTimeImmutable((string) $r['last'])], $rows);
     }
 
@@ -167,6 +198,7 @@ final class AdminStats
             ->getQuery()->getResult();
     }
 
+    /** Number of accounts without 2FA (shown in the security panel). */
     public function countWithout2fa(): int
     {
         return (int) $this->em->createQuery('SELECT COUNT(u.id) FROM '.User::class.' u WHERE u.totpEnabled = false')->getSingleScalarResult();

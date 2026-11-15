@@ -1,3 +1,8 @@
+/* FILE: assets/styles/app.css */
+/* WHAT: the main stylesheet of the site: all the components (buttons, cards, header, checkout, dashboard...). */
+/* ROLE IN THE PROJECT: the look of every page. It uses the colour and size variables defined in tokens.css. */
+/* USED BY: every page (linked with a <link> tag in templates/base.html.twig). */
+
 /*
  * Maison Secure: component layer on top of Bootstrap 5.3.
  *
@@ -7,6 +12,7 @@
  */
 
 /* ---------- Base ---------- */
+/* Global rules for the whole page: smooth scrolling, body text, headings, links. */
 html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition: none !important; animation: none !important; } }
 body { background: var(--cream); color: var(--ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
@@ -28,12 +34,14 @@ a { text-underline-offset: 3px; }
 ::selection { background: var(--accent); color: var(--white); }
 
 /* Accessibility: a visible focus state on everything keyboard-reachable (WCAG 2.4.7). */
+/* Orange outline around the element that has the keyboard focus. */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn:focus-visible, .form-control:focus, .form-select:focus, .form-check-input:focus, .page-link:focus, .nav-link:focus-visible { box-shadow: var(--focus-ring); outline: 0; }
 .skip-link { position: absolute; left: 1rem; top: -100px; z-index: 2000; background: var(--ink); color: var(--white); padding: .6rem 1rem; border-radius: var(--radius-sm); }
 .skip-link:focus { top: 1rem; color: var(--white); }
 
 /* ---------- Buttons ---------- */
+/* Look of the Bootstrap buttons (.btn-primary, .btn-outline-...) in the colours of the site. */
 .btn { --bs-btn-padding-x: 1.25rem; --bs-btn-padding-y: .6rem; --bs-btn-font-weight: 500; --bs-btn-border-radius: var(--radius-pill); transition: transform var(--transition), background-color var(--transition), box-shadow var(--transition), color var(--transition); }
 .btn-sm { --bs-btn-padding-x: .85rem; --bs-btn-padding-y: .35rem; --bs-btn-font-size: .85rem; }
 .btn-lg { --bs-btn-padding-x: 1.75rem; --bs-btn-padding-y: .85rem; }
@@ -61,6 +69,7 @@ a { text-underline-offset: 3px; }
 .btn-icon.btn-sm { width: 34px; height: 34px; }
 
 /* ---------- Forms ---------- */
+/* Inputs, selects, labels, help texts and error messages of all the forms. */
 .form-control, .form-select { border-radius: var(--radius-sm); border-color: var(--line); background-color: var(--white); padding: .65rem .9rem; }
 .form-control:focus, .form-select:focus { border-color: var(--accent); }
 .form-label { font-weight: 500; font-size: .9rem; }
@@ -74,6 +83,7 @@ a { text-underline-offset: 3px; }
 .invalid-feedback, .form-error-message { color: var(--danger); }
 
 /* ---------- Cards ---------- */
+/* White boxes with rounded corners used everywhere (.card). */
 .card { --bs-card-border-color: var(--line); --bs-card-border-radius: var(--radius-lg); --bs-card-inner-border-radius: calc(var(--radius-lg) - 1px); --bs-card-bg: var(--white); box-shadow: var(--shadow-sm); }
 .card-soft { background: var(--sand); border-color: transparent; box-shadow: none; }
 .card-hover { transition: transform var(--transition), box-shadow var(--transition); }
@@ -81,6 +91,7 @@ a { text-underline-offset: 3px; }
 .surface { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
 
 /* ---------- Badges ---------- */
+/* Small labels: order status, "NEW", "-20 %", roles. */
 .badge { font-weight: 600; letter-spacing: .02em; border-radius: var(--radius-pill); padding: .4em .7em; }
 .badge-new { background: var(--ink); color: var(--white); }
 .badge-sale { background: var(--accent); color: var(--ink); }
@@ -103,11 +114,13 @@ a { text-underline-offset: 3px; }
 .role-admin { background: var(--ink); color: var(--white); }
 
 /* ---------- Stars ---------- */
+/* The star rating display. */
 .stars { display: inline-flex; gap: 1px; color: var(--accent); font-size: .9em; line-height: 1; }
 .stars .bi-star { color: #D9CFC3; }
 .stars-lg { font-size: 1.25rem; }
 
 /* ---------- Product card ---------- */
+/* One product in a grid or list: picture, name, price, heart button. */
 .product-card { position: relative; background: var(--white); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; height: 100%; display: flex; flex-direction: column; transition: transform var(--transition), box-shadow var(--transition); }
 .product-card:hover, .product-card:focus-within { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
 .product-card .media { position: relative; background: var(--sand); aspect-ratio: 4 / 5; overflow: hidden; }
@@ -127,6 +140,7 @@ a { text-underline-offset: 3px; }
 .product-placeholder { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; background: linear-gradient(135deg, var(--sand), var(--sand-deep)); color: var(--taupe-light); font-size: 2.5rem; }
 
 /* ---------- Header ---------- */
+/* Top bar of the shop: logo, search box, category menu, cart and account icons. */
 .announce { background: var(--ink); color: var(--cream); font-size: .8rem; }
 .announce .item { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; }
 .site-header { background: rgba(247, 243, 238, .92); backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line); z-index: 1030; }
@@ -143,6 +157,7 @@ a { text-underline-offset: 3px; }
 .offcanvas { --bs-offcanvas-bg: var(--cream); }
 
 /* ---------- Hero & sections ---------- */
+/* Home page blocks: big banner, category tiles, carousels, promo band. */
 .section { padding: clamp(3rem, 6vw, 5.5rem) 0; }
 .section-sm { padding: clamp(2rem, 4vw, 3rem) 0; }
 .section-title { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1.75rem; flex-wrap: wrap; }
@@ -185,6 +200,7 @@ a { text-underline-offset: 3px; }
 .accordion-button { font-weight: 600; }
 
 /* ---------- Footer ---------- */
+/* Bottom of every shop page: links, newsletter form. */
 .site-footer { background: var(--ink); color: #CFC7BD; }
 .site-footer h2 { color: var(--white); font-family: var(--font-sans); font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; margin-bottom: 1rem; }
 .site-footer a { color: #CFC7BD; text-decoration: none; }
@@ -199,6 +215,7 @@ a { text-underline-offset: 3px; }
 .pay-icons svg { height: 26px; width: auto; }
 
 /* ---------- Breadcrumbs, pagination, tabs ---------- */
+/* Navigation helpers: "Home > Category" path, page numbers, tabs. */
 .breadcrumb { --bs-breadcrumb-divider-color: var(--taupe-light); --bs-breadcrumb-item-active-color: var(--taupe); font-size: .85rem; margin-bottom: .5rem; }
 .breadcrumb a { color: var(--ink); text-decoration: none; }
 .breadcrumb a:hover { text-decoration: underline; }
@@ -213,6 +230,7 @@ a { text-underline-offset: 3px; }
 .chip:hover, .chip.active { background: var(--ink); color: var(--white); border-color: var(--ink); }
 
 /* ---------- Page header & empty state ---------- */
+/* Title area at the top of a page, and the "nothing here yet" block. */
 .page-header { padding: 1.5rem 0 1.25rem; }
 .page-header h1 { font-size: clamp(1.7rem, 3.2vw, 2.4rem); margin: 0; }
 .empty-state { text-align: center; padding: 3rem 1.5rem; background: var(--white); border: 1px dashed var(--sand-deep); border-radius: var(--radius-lg); }
@@ -226,6 +244,7 @@ a { text-underline-offset: 3px; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 /* ---------- Toasts & modal ---------- */
+/* Pop-up messages after an action, and the confirmation window. */
 .toast-stack { position: fixed; z-index: 1090; right: 1rem; top: 1rem; display: flex; flex-direction: column; gap: .6rem; max-width: min(380px, calc(100vw - 2rem)); }
 .toast { --bs-toast-bg: var(--white); --bs-toast-border-color: var(--line); --bs-toast-border-radius: var(--radius); box-shadow: var(--shadow-lg); border-left: 4px solid var(--ink); }
 .toast.toast-success { border-left-color: var(--success); }
@@ -238,6 +257,7 @@ a { text-underline-offset: 3px; }
 .modal-icon { width: 52px; height: 52px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #F6E4E1; color: var(--danger); font-size: 1.4rem; }
 
 /* ---------- Data bars (no inline width: <progress>/<meter> elements) ---------- */
+/* Horizontal bars (rating distribution, stock level) drawn with progress / meter elements. */
 progress.bar, meter.bar { -webkit-appearance: none; appearance: none; width: 100%; height: 8px; border: 0; border-radius: var(--radius-pill); background: var(--sand); overflow: hidden; display: block; }
 progress.bar::-webkit-progress-bar { background: var(--sand); border-radius: var(--radius-pill); }
 progress.bar::-webkit-progress-value { background: var(--accent); border-radius: var(--radius-pill); }
@@ -253,6 +273,7 @@ meter.bar:-moz-meter-sub-optimum::-moz-meter-bar { background: var(--warning); }
 meter.bar:-moz-meter-sub-sub-optimum::-moz-meter-bar { background: var(--danger); }
 
 /* ---------- Product page ---------- */
+/* Product detail page: gallery, price block, reviews. */
 .gallery-main { background: var(--sand); border-radius: var(--radius-lg); overflow: hidden; aspect-ratio: 1 / 1; }
 .gallery-main img { width: 100%; height: 100%; object-fit: cover; }
 .gallery-thumbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin-top: .75rem; }
@@ -283,12 +304,14 @@ meter.bar:-moz-meter-sub-sub-optimum::-moz-meter-bar { background: var(--danger)
 .thumb-lg { width: 84px; height: 84px; }
 
 /* ---------- Filters ---------- */
+/* Filter column of the catalogue. */
 .filter-panel { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 1.25rem; }
 .filter-panel h2 { font-family: var(--font-sans); font-size: .78rem; text-transform: uppercase; letter-spacing: .12em; font-weight: 700; margin-bottom: .75rem; }
 .filter-group + .filter-group { border-top: 1px solid var(--line); margin-top: 1.1rem; padding-top: 1.1rem; }
 .view-toggle .btn { --bs-btn-padding-x: .6rem; }
 
 /* ---------- Checkout ---------- */
+/* Checkout pages: step indicator, address cards, order summary. */
 .steps { display: flex; gap: .5rem; counter-reset: step; list-style: none; padding: 0; margin: 0 0 2rem; }
 .steps li { flex: 1; display: flex; align-items: center; gap: .6rem; font-size: .88rem; font-weight: 500; color: var(--taupe); }
 .steps li::before { counter-increment: step; content: counter(step); width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--white); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; flex: 0 0 auto; }
@@ -310,6 +333,7 @@ meter.bar:-moz-meter-sub-sub-optimum::-moz-meter-bar { background: var(--danger)
 .card-visual { border-radius: var(--radius-lg); background: linear-gradient(135deg, #1d1d1d, #3a2f27); color: var(--cream); padding: 1.4rem; aspect-ratio: 1.6 / 1; max-width: 360px; display: flex; flex-direction: column; justify-content: space-between; }
 
 /* ---------- Auth (split screen) ---------- */
+/* Login / register pages: form on one side, picture on the other. */
 .auth-shell { min-height: 100vh; display: grid; grid-template-columns: 1fr; background: var(--cream); }
 @media (min-width: 992px) { .auth-shell { grid-template-columns: 5fr 6fr; } }
 .auth-art { position: relative; overflow: hidden; color: var(--cream); background: radial-gradient(120% 90% at 10% 10%, #4a3526 0%, transparent 55%), radial-gradient(90% 80% at 90% 100%, #8a4a1c 0%, transparent 60%), linear-gradient(160deg, #141414 0%, #2b2018 100%); padding: 2.5rem; display: none; flex-direction: column; justify-content: space-between; }
@@ -336,6 +360,7 @@ meter.bar:-moz-meter-sub-sub-optimum::-moz-meter-bar { background: var(--danger)
 .error-code { font-family: var(--font-serif); font-size: clamp(5rem, 14vw, 9rem); line-height: 1; color: var(--sand-deep); }
 
 /* ---------- Dashboard (app shell) ---------- */
+/* Dashboard layout for buyer, seller and admin: sidebar on the left, top bar, content area. */
 .app-shell { display: flex; min-height: 100vh; background: var(--cream); }
 .app-sidebar { width: 260px; flex: 0 0 260px; background: var(--ink); color: #D8D0C6; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; transition: width var(--transition), flex-basis var(--transition); }
 .app-sidebar .brand { color: var(--white); padding: 1.35rem 1.25rem 1rem; }
@@ -385,6 +410,7 @@ meter.bar:-moz-meter-sub-sub-optimum::-moz-meter-bar { background: var(--danger)
 .preview-sticky { position: sticky; top: 90px; }
 
 /* ---------- Tables (become cards on mobile) ---------- */
+/* Data tables of the dashboards. On a phone each row is shown as a card. */
 .table { --bs-table-bg: transparent; --bs-table-hover-bg: #FBF8F4; --bs-table-border-color: var(--line); margin: 0; }
 .table > :not(caption) > * > * { padding: .85rem 1rem; vertical-align: middle; }
 .table thead th { font-size: .74rem; text-transform: uppercase; letter-spacing: .08em; color: var(--taupe); font-weight: 600; background: #FBF8F4; white-space: nowrap; }
@@ -402,6 +428,7 @@ meter.bar:-moz-meter-sub-sub-optimum::-moz-meter-bar { background: var(--danger)
 }
 
 /* ---------- Misc (R2) ---------- */
+/* Small helpers that do not belong to one component. */
 .shop-banner .glow { position: absolute; right: -80px; bottom: -120px; width: 360px; height: 360px; border-radius: 50%; background: radial-gradient(circle, rgba(232, 112, 26, .45), transparent 65%); pointer-events: none; }
 .confirm-check { width: 64px; height: 64px; }
 .wish-btn form { margin: 0; }
@@ -409,6 +436,7 @@ meter.bar:-moz-meter-sub-sub-optimum::-moz-meter-bar { background: var(--danger)
 .icon-badge { width: 56px; height: 56px; }
 
 /* ---------- Dashboard extras (R4) ---------- */
+/* Dashboard additions: stat cards, toolbars with filters, charts. */
 .notif-menu { width: min(320px, calc(100vw - 2rem)); }
 .user-name { max-width: 140px; }
 .user-email { max-width: 220px; }
@@ -430,6 +458,7 @@ meter.bar:-moz-meter-sub-sub-optimum::-moz-meter-bar { background: var(--danger)
 .reply-box textarea { min-height: 90px; }
 
 /* ---------- Mobile polish (R10 visual audit) ---------- */
+/* Fixes for small screens. */
 .stat-card .value { font-size: clamp(1.1rem, 4.6vw, 1.55rem); overflow-wrap: anywhere; }
 @media (max-width: 575.98px) {
     .stat-card { padding: .85rem; gap: .65rem; flex-direction: column; }

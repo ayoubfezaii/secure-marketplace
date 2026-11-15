@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Form/AddressFormType.php
+ * WHAT: the form of a shipping address (label, name, street, postal code, city, country, phone, default).
+ * ROLE IN THE PROJECT: a FormType lists exactly which fields a page may send. Symfony builds the HTML, reads
+ *   the POST data, checks the CSRF token and validates the entity.
+ * USED BY: Buyer\AddressController and CheckoutController (buyer).
+ */
+
 namespace App\Form;
 
 use App\Entity\Address;
@@ -19,6 +27,13 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  */
 class AddressFormType extends AbstractType
 {
+    /**
+     * Declares the fields of the form. Each add() = one input; the first argument is the property of Address it fills.
+     * The "maxlength" attributes help the user in the browser; the real limits are the constraints on the entity.
+     *
+     * @param FormBuilderInterface<Address|null> $builder object used to add fields
+     * @param array<string, mixed> $options options of the form (not used here)
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
@@ -35,9 +50,13 @@ class AddressFormType extends AbstractType
         ;
     }
 
+    /**
+     * Settings of the form: which class it fills and the name of its CSRF token.
+     */
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([
+            // data_class: the form reads and writes an Address object.
             'data_class' => Address::class,
             'empty_data' => null,
             // SECURITY: CSRF (rule 3).

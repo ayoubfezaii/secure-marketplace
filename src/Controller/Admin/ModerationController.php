@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Controller/Admin/ModerationController.php
+ * WHAT: controller of the admin moderation pages: all products, all orders, all reviews.
+ * ROLE IN THE PROJECT: lets an admin hide or delete a product, cancel or refund an order, delete a seller reply.
+ *   Every action follows the same 4 steps: POST, CSRF token, Voter, audit log.
+ * USED BY: admins only (ROLE_ADMIN). URLs start with /admin.
+ */
+
 namespace App\Controller\Admin;
 
 use App\Entity\AuditLog;
@@ -40,6 +48,10 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/admin')]
 class ModerationController extends AbstractController
 {
+    /**
+     * @param EntityManagerInterface $em    Doctrine, to save / delete
+     * @param AuditLogger            $audit writes into the audit log
+     */
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly AuditLogger $audit,
@@ -48,21 +60,29 @@ class ModerationController extends AbstractController
 
     // ------------------------------------------------------------------ Products
 
+    /**
+     * List of ALL products (active or hidden) with search, filters, sorting, pagination. Admin only.
+     *
+     * @return Response the rendered template admin/products.html.twig
+     */
     #[Route('/products', name: 'admin_products', methods: ['GET'])]
     public function products(Request $request, ProductRepository $products, CategoryRepository $categories, UserRepository $users): Response
     {
+        // Search text and sort. SECURITY: SQL injection - the sort column comes from this whitelist only.
         $list = ListQuery::fromRequest($request, ['name' => 'p.name', 'price' => 'p.price', 'stock' => 'p.stock', 'created' => 'p.createdAt'], 'created');
         // SECURITY (rule 15): every filter is whitelisted or resolved to an existing row.
         $state = in_array($request->query->getString('state'), ['active', 'hidden'], true) ? $request->query->getString('state') : null;
         $category = 1 === preg_match('/^[a-z0-9-]{1,60}$/', $request->query->getString('category')) ? $categories->findOneBySlug($request->query->getString('category')) : null;
         $seller = $this->sellerFilter($request, $users);
 
+        // Build the query, apply the sort, read one page of 20 and preload the images.
         $qb = $products->createAdminQueryBuilder($list->q, $state, $category, $seller);
         $list->applySort($qb)->addOrderBy('p.id', 'DESC');
         $pager = Pagination::fromQueryBuilder($qb, $request, 20);
         $rows = array_values(iterator_to_array($pager->items));
         $products->preloadImages($rows);
 
+        // Active filters, kept in the pagination links.
         $filters = array_filter(['state' => $state, 'category' => $category?->getSlug(), 'seller' => $seller ? (string) $seller->getUuid() : null, 'q' => $list->q]);
 
         return $this->render('admin/products.html.twig', [
@@ -79,9 +99,13 @@ class ModerationController extends AbstractController
         ]);
     }
 
+    /**
+     * Hides or shows any product. POST only. Admin only.
+     */
     #[Route('/products/{uuid}/toggle', name: 'admin_product_toggle', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function toggleProduct(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] Product $product): Response
     {
+        // SECURITY: CSRF then access control - the token, then ProductVoter::MODERATE (admin).
         $this->assertCsrf($request, 'admin-toggle-'.$product->getUuid());
         $this->denyAccessUnlessGranted(ProductVoter::MODERATE, $product);
 
@@ -95,12 +119,19 @@ class ModerationController extends AbstractController
         return $this->redirectToRoute('admin_products');
     }
 
+    /**
+     * Deletes any product and its image files. POST only. Admin only.
+     *
+     * @param ImageStorage $images to delete the files from the disk
+     */
     #[Route('/products/{uuid}/delete', name: 'admin_product_delete', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function deleteProduct(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] Product $product, ImageStorage $images): Response
     {
+        // SECURITY: CSRF then access control - the token, then ProductVoter::MODERATE (admin).
         $this->assertCsrf($request, 'admin-delete-'.$product->getUuid());
         $this->denyAccessUnlessGranted(ProductVoter::MODERATE, $product);
 
+        // Keep what is needed after the deletion (log data, files to delete).
         $info = ['product' => (string) $product->getUuid(), 'name' => $product->getName(), 'seller' => $product->getSeller()->getEmail(), 'by' => 'admin'];
         $files = array_map(static fn (ProductImage $i) => $i->getFilename(), $product->getImages()->toArray());
         $this->em->remove($product);
@@ -116,6 +147,11 @@ class ModerationController extends AbstractController
 
     // ------------------------------------------------------------------ Orders
 
+    /**
+     * List of ALL orders with filters (status, payment, dates, seller, buyer search). Admin only.
+     *
+     * @return Response the rendered template admin/orders/index.html.twig
+     */
     #[Route('/orders', name: 'admin_orders', methods: ['GET'])]
     public function orders(Request $request, OrderRepository $orders, UserRepository $users): Response
     {
@@ -131,6 +167,7 @@ class ModerationController extends AbstractController
         $paymentMethod = PaymentMethod::tryFrom($request->query->getString('payment'));
         $paymentStatus = PaymentStatus::tryFrom($request->query->getString('payment_status'));
 
+        // Base query from the repository, then the optional filters. All values are bound parameters.
         $qb = $orders->createAdminQueryBuilder($status, $paymentMethod, $paymentStatus);
         if ('' !== $list->q) {
             // Buyer email or name (bound, LIKE-escaped).
@@ -140,13 +177,16 @@ class ModerationController extends AbstractController
             $qb->andWhere('o.createdAt >= :from')->setParameter('from', $from);
         }
         if (null !== $to) {
+            // "to" is a day: add one day and use "<" so the whole last day is included.
             $qb->andWhere('o.createdAt < :to')->setParameter('to', $to->modify('+1 day'));
         }
+        // Only orders that contain an item of the chosen seller (sub-query written by us, seller bound).
         if (null !== $seller) {
             $qb->andWhere('o.id IN (SELECT IDENTITY(si.order) FROM App\Entity\OrderItem si WHERE si.seller = :seller)')->setParameter('seller', $seller);
         }
         $list->applySort($qb);
 
+        // Active filters, kept in the pagination links.
         $filters = array_filter(['status' => $status, 'payment' => $paymentMethod?->value, 'payment_status' => $paymentStatus?->value, 'from' => $from?->format('Y-m-d'), 'to' => $to?->format('Y-m-d'), 'seller' => $seller ? (string) $seller->getUuid() : null, 'q' => $list->q]);
 
         return $this->render('admin/orders/index.html.twig', [
@@ -165,6 +205,7 @@ class ModerationController extends AbstractController
         ]);
     }
 
+    /** Detail of any order. Admin only (OrderVoter::VIEW accepts admins). */
     #[Route('/orders/{uuid}', name: 'admin_order_show', methods: ['GET'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function order(#[MapEntity(mapping: ['uuid' => 'uuid'])] Order $order): Response
     {
@@ -173,9 +214,15 @@ class ModerationController extends AbstractController
         return $this->render('admin/orders/show.html.twig', ['order' => $order]);
     }
 
+    /**
+     * Cancels an order that has not shipped yet. POST only. Admin only.
+     *
+     * @param OrderManager $orders service that cancels and restores the stock in one transaction
+     */
     #[Route('/orders/{uuid}/cancel', name: 'admin_order_cancel', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function cancelOrder(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] Order $order, OrderManager $orders): Response
     {
+        // SECURITY: CSRF then access control - the token, then the voter (admin + order still cancellable).
         $this->assertCsrf($request, 'admin-order-cancel-'.$order->getUuid());
         $this->denyAccessUnlessGranted(OrderVoter::ADMIN_CANCEL, $order);
         try {
@@ -188,9 +235,15 @@ class ModerationController extends AbstractController
         return $this->redirectToRoute('admin_order_show', ['uuid' => $order->getUuid()]);
     }
 
+    /**
+     * Refunds a paid order (simulated). POST only. Admin only.
+     *
+     * @param OrderManager $orders service that refunds and restores the stock in one transaction
+     */
     #[Route('/orders/{uuid}/refund', name: 'admin_order_refund', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function refundOrder(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] Order $order, OrderManager $orders): Response
     {
+        // SECURITY: CSRF then access control - the token, then the voter (admin + order refundable).
         $this->assertCsrf($request, 'admin-order-refund-'.$order->getUuid());
         $this->denyAccessUnlessGranted(OrderVoter::REFUND, $order);
         try {
@@ -205,13 +258,20 @@ class ModerationController extends AbstractController
 
     // ------------------------------------------------------------------ Reviews
 
+    /**
+     * List of ALL reviews with filters (stars, search in product name or comment). Admin only.
+     *
+     * @return Response the rendered template admin/reviews.html.twig
+     */
     #[Route('/reviews', name: 'admin_reviews', methods: ['GET'])]
     public function reviews(Request $request): Response
     {
+        // ?rating= must be a whole number from 1 to 5; the search text is trimmed and limited to 100 characters.
         $rating = filter_var($request->query->getString('rating'), \FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 5]]);
         $rating = false === $rating ? null : $rating;
         $q = mb_substr(trim($request->query->getString('q')), 0, 100);
 
+        // SECURITY: SQL injection - QueryBuilder; :rating and :q are bound parameters, LIKE wildcards escaped.
         $qb = $this->em->createQueryBuilder()
             ->select('r', 'p', 'a', 'rep')
             ->from(Review::class, 'r')->innerJoin('r.product', 'p')->innerJoin('r.author', 'a')->leftJoin('r.reply', 'rep')
@@ -232,13 +292,18 @@ class ModerationController extends AbstractController
         ]);
     }
 
+    /**
+     * Deletes a seller's reply to a review. POST only. Admin only.
+     */
     #[Route('/replies/{uuid}/delete', name: 'admin_reply_delete', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function deleteReply(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] ReviewReply $reply): Response
     {
+        // SECURITY: CSRF then access control - the token, then ReviewVoter::REPLY_DELETE (admin).
         $this->assertCsrf($request, 'reply-delete-'.$reply->getUuid());
         $this->denyAccessUnlessGranted(ReviewVoter::REPLY_DELETE, $reply);
 
         $this->audit->log(AuditLog::REVIEW_REPLY_DELETED, ['review' => (string) $reply->getReview()->getUuid(), 'seller' => $reply->getAuthor()->getEmail()]);
+        // Unlink the reply from its review, then delete it.
         $reply->getReview()->setReply(null);
         $this->em->remove($reply);
         $this->em->flush();
@@ -249,6 +314,11 @@ class ModerationController extends AbstractController
 
     // ------------------------------------------------------------------ helpers
 
+    /**
+     * Reads the ?seller=<uuid> filter and returns the matching seller.
+     *
+     * @return User|null null when the value is not a UUID, or not a seller account
+     */
     private function sellerFilter(Request $request, UserRepository $users): ?User
     {
         $uuid = $request->query->getString('seller');
@@ -260,6 +330,11 @@ class ModerationController extends AbstractController
         return $user instanceof User && $user->isSeller() ? $user : null;
     }
 
+    /**
+     * Stops the request when the hidden "_token" field is not the token of this session.
+     *
+     * @param string $id name of the token (one per action and per object)
+     */
     private function assertCsrf(Request $request, string $id): void
     {
         // SECURITY (rule 3).
@@ -268,6 +343,11 @@ class ModerationController extends AbstractController
         }
     }
 
+    /**
+     * Parses a date written YYYY-MM-DD.
+     *
+     * @return \DateTimeImmutable|null null when the text is not a real date
+     */
     private static function date(string $raw): ?\DateTimeImmutable
     {
         if (1 !== preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {

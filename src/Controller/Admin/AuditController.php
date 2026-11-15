@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Controller/Admin/AuditController.php
+ * WHAT: controller of the admin "Audit log" page, its CSV export, and the "Security" panel.
+ * ROLE IN THE PROJECT: where the admin reads what happened (logins, attacks blocked...). Also shows the
+ *   defence against CSV injection.
+ * USED BY: admins only (ROLE_ADMIN).
+ */
+
 namespace App\Controller\Admin;
 
 use App\Service\Money;
@@ -26,11 +34,18 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/admin')]
 class AuditController extends AbstractController
 {
+    // Maximum number of rows in one CSV export.
     private const EXPORT_LIMIT = 10000;
 
+    /**
+     * Audit log page with filters (action, user, IP, dates) and pagination. Admin only.
+     *
+     * @return Response the rendered template admin/audit.html.twig
+     */
     #[Route('/audit', name: 'admin_audit', methods: ['GET'])]
     public function audit(Request $request, AuditLogRepository $logs): Response
     {
+        // Read and validate the filters of the URL.
         $filters = $this->filters($request, $logs);
 
         return $this->render('admin/audit.html.twig', [
@@ -43,16 +58,21 @@ class AuditController extends AbstractController
 
     /**
      * CSV export of the (filtered) audit log. GET is fine here: it changes nothing (the export itself is logged).
+     *
+     * @return StreamedResponse a CSV file sent row by row (admin only)
      */
     #[Route('/audit/export.csv', name: 'admin_audit_export', methods: ['GET'])]
     public function export(Request $request, AuditLogRepository $logs, AuditLogger $audit): StreamedResponse
     {
+        // Same filters as the page, limited to EXPORT_LIMIT rows.
         $filters = $this->filters($request, $logs);
         $rows = $logs->createFilteredQueryBuilder($filters['action'], $filters['user'], $filters['from'], $filters['to'], $filters['ip'])
             ->setMaxResults(self::EXPORT_LIMIT)->getQuery()->getResult();
 
+        // SECURITY: logging - exporting the log is itself written in the log.
         $audit->log(AuditLog::AUDIT_EXPORTED, ['rows' => count($rows), 'filters' => $this->params($filters)]);
 
+        // The function below runs when the response is sent: it writes the CSV directly to the output.
         $response = new StreamedResponse(static function () use ($rows): void {
             $out = fopen('php://output', 'wb');
             if (false === $out) {
@@ -62,6 +82,7 @@ class AuditController extends AbstractController
             fwrite($out, "\xEF\xBB\xBF");
             // Amounts are in Tunisian dinars: the currency is stated in the header AND on every row that has an
             // amount, always with 3 decimals and a dot ("1250.500"), so a spreadsheet can't misread them.
+            // Header row of the CSV.
             fputcsv($out, ['date', 'action', 'user', 'ip', 'user_agent', 'amount', 'currency (Currency: '.Money::CURRENCY.')', 'details'], ',', '"', '');
             /** @var AuditLog $log */
             foreach ($rows as $log) {
@@ -80,10 +101,12 @@ class AuditController extends AbstractController
             }
             fclose($out);
         });
+        // Tell the browser it is a CSV file to download, with a dated file name.
         $response->headers->set('Content-Type', 'text/csv; charset=UTF-8');
         $response->headers->set('Content-Disposition', HeaderUtils::makeDisposition(HeaderUtils::DISPOSITION_ATTACHMENT, 'audit-log-'.date('Ymd-His').'.csv'));
         // SECURITY: sensitive export, never cached.
         $response->headers->set('Cache-Control', 'no-store, private');
+        // SECURITY: XSS - "nosniff" stops the browser from guessing another type (e.g. HTML) for this file.
         $response->headers->set('X-Content-Type-Options', 'nosniff');
 
         return $response;
@@ -105,6 +128,12 @@ class AuditController extends AbstractController
         return is_string($total) && 1 === preg_match('/^\d{1,12}(\.\d{1,3})?$/', $total) ? [Money::decimal($total), Money::CURRENCY] : ['', ''];
     }
 
+    /**
+     * "Security" panel: failed logins chart, top failing IPs, locked accounts, blocked uploads / SSRF, access
+     * denied events, accounts without 2FA. Admin only.
+     *
+     * @return Response the rendered template admin/security.html.twig
+     */
     #[Route('/security', name: 'admin_security', methods: ['GET'])]
     public function security(Request $request, AuditLogRepository $logs, UserRepository $users, AdminStats $stats): Response
     {
@@ -128,6 +157,8 @@ class AuditController extends AbstractController
     }
 
     /**
+     * Reads the audit filters from the URL and validates each one.
+     *
      * @return array{action: ?string, user: string, ip: string, from: ?\DateTimeImmutable, to: ?\DateTimeImmutable}
      */
     private function filters(Request $request, AuditLogRepository $logs): array
@@ -147,6 +178,8 @@ class AuditController extends AbstractController
     }
 
     /**
+     * Turns the filters back into URL parameters (for pagination links and the export link). Empty ones are dropped.
+     *
      * @param array{action: ?string, user: string, ip: string, from: ?\DateTimeImmutable, to: ?\DateTimeImmutable} $f
      *
      * @return array<string, string>
@@ -156,8 +189,14 @@ class AuditController extends AbstractController
         return array_filter(['action' => $f['action'], 'user' => $f['user'], 'ip' => $f['ip'], 'from' => $f['from']?->format('Y-m-d'), 'to' => $f['to']?->format('Y-m-d')]);
     }
 
+    /**
+     * Parses a date written YYYY-MM-DD.
+     *
+     * @return \DateTimeImmutable|null null when the text is not a real date (e.g. "2026-02-31")
+     */
     private static function date(string $raw): ?\DateTimeImmutable
     {
+        // SECURITY: validation - exact format first, then check the date really exists.
         if (1 !== preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw)) {
             return null;
         }

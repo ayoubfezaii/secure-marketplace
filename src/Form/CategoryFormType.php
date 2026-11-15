@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Form/CategoryFormType.php
+ * WHAT: the form of a product category (name, slug, tagline, icon, position).
+ * ROLE IN THE PROJECT: explicit field list for the category pages; validation rules are on the Category entity.
+ * USED BY: Admin\CategoryController (admin).
+ */
+
 namespace App\Form;
 
 use App\Entity\Category;
@@ -11,10 +18,18 @@ use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
 /**
+ * SECURITY: mass assignment - only the 5 fields below can be set through this form.
+ *
  * @extends AbstractType<Category>
  */
 class CategoryFormType extends AbstractType
 {
+    /**
+     * Declares the fields of the form.
+     *
+     * @param FormBuilderInterface<Category|null> $builder object used to add fields
+     * @param array<string, mixed> $options options of the form (not used here)
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
@@ -27,6 +42,7 @@ class CategoryFormType extends AbstractType
         ;
     }
 
+    /** Settings of the form: the class it fills (Category) and the name of its CSRF token. */
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([

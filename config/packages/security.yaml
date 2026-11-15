@@ -1,3 +1,9 @@
+# FILE: config/packages/security.yaml
+# WHAT: the main security configuration of Symfony.
+# ROLE IN THE PROJECT: says how passwords are hashed, how users log in (form + 2FA), how they log out,
+#   and which role is needed for each part of the site.
+# USED BY: Symfony Security on EVERY request (visitor, buyer, seller, admin).
+
 security:
     # SECURITY (rule 5): Argon2id is set explicitly. In Symfony 7 "auto" picks bcrypt, not Argon2id.
     # Argon2id is memory-hard, which makes GPU/ASIC cracking of leaked hashes expensive.
@@ -9,23 +15,30 @@ security:
             migrate_from:
                 - bcrypt
 
+    # Where users are loaded from: the User entity, found by its email.
+    # SECURITY: SQL injection - Doctrine loads the user with a bound parameter.
     providers:
         app_user_provider:
             entity:
                 class: App\Entity\User
                 property: email
 
+    # A firewall = the security rules for a group of URLs.
     firewalls:
+        # Development tools only (profiler, toolbar, assets): no security needed.
         dev:
             # Ensure dev tools and static assets are always allowed
             pattern: ^/(_profiler(/|$)|(_wdt|assets|build)/)
             security: false
+        # The firewall of the whole site.
         main:
+            # lazy: the session is opened only when a page really needs the user.
             lazy: true
             provider: app_user_provider
             # SECURITY (rule 6): rejects locked accounts before the password check.
             user_checker: App\Security\UserChecker
 
+            # Classic login form (email + password) on the route app_login.
             form_login:
                 login_path: app_login
                 check_path: app_login
@@ -50,6 +63,7 @@ security:
             # SECURITY (rule 5): optional TOTP second factor (scheb/2fa-bundle). After the password step the user
             # only holds a TwoFactorToken (IS_AUTHENTICATED_2FA_IN_PROGRESS) and can't reach any protected page
             # until a valid code is entered.
+            # Routes of the code form and of the code check (provided by scheb/2fa-bundle).
             two_factor:
                 auth_form_path: 2fa_login
                 check_path: 2fa_login_check
@@ -59,6 +73,7 @@ security:
                 csrf_token_id: two_factor
                 success_handler: App\Security\LoginSuccessHandler
 
+            # Logout: POST on app_logout, then back to the home page.
             logout:
                 path: app_logout
                 target: app_home
@@ -66,6 +81,7 @@ security:
                 enable_csrf: true
                 csrf_parameter: _csrf_token
                 csrf_token_id: logout
+                # SECURITY: session hijacking - the session is destroyed at logout, so the old cookie is useless.
                 invalidate_session: true
 
     # SECURITY (rule 5): after login Symfony migrates the session (new session id) to prevent session fixation.
@@ -80,6 +96,7 @@ security:
 
     # Note: Only the *first* matching rule is applied
     access_control:
+        # Public pages: login, register, logout, password reset. Everything not listed below (home, catalogue) is public too.
         - { path: ^/(login|register)$, roles: PUBLIC_ACCESS }
         # The logout form must work while 2FA is still pending (the "Cancel" button on the code page).
         - { path: ^/logout$, roles: PUBLIC_ACCESS }
@@ -93,9 +110,11 @@ security:
         - { path: ^/buyer, roles: ROLE_BUYER }
         # Buying is reserved to buyers (role matrix, phase R5): sellers and admins can't use the cart or checkout.
         - { path: ^/(cart|checkout|wishlist), roles: ROLE_BUYER }
+        # Order pages and account pages: any fully logged-in user (2FA finished). Voters then check each order.
         - { path: ^/orders, roles: IS_AUTHENTICATED_FULLY }
         - { path: ^/(account|dashboard), roles: IS_AUTHENTICATED_FULLY }
 
+# Settings used only when the automated tests run.
 when@test:
     security:
         password_hashers:

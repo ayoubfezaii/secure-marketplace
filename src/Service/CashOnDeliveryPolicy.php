@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Service/CashOnDeliveryPolicy.php
+ * WHAT: service with the rules that decide if an order may be paid in cash at delivery.
+ * ROLE IN THE PROJECT: business-logic protection (abuse of a feature), checked on the server.
+ * USED BY: CheckoutController (early check at the payment step) and CheckoutService (real check inside the
+ *   transaction). Buyer flow.
+ */
+
 namespace App\Service;
 
 use App\Entity\AuditLog;
@@ -28,6 +36,10 @@ final class CashOnDeliveryPolicy
     /** Cash orders a buyer may have "pending" (not collected, not cancelled) at the same time. */
     public const MAX_PENDING_ORDERS = 2;
 
+    /**
+     * @param OrderRepository $orders to count the buyer's pending cash orders
+     * @param AuditLogger     $audit  writes blocked attempts into the audit log
+     */
     public function __construct(
         private readonly OrderRepository $orders,
         private readonly AuditLogger $audit,
@@ -35,6 +47,9 @@ final class CashOnDeliveryPolicy
     }
 
     /**
+     * Checks the three rules. Returns nothing when the order is allowed, throws an exception otherwise.
+     *
+     * @param User      $buyer     the logged-in buyer
      * @param string    $total     order total computed by the server from database prices
      * @param list<int> $sellerIds ids of the sellers of the products in the order
      *
@@ -51,12 +66,17 @@ final class CashOnDeliveryPolicy
         if (bccomp($total, self::MAX_ORDER_TOTAL, Money::SCALE) > 0) {
             throw new CashOnDeliveryException(CashOnDeliveryException::REASON_MAX_TOTAL, sprintf('Cash on delivery is limited to orders up to %s. Please pay by card or reduce your cart.', Money::format(self::MAX_ORDER_TOTAL)));
         }
+        // Rule 3: not too many unpaid cash orders at the same time (counted in the database).
         if ($this->orders->countPendingCashOrders($buyer) >= self::MAX_PENDING_ORDERS) {
             throw new CashOnDeliveryException(CashOnDeliveryException::REASON_MAX_PENDING, sprintf('You already have %d cash-on-delivery orders waiting to be paid. Please pay by card, or wait until one of them is delivered.', self::MAX_PENDING_ORDERS));
         }
     }
 
     /**
+     *
+     * @param User                    $buyer the buyer who was blocked
+     * @param CashOnDeliveryException $e     the refusal (contains the reason code)
+     * @param string|null             $total order total, when known
      * Rule 14: every blocked attempt is written to the audit log (and shown in the admin security panel).
      */
     public function logBlocked(User $buyer, CashOnDeliveryException $e, ?string $total = null): void

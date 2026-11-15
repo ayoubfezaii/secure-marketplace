@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Twig/StoreExtension.php
+ * WHAT: Twig extension with the functions used by the shop header and product cards.
+ * ROLE IN THE PROJECT: categories menu, cart counter, wishlist counter, "is this product in my wishlist?".
+ * USED BY: templates/layouts/_store_header.html.twig and the product card macros (everyone; counters for buyers).
+ */
+
 namespace App\Twig;
 
 use App\Entity\Category;
@@ -20,12 +27,19 @@ use Twig\TwigFunction;
  */
 final class StoreExtension extends AbstractExtension
 {
+    // Results kept in memory during the request so the same query is not run twice.
     /** @var list<Category>|null */
     private ?array $categories = null;
     /** @var array<int, true>|null */
     private ?array $wishlistIds = null;
     private ?int $cartCount = null;
 
+    /**
+     * @param Security               $security           gives the logged-in user and role checks
+     * @param CategoryRepository     $categoryRepository categories of the menu
+     * @param CartItemRepository     $cartItems          cart counter
+     * @param WishlistItemRepository $wishlist           wishlist counter and hearts
+     */
     public function __construct(
         private readonly Security $security,
         private readonly CategoryRepository $categoryRepository,
@@ -34,6 +48,10 @@ final class StoreExtension extends AbstractExtension
     ) {
     }
 
+    /**
+     * Declares the functions available in Twig: store_categories(), cart_count(), wishlist_count(),
+     * in_wishlist(product) and can_shop().
+     */
     public function getFunctions(): array
     {
         return [
@@ -45,6 +63,7 @@ final class StoreExtension extends AbstractExtension
         ];
     }
 
+    // All categories, loaded once per request.
     /** @return list<Category> */
     public function categories(): array
     {
@@ -57,6 +76,7 @@ final class StoreExtension extends AbstractExtension
         return $this->buyer() instanceof User;
     }
 
+    /** Number of units in the cart of the logged-in buyer (0 for everyone else). */
     public function cartCount(): int
     {
         $buyer = $this->buyer();
@@ -64,16 +84,19 @@ final class StoreExtension extends AbstractExtension
         return null === $buyer ? 0 : ($this->cartCount ??= $this->cartItems->countUnitsForUser($buyer));
     }
 
+    /** Number of products in the wishlist of the logged-in buyer (0 for everyone else). */
     public function wishlistCount(): int
     {
         return count($this->wishlistIds());
     }
 
+    /** True when $product is in the wishlist of the logged-in buyer (to draw a filled heart). */
     public function inWishlist(Product $product): bool
     {
         return isset($this->wishlistIds()[(int) $product->getId()]);
     }
 
+    // Product ids of the buyer's wishlist, loaded once per request.
     /** @return array<int, true> */
     private function wishlistIds(): array
     {
@@ -82,6 +105,7 @@ final class StoreExtension extends AbstractExtension
         return null === $buyer ? [] : ($this->wishlistIds ??= $this->wishlist->productIdsForUser($buyer));
     }
 
+    /** The logged-in user if they are a buyer, null otherwise (visitor, seller, admin). */
     private function buyer(): ?User
     {
         $user = $this->security->getUser();

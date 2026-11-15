@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Entity/Category.php
+ * WHAT: the Category entity = one product category (one row of the `category` table).
+ * ROLE IN THE PROJECT: groups products for the catalogue filters and the home page tiles.
+ * USED BY: Admin\CategoryController (admin creates / edits / deletes), ProductFormType (seller picks one),
+ *   the catalogue and the home page (everyone).
+ */
+
 namespace App\Entity;
 
 use App\Repository\CategoryRepository;
@@ -30,11 +38,13 @@ class Category
         'box-seam', 'handbag', 'backpack', 'eyeglasses', 'shop',
     ];
 
+    // Internal auto-increment primary key.
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
 
+    // Name shown to users.
     #[ORM\Column(length: 60)]
     #[Assert\NotBlank]
     #[Assert\Length(min: 2, max: 60)]
@@ -53,13 +63,17 @@ class Category
     #[Assert\Choice(choices: self::ICONS)]
     private string $icon = 'tag';
 
+    // Display order in menus and tiles (small numbers first).
     #[ORM\Column(type: Types::SMALLINT, options: ['default' => 0])]
     #[Assert\Range(min: 0, max: 999)]
     private int $position = 0;
 
+    // Optional short sentence shown under the category name.
     #[ORM\Column(length: 160, nullable: true)]
     #[Assert\Length(max: 160)]
     private ?string $tagline = null;
+
+    // ----- Getters and setters. -----
 
     public function getId(): ?int
     {
@@ -83,6 +97,7 @@ class Category
         return $this->slug;
     }
 
+    /** The slug is always stored in lower case. */
     public function setSlug(?string $slug): static
     {
         $this->slug = mb_strtolower(trim((string) $slug));
@@ -127,6 +142,7 @@ class Category
         return $this;
     }
 
+    /** Lets forms and templates print a category directly as its name. */
     public function __toString(): string
     {
         return $this->name;

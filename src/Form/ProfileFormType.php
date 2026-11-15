@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Form/ProfileFormType.php
+ * WHAT: the "my profile" form (display name, phone).
+ * ROLE IN THE PROJECT: example of the defence against MASS ASSIGNMENT with a DTO.
+ * USED BY: ProfileController::profile (any logged-in user).
+ */
+
 namespace App\Form;
 
 use App\Dto\ProfileDto;
@@ -16,6 +23,12 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  */
 class ProfileFormType extends AbstractType
 {
+    /**
+     * Declares the two fields of the form.
+     *
+     * @param FormBuilderInterface<ProfileDto|null> $builder object used to add fields
+     * @param array<string, mixed> $options options of the form (not used here)
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
@@ -32,6 +45,7 @@ class ProfileFormType extends AbstractType
             ]);
     }
 
+    /** Settings of the form: the DTO it fills (ProfileDto) and the name of its CSRF token. */
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([

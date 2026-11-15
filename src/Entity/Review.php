@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Entity/Review.php
+ * WHAT: the Review entity = one rating (1 to 5 stars) and comment left on a product.
+ * ROLE IN THE PROJECT: user-generated text shown publicly, so it is the main example for stored XSS defence.
+ * USED BY: ReviewController (a buyer who bought the product posts it), Buyer\ReviewController (edit / delete own
+ *   reviews), Seller\ReviewController (seller replies), admin moderation (admin deletes), product page (everyone).
+ */
+
 namespace App\Entity;
 
 use App\Repository\ReviewRepository;
@@ -18,14 +26,17 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\UniqueConstraint(name: 'uniq_review_product_author', columns: ['product_id', 'author_id'])]
 class Review
 {
+    // Internal auto-increment primary key.
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
 
+    // SECURITY: IDOR - random UUID used in URLs and forms instead of the id.
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $uuid;
 
+    // The product that is reviewed. CASCADE: reviews are deleted with the product.
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Product $product;
@@ -35,16 +46,19 @@ class Review
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private User $author;
 
+    // SECURITY: validation - the rating must be a whole number from 1 to 5.
     #[ORM\Column(type: Types::SMALLINT)]
     #[Assert\NotNull]
     #[Assert\Range(min: 1, max: 5)]
     private int $rating = 5;
 
+    // The comment: plain text, 3 to 1000 characters.
     #[ORM\Column(type: Types::TEXT)]
     #[Assert\NotBlank]
     #[Assert\Length(min: 3, max: 1000)]
     private string $comment = '';
 
+    // Date of creation, and date of the last edit (null if never edited).
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
@@ -55,6 +69,10 @@ class Review
     #[ORM\OneToOne(mappedBy: 'review', cascade: ['remove'])]
     private ?ReviewReply $reply = null;
 
+    /**
+     * @param Product $product the reviewed product
+     * @param User    $author  the logged-in buyer
+     */
     public function __construct(Product $product, User $author)
     {
         $this->uuid = Uuid::v4();
@@ -62,6 +80,8 @@ class Review
         $this->author = $author;
         $this->createdAt = new \DateTimeImmutable();
     }
+
+    // ----- Getters and setters. -----
 
     public function getId(): ?int
     {
@@ -117,6 +137,7 @@ class Review
         return $this->updatedAt;
     }
 
+    /** Records that the author changed the review ("edited" label). */
     public function markEdited(): void
     {
         $this->updatedAt = new \DateTimeImmutable();

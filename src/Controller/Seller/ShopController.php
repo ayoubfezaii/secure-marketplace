@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Controller/Seller/ShopController.php
+ * WHAT: controller of "My shop" (name, address, description, logo) and "Payouts" (IBAN + payout history).
+ * ROLE IN THE PROJECT: shows the protection of SENSITIVE DATA: the IBAN is encrypted with libsodium before saving.
+ * USED BY: sellers only (ROLE_SELLER).
+ */
+
 namespace App\Controller\Seller;
 
 use App\Service\Money;
@@ -29,21 +36,35 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[IsGranted('ROLE_SELLER')]
 class ShopController extends AbstractController
 {
+    /**
+     * @param EntityManagerInterface $em    Doctrine, to save
+     * @param AuditLogger            $audit writes into the audit log
+     */
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly AuditLogger $audit,
     ) {
     }
 
+    /**
+     * "My shop" page: edit the public shop profile and its logo. Seller only, owner of the shop.
+     *
+     * @param ImageStorage $images validates and stores the uploaded logo
+     *
+     * @return Response the rendered template seller/shop.html.twig
+     */
     #[Route('/seller/shop', name: 'seller_shop', methods: ['GET', 'POST'])]
     public function shop(Request $request, ImageStorage $images): Response
     {
         $seller = $this->seller();
+        // The shop of the logged-in seller (no shop id in the URL, so nothing to tamper with).
         $shop = $seller->getShop() ?? throw $this->createNotFoundException('No shop for this account.');
         // SECURITY (rule 4): ShopVoter, only the owner.
         $this->denyAccessUnlessGranted(ShopVoter::EDIT, $shop);
 
+        // Remember the current logo to delete its file if it is replaced.
         $oldLogo = $shop->getLogoFilename();
+        // Symfony form: fills the shop, checks the CSRF token and validates the constraints.
         $form = $this->createForm(ShopFormType::class, $shop);
         $form->handleRequest($request);
 
@@ -51,6 +72,7 @@ class ShopController extends AbstractController
             /** @var UploadedFile|null $file */
             $file = $form->get('logoFile')->getData();
             $logoOk = true;
+            // A new file replaces the logo; the "remove" checkbox deletes it.
             try {
                 if (null !== $file) {
                     // SECURITY (rule 7): same validation pipeline as product images.
@@ -58,6 +80,7 @@ class ShopController extends AbstractController
                 } elseif (true === $form->get('removeLogo')->getData()) {
                     $shop->setLogoFilename(null);
                 }
+            // SECURITY: logging - a refused upload is written in the audit log.
             } catch (ImageRejectedException $e) {
                 $this->audit->log(AuditLog::UPLOAD_REJECTED, ['source' => 'shop_logo', 'client_name' => mb_substr($file->getClientOriginalName(), 0, 200), 'reason' => $e->getMessage()]);
                 $form->get('logoFile')->addError(new FormError($e->getMessage()));
@@ -65,6 +88,7 @@ class ShopController extends AbstractController
             }
 
             if ($logoOk) {
+                // Save, then delete the old logo file from the disk.
                 $this->em->flush();
                 if ($oldLogo !== $shop->getLogoFilename()) {
                     $images->delete($oldLogo);
@@ -83,15 +107,25 @@ class ShopController extends AbstractController
         return $this->render('seller/shop.html.twig', ['form' => $form, 'shop' => $shop], new Response(null, $form->isSubmitted() ? 422 : 200));
     }
 
+    /**
+     * "Payouts" page: save or remove the IBAN, and show the (simulated) payout history. Seller only.
+     *
+     * @param FieldEncryptor  $encryptor libsodium encryption service
+     * @param SellerAnalytics $analytics computes the payout lines
+     *
+     * @return Response the rendered template seller/payouts.html.twig
+     */
     #[Route('/seller/payouts', name: 'seller_payouts', methods: ['GET', 'POST'])]
     public function payouts(Request $request, FieldEncryptor $encryptor, SellerAnalytics $analytics): Response
     {
         $seller = $this->seller();
+        // SECURITY: mass assignment - the form fills a small DTO (IBAN + "remove" checkbox), not the User entity.
         $dto = new IbanDto();
         $form = $this->createForm(IbanFormType::class, $dto);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
+            // IBAN without spaces and in upper case, or null when the field is empty.
             $iban = $dto->normalizedIban();
             if ($dto->removeIban) {
                 $seller->removeIban();
@@ -111,6 +145,7 @@ class ShopController extends AbstractController
             return $this->redirectToRoute('seller_payouts');
         }
 
+        // Payout history: add up what is still scheduled (balance) and what was already paid.
         $payouts = $analytics->payouts($seller);
         $balance = Money::ZERO;
         $paid = Money::ZERO;
@@ -124,6 +159,7 @@ class ShopController extends AbstractController
 
         $response = $this->render('seller/payouts.html.twig', [
             'form' => $form,
+            // SECURITY: sensitive data - only the masked IBAN ("•••• 1234") is sent to the page.
             'maskedIban' => $seller->getMaskedIban(),
             'payouts' => $payouts,
             'balance' => $balance,
@@ -136,6 +172,7 @@ class ShopController extends AbstractController
         return $response;
     }
 
+    /** Returns the logged-in user as a User object (or stops with "access denied"). */
     private function seller(): User
     {
         $user = $this->getUser();

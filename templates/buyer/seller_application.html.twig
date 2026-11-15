@@ -1,6 +1,10 @@
+{# FILE: templates/buyer/seller_application.html.twig #}
+{# WHAT: the "Become a seller" page: status of the last application and the application form. #}
+{# USED BY: Buyer\SellerApplicationController::index, route /buyer/become-a-seller (buyers only). #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
+{# Variables read by the dashboard layout: title, subtitle and breadcrumbs. #}
 {% set page_title = 'Become a seller' %}
 {% set page_subtitle = 'Open your own shop on Maison Secure.' %}
 {% set crumbs = [['Dashboard', path('buyer_dashboard')], ['Become a seller', null]] %}
@@ -8,6 +12,7 @@
 {% block content %}
     <div class="row g-4">
         <div class="col-xl-7">
+            {# Part 1: the last application of this buyer, if there is one. #}
             {% if latest %}
                 <section class="panel mb-4">
                     <div class="panel-head"><h2>Your application</h2>{{ ui.status_badge(latest.status) }}</div>
@@ -17,6 +22,7 @@
                             <dt>Sent on</dt><dd>{{ latest.createdAt|date('d M Y') }}</dd>
                             {% if latest.reviewedAt %}<dt>Reviewed on</dt><dd>{{ latest.reviewedAt|date('d M Y') }}</dd>{% endif %}
                         </dl>
+                        {# Message depending on the status: pending, or rejected with the reason written by the admin. #}
                         {% if latest.status == 'pending' %}
                             <div class="alert alert-light border mb-0 d-flex gap-2"><i class="bi bi-hourglass-split" aria-hidden="true"></i><span>Our team is reviewing your application. You will become a seller as soon as it is approved; log in again to see your seller dashboard.</span></div>
                         {% elseif latest.status == 'rejected' %}
@@ -31,6 +37,7 @@
                 </section>
             {% endif %}
 
+            {# Part 2: the form. Permission check: "form" exists only when the buyer may apply (no application waiting). #}
             {% if form %}
                 <section class="panel">
                     <div class="panel-head"><h2>{{ latest ? 'New application' : 'Apply to open a shop' }}</h2></div>
@@ -38,6 +45,7 @@
                         {# SECURITY (rules 3, 9): CSRF token; only shop name + description; applicant/status set by the server. #}
                         {{ form_start(form, {attr: {novalidate: 'novalidate'}}) }}
                             {{ form_errors(form) }}
+                            {# The only fields: shop name, description and "I accept the terms". The status cannot be sent. #}
                             {{ form_row(form.shopName) }}
                             {{ form_row(form.description) }}
                             {{ form_row(form.agreeSellerTerms) }}

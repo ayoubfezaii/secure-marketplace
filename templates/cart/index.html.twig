@@ -1,3 +1,6 @@
+{# FILE: templates/cart/index.html.twig #}
+{# WHAT: the cart page: one row per product (quantity, remove) and the order summary. #}
+{# USED BY: CartController::index, route /cart (buyers only). #}
 {% extends 'base.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
@@ -6,6 +9,7 @@
 {% block body %}
     {{ ui.page_header('Your cart', lines is empty ? null : (lines|length) ~ ' item' ~ (lines|length > 1 ? 's') ~ ' ready for checkout', [['Home', path('app_home')], ['Cart', null]]) }}
 
+    {# Empty cart: message and link to the shop. Otherwise: the lines and the summary. #}
     {% if lines is empty %}
         {{ ui.empty_state('Your cart is empty', 'Discover pieces made to last from our independent shops.', 'Start shopping', path('product_index'), 'bag') }}
     {% else %}
@@ -13,6 +17,7 @@
             <div class="col-lg-8">
                 <div class="panel">
                     <ul class="list-unstyled mb-0">
+                        {# Loop: one row per cart line. #}
                         {% for line in lines %}
                             {% set p = line.product %}
                             <li class="d-flex gap-3 p-3 {{ not loop.last ? 'border-bottom' }}">
@@ -34,6 +39,7 @@
                                     <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
                                         {# SECURITY (rules 3, 15): POST + per-product CSRF token; quantity re-validated 1..99 server side. #}
                                         <form method="post" action="{{ path('cart_update', {uuid: p.uuid}) }}" {{ stimulus_controller('quantity', {autosubmit: true}) }}>
+                                            {# Hidden CSRF token of the "change quantity" form (one token per product). #}
                                             <input type="hidden" name="_token" value="{{ csrf_token('cart-update-' ~ p.uuid) }}">
                                             <div class="qty-stepper sm">
                                                 <button type="button" {{ stimulus_action('quantity', 'dec') }} aria-label="Decrease quantity of {{ p.name }}"><i class="bi bi-dash" aria-hidden="true"></i></button>
@@ -43,6 +49,7 @@
                                             </div>
                                             <noscript><button class="btn btn-sm btn-outline-dark ms-1">Update</button></noscript>
                                         </form>
+                                        {# "Remove" is a POST form with its own CSRF token, never a simple link. #}
                                         <form method="post" action="{{ path('cart_remove', {uuid: p.uuid}) }}">
                                             <input type="hidden" name="_token" value="{{ csrf_token('cart-remove-' ~ p.uuid) }}">
                                             <button class="btn btn-sm btn-link text-muted"><i class="bi bi-x-lg" aria-hidden="true"></i> Remove</button>
@@ -60,6 +67,7 @@
                     <div class="panel-head"><h2>Order summary</h2></div>
                     <div class="panel-body">
                         <dl class="d-grid gap-2 mb-3">
+                            {# Totals computed by the server from the current database prices. #}
                             <div class="d-flex justify-content-between"><dt class="fw-normal text-muted">Subtotal</dt><dd class="mb-0">{{ total|price }}</dd></div>
                             <div class="d-flex justify-content-between"><dt class="fw-normal text-muted">Shipping</dt><dd class="mb-0 text-success">Free</dd></div>
                             <div class="d-flex justify-content-between border-top pt-2 fs-5"><dt>Total</dt><dd class="mb-0 fw-bold">{{ total|price }}</dd></div>

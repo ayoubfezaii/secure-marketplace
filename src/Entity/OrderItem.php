@@ -1,5 +1,14 @@
 <?php
 
+/**
+ * FILE: src/Entity/OrderItem.php
+ * WHAT: the OrderItem entity = one line of an order (product, quantity, price paid).
+ * ROLE IN THE PROJECT: keeps a copy of what was bought and has its own status, because each seller ships
+ *   their own lines of an order.
+ * USED BY: CheckoutService creates it (buyer); Seller\OrderController moves its status forward (seller);
+ *   the order pages of the buyer, the seller and the admin display it.
+ */
+
 namespace App\Entity;
 
 use App\Service\Money;
@@ -25,14 +34,17 @@ class OrderItem
         Order::STATUS_SHIPPED => Order::STATUS_DELIVERED,
     ];
 
+    // Internal auto-increment primary key.
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
 
+    // Random public identifier, used in URLs and forms instead of the id.
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $uuid;
 
+    // The order this line belongs to.
     #[ORM\ManyToOne(inversedBy: 'items')]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Order $order;
@@ -42,26 +54,38 @@ class OrderItem
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?Product $product;
 
+    // The seller of the product at the time of purchase (the person who must ship this line).
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false)]
     private User $seller;
 
+    // Product name copied at checkout (snapshot).
     #[ORM\Column(length: 120)]
     #[Assert\Length(max: 120)]
     private string $productName;
 
+    // SECURITY: price tampering - unit price copied from the database at checkout. It never changes afterwards.
     #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 3)]
     #[Assert\Positive]
     private string $unitPrice;
 
+    // Quantity bought (1..99).
     #[ORM\Column]
     #[Assert\Range(min: 1, max: 99)]
     private int $quantity;
 
+    // Status of this line (same list as the order statuses).
     #[ORM\Column(length: 16)]
     #[Assert\Choice(choices: Order::STATUSES)]
     private string $status = Order::STATUS_PAID;
 
+    /**
+     * Creates an order line from a product. Called only by CheckoutService inside the transaction.
+     *
+     * @param Order   $order    the order being created
+     * @param Product $product  the product row, locked for the checkout
+     * @param int     $quantity quantity bought
+     */
     public function __construct(Order $order, Product $product, int $quantity)
     {
         $this->uuid = Uuid::v4();
@@ -116,6 +140,7 @@ class OrderItem
         return $this->quantity;
     }
 
+    /** Quantity x unit price, computed with exact decimal math (bcmul), not floats. */
     public function getLineTotal(): string
     {
         return bcmul($this->unitPrice, (string) $this->quantity, Money::SCALE);
@@ -135,6 +160,7 @@ class OrderItem
         $this->status = $status;
     }
 
+    /** The next status the seller is allowed to set, or null when the line is finished. */
     public function getNextStatus(): ?string
     {
         return self::TRANSITIONS[$this->status] ?? null;
@@ -146,10 +172,12 @@ class OrderItem
      */
     public function advanceStatus(string $requested): void
     {
+        // Accept only the exact next step.
         if ($this->getNextStatus() !== $requested) {
             throw new \DomainException('Invalid status transition.');
         }
         $this->status = $requested;
+        // The parent order recomputes its own status from all its lines.
         $this->order->refreshStatus();
     }
 }

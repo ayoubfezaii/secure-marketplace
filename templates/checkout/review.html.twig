@@ -1,3 +1,6 @@
+{# FILE: templates/checkout/review.html.twig #}
+{# WHAT: checkout step 3: last look at the address, the payment and the items, then the "Place order" button. #}
+{# USED BY: CheckoutController::review, route /checkout/review (buyers only). The button posts to CheckoutController::place. #}
 {% extends 'checkout/_layout.html.twig' %}
 {% set step = 3 %}
 
@@ -9,12 +12,14 @@
                 <div class="col-md-6">
                     <div class="surface p-3 h-100">
                         <div class="d-flex justify-content-between"><h3 class="h6 mb-2">Ship to</h3><a class="small" href="{{ path('checkout') }}">Change</a></div>
+                        {# Loop: the lines of the chosen address. #}
                         <address class="small text-muted mb-0">{% for l in address.lines %}{{ l }}<br>{% endfor %}</address>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="surface p-3 h-100">
                         <div class="d-flex justify-content-between"><h3 class="h6 mb-2">Pay with</h3><a class="small" href="{{ path('checkout_payment') }}">Change</a></div>
+                        {# Two displays: cash on delivery, or the masked card. #}
                         {% if cash %}
                             {# Cash on delivery: no card data exists at all. #}
                             <p class="small text-muted mb-0"><i class="bi bi-cash-coin" aria-hidden="true"></i> <strong class="text-body">Cash on delivery</strong><br>Pay {{ summary.total|price }} in cash when your order arrives.</p>
@@ -28,6 +33,7 @@
 
             <h3 class="h6">Items</h3>
             <ul class="list-unstyled small mb-4">
+                {# Loop: the products with their line totals (display only). #}
                 {% for line in lines %}
                     <li class="d-flex justify-content-between py-1 border-bottom"><span>{{ line.quantity }} × {{ line.product.name }}</span><span>{{ line.lineTotal|price }}</span></li>
                 {% endfor %}
@@ -39,6 +45,7 @@
                 database and takes the method from its own session.
             #}
             <form method="post" action="{{ path('checkout_place') }}">
+                {# Hidden fields: the CSRF token and the one-time payment token given at step 2. #}
                 <input type="hidden" name="_token" value="{{ csrf_token('checkout-place') }}">
                 <input type="hidden" name="payment_token" value="{{ payment.token }}">
                 <button class="btn btn-primary btn-lg w-100" type="submit"><i class="bi bi-lock-fill me-1" aria-hidden="true"></i> Place order · {{ summary.total|price }}</button>

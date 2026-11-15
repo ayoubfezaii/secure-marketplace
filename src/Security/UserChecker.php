@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Security/UserChecker.php
+ * WHAT: extra checks on the account done by Symfony during login.
+ * ROLE IN THE PROJECT: refuses blocked accounts and accounts locked after too many wrong passwords.
+ * USED BY: Symfony Security (declared as user_checker in security.yaml) at every login attempt, for all roles.
+ */
+
 namespace App\Security;
 
 use App\Entity\User;
@@ -12,11 +19,19 @@ use Symfony\Component\Security\Core\User\UserInterface;
  */
 final class UserChecker implements UserCheckerInterface
 {
+    // Messages shown on the login page.
     public const LOCKED_MESSAGE = 'Too many failed login attempts. Please try again later.';
     public const BLOCKED_MESSAGE = 'This account has been blocked. Please contact support.';
 
+    /**
+     * Called by Symfony after the account is found and BEFORE the password is compared.
+     * Throwing an exception here stops the login and shows the message.
+     *
+     * @param UserInterface $user the account that tries to log in
+     */
     public function checkPreAuth(UserInterface $user): void
     {
+        // Only our own User class is checked.
         if (!$user instanceof User) {
             return;
         }
@@ -39,6 +54,7 @@ final class UserChecker implements UserCheckerInterface
         }
     }
 
+    /** Called after the password is verified. Nothing more to check here. */
     public function checkPostAuth(UserInterface $user): void
     {
     }

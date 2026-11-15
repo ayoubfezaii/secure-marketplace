@@ -1,3 +1,6 @@
+{# FILE: templates/checkout/confirmation.html.twig #}
+{# WHAT: the "Thank you for your order" page shown after a successful checkout. #}
+{# USED BY: CheckoutController::confirmation, route /checkout/confirmation/{uuid} (the buyer of the order only). #}
 {% extends 'base.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
@@ -14,6 +17,7 @@
 
                 <div class="text-start surface p-3 my-4">
                     <div class="d-flex justify-content-between small mb-2"><span class="text-muted">Placed on</span><span>{{ order.createdAt|date('d M Y, H:i') }}</span></div>
+                    {# Payment line: only the last 4 digits of the card are stored and shown. #}
                     <div class="d-flex justify-content-between small mb-2"><span class="text-muted">Payment</span><span>{% if order.cashOnDelivery %}<i class="bi bi-cash-coin" aria-hidden="true"></i> Cash on delivery{% else %}Card •••• {{ order.cardLast4 }}{% endif %}</span></div>
                     <div class="d-flex justify-content-between small mb-2"><span class="text-muted">Ship to</span><span class="text-end">{{ order.shippingLines|join(', ') }}</span></div>
                     <div class="d-flex justify-content-between border-top pt-2 mt-2"><strong>{{ order.cashOnDelivery ? 'To pay in cash at delivery' : 'Total paid' }}</strong><strong>{{ order.total|price }}</strong></div>

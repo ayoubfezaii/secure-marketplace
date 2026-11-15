@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Service/ProductRatingUpdater.php
+ * WHAT: service that recalculates the average rating and review count stored on a product.
+ * ROLE IN THE PROJECT: keeps Product::ratingAverage / ratingCount in sync with the reviews.
+ * USED BY: ReviewController (create / delete) and Buyer\ReviewController (edit).
+ */
+
 namespace App\Service;
 
 use App\Entity\Product;
@@ -12,10 +19,17 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 final class ProductRatingUpdater
 {
+    /**
+     * @param EntityManagerInterface $em Doctrine, to run the query
+     */
     public function __construct(private readonly EntityManagerInterface $em)
     {
     }
 
+    /**
+     * Reads the average and the count from the reviews and writes them on the product.
+     * The caller must flush() afterwards to save.
+     */
     public function refresh(Product $product): void
     {
         $row = $this->em->createQueryBuilder()

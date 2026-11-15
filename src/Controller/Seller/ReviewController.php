@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Controller/Seller/ReviewController.php
+ * WHAT: controller of the seller's "Reviews" page: read the reviews of own products and answer them.
+ * ROLE IN THE PROJECT: seller side of the review feature; the reply is public text, so it is validated and escaped.
+ * USED BY: sellers only (ROLE_SELLER). URLs start with /seller/reviews.
+ */
+
 namespace App\Controller\Seller;
 
 use App\Entity\AuditLog;
@@ -28,6 +35,11 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 #[Route('/seller/reviews')]
 class ReviewController extends AbstractController
 {
+    /**
+     * List of the reviews left on the seller's products, with filters (stars, replied or not). Seller only.
+     *
+     * @return Response the rendered template seller/reviews.html.twig
+     */
     #[Route('', name: 'seller_reviews', methods: ['GET'])]
     public function index(Request $request, ReviewRepository $reviews): Response
     {
@@ -35,11 +47,13 @@ class ReviewController extends AbstractController
         \assert($seller instanceof User);
 
         // SECURITY (rule 15): filters are whitelisted.
+        // ?rating= must be a whole number from 1 to 5; ?replied= must be "yes" or "no". Anything else = no filter.
         $rating = filter_var($request->query->getString('rating'), \FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 5]]);
         $rating = false === $rating ? null : $rating;
         $replied = in_array($request->query->getString('replied'), ['yes', 'no'], true) ? $request->query->getString('replied') : null;
 
         // SECURITY (rule 4): only reviews of MY products.
+        // SECURITY: SQL injection - QueryBuilder with bound parameters (:me, :rating).
         $qb = $reviews->createQueryBuilder('r')
             ->innerJoin('r.product', 'p')->addSelect('p')
             ->innerJoin('r.author', 'a')->addSelect('a')
@@ -63,6 +77,13 @@ class ReviewController extends AbstractController
         ]);
     }
 
+    /**
+     * Saves the seller's reply to a review. POST only. Seller only, owner of the reviewed product, once per review.
+     *
+     * @param Review             $review    loaded by the UUID of the URL
+     * @param ValidatorInterface $validator Symfony Validator, checks the reply text (2 to 1000 characters)
+     * @param AuditLogger        $audit     writes into the audit log
+     */
     #[Route('/{uuid}/reply', name: 'seller_review_reply', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function reply(
         Request $request,
@@ -82,6 +103,7 @@ class ReviewController extends AbstractController
 
         // SECURITY (rule 9): author and review come from the session / URL; the body is the only input.
         $reply = (new ReviewReply($review, $seller))->setBody($request->request->getString('body'));
+        // Validate the constraints of ReviewReply (not blank, length).
         $errors = $validator->validate($reply);
         if (count($errors) > 0) {
             $this->addFlash('error', (string) $errors[0]->getMessage());
@@ -89,6 +111,7 @@ class ReviewController extends AbstractController
             return $this->redirectToRoute('seller_reviews');
         }
 
+        // Link the reply to the review and save.
         $review->setReply($reply);
         $em->persist($reply);
         try {

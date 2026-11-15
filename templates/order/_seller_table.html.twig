@@ -1,9 +1,13 @@
+{# FILE: templates/order/_seller_table.html.twig #}
+{# WHAT: a table of order lines for a seller (order, date, ship to, product, quantity, amount, status, action). #}
+{# USED BY: seller dashboard and seller orders list (sellers only). #}
 {# Seller view: only THIS seller's items of each order (Order::getItemsForSeller), never the buyer's email/payment. #}
 {% import '_ui/macros.html.twig' as ui %}
 <div class="table-responsive">
     <table class="table table-hover table-cards align-middle">
         <thead><tr><th scope="col">Order</th><th scope="col">Date</th><th scope="col">Ship to</th><th scope="col">Product</th><th scope="col" class="text-end">Qty</th><th scope="col" class="text-end">Amount</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
         <tbody>
+        {# Loop over the orders, then over the lines that belong to the logged-in seller (SECURITY: least privilege). #}
         {% for order in orders %}
             {% for item in order.itemsForSeller(app.user) %}
                 <tr>
@@ -14,6 +18,7 @@
                     <td data-label="Qty" class="text-end">{{ item.quantity }}</td>
                     <td data-label="Amount" class="text-end">{{ item.lineTotal|price }}</td>
                     <td data-label="Status">{{ ui.status_badge(item.status) }}</td>
+                    {# Button that moves the line to its next status (shipped, then delivered). #}
                     <td class="text-end text-nowrap">{% include '_partials/item_status_action.html.twig' with {item: item, back: back|default('orders')} %}</td>
                 </tr>
             {% endfor %}

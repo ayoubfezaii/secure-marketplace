@@ -1,3 +1,5 @@
+{# FILE: templates/_partials/stat_card.html.twig #}
+{# WHAT: one statistic card (label, number, icon) of a dashboard. USED BY: dashboard pages. #}
 {# Kept for backwards compatibility: delegates to the UI kit macro. #}
 {% import '_ui/macros.html.twig' as ui %}
 <div class="col">{{ ui.stat_card(label, value, icon|default('graph-up'), variant|default(''), null, hint|default(null)) }}</div>

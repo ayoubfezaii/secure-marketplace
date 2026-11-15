@@ -1,5 +1,14 @@
 <?php
 
+/**
+ * FILE: src/Service/AccountManager.php
+ * WHAT: service that changes the role of an account (buyer <-> seller) and everything that goes with it.
+ * ROLE IN THE PROJECT: a service holds business logic shared by several controllers. This one is the single
+ *   door for role changes, which protects against privilege escalation.
+ * USED BY: Admin\ApplicationController (approve / reject an application) and Admin\UserController (switch role).
+ *   Only admins reach it.
+ */
+
 namespace App\Service;
 
 use App\Entity\AuditLog;
@@ -23,6 +32,11 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 final class AccountManager
 {
+    /**
+     * @param EntityManagerInterface $em    Doctrine, to save and to run transactions
+     * @param ShopRepository         $shops to find a free shop address (slug)
+     * @param AuditLogger            $audit writes into the audit log
+     */
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly ShopRepository $shops,
@@ -30,18 +44,31 @@ final class AccountManager
     ) {
     }
 
+    /**
+     * Approves a seller application: the applicant becomes a seller and gets a shop. Admin only.
+     *
+     * @param SellerApplication $application the pending application
+     * @param User              $admin       the logged-in admin who decides
+     */
     public function approveApplication(SellerApplication $application, User $admin): void
     {
+        // One database transaction: either everything is saved (decision + role + shop) or nothing.
         $this->em->wrapInTransaction(function () use ($application, $admin): void {
             $application->approve($admin);
             $this->makeSeller($application->getApplicant(), $application->getShopName(), $application->getDescription());
             $this->em->flush();
         });
 
+        // SECURITY: logging - the approval and the role change are both written in the audit log.
         $this->audit->log(AuditLog::APPLICATION_APPROVED, ['application' => (string) $application->getUuid(), 'applicant' => $application->getApplicant()->getEmail()]);
         $this->audit->log(AuditLog::ROLE_CHANGED, ['target' => $application->getApplicant()->getEmail(), 'from' => [User::ROLE_BUYER], 'to' => [User::ROLE_SELLER], 'via' => 'application']);
     }
 
+    /**
+     * Rejects a seller application with a reason. Admin only. The role does not change.
+     *
+     * @param string $reason explanation shown to the applicant
+     */
     public function rejectApplication(SellerApplication $application, User $admin, string $reason): void
     {
         $application->reject($admin, $reason);
@@ -53,6 +80,8 @@ final class AccountManager
     /**
      * Admin switch buyer <-> seller.
      *
+     *
+     * @param User $user the account to change (never an admin)
      * @param string $target 'buyer' or 'seller' (anything else is refused)
      */
     public function switchRole(User $user, string $target): void
@@ -66,10 +95,13 @@ final class AccountManager
         if ($user->isAdmin()) {
             throw new \DomainException('Administrator accounts are managed from the console.');
         }
+        // Remember the old role for the audit log.
         $from = $user->getRoles();
 
+        // One transaction for the role change and its side effects.
         $this->em->wrapInTransaction(function () use ($user, $role): void {
             if (User::ROLE_SELLER === $role) {
+                // Buyer -> seller: give the role and create a shop named after the display name.
                 $this->makeSeller($user, $user->getDisplayName() ?? 'Shop '.substr($user->getUuid()->toBase58(), 0, 6), null);
             } else {
                 $user->setRoles([User::ROLE_BUYER]);
@@ -84,10 +116,18 @@ final class AccountManager
         $this->audit->log(AuditLog::ROLE_CHANGED, ['target' => $user->getEmail(), 'from' => $from, 'to' => $user->getRoles(), 'via' => 'admin']);
     }
 
+    /**
+     * Common code "this account becomes a seller": sets the role, creates the shop if needed, empties the cart.
+     *
+     * @param User        $user        the future seller
+     * @param string      $shopName    name of the new shop
+     * @param string|null $description description of the new shop
+     */
     private function makeSeller(User $user, string $shopName, ?string $description): void
     {
         $user->setRoles([User::ROLE_SELLER]);
         if (null === $user->getShop()) {
+            // Create the shop with a unique address (slug). The name is cut to the column size.
             $shop = new Shop($user, mb_substr($shopName, 0, 80), $this->shops->uniqueSlug($shopName));
             $shop->setDescription($description);
             $this->em->persist($shop);

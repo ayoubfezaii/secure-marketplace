@@ -1,5 +1,9 @@
+{# FILE: templates/_ui/logo.html.twig #}
+{# WHAT: the site logo (an inline SVG drawing) with a link to the home page. #}
+{# USED BY: the shop header and footer, the dashboard sidebar, the login layout and the error page. #}
 {# Maison Secure logo: a shield holding a shopping bag with a check mark. Original artwork, inline SVG (no external
    request; SVG presentation attributes are not inline styles, so the CSP style-src 'self' is respected). #}
+{# Options given by the including template: size (pixels), invert (light colours for a dark background), compact (no text), class. #}
 {% set size = size|default(36) %}
 <a href="{{ path('app_home') }}" class="brand {{ class|default('') }}" aria-label="Maison Secure, home">
     <svg width="{{ size }}" height="{{ size }}" viewBox="0 0 40 40" aria-hidden="true" focusable="false">

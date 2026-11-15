@@ -1,14 +1,20 @@
+{# FILE: templates/buyer/orders.html.twig #}
+{# WHAT: the "My orders" list with a status filter and pagination. #}
+{# USED BY: OrderController::buyerOrders, route /buyer/orders (buyers only). #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 {% import '_ui/table.html.twig' as t %}
 
+{# Variables read by the dashboard layout: title, subtitle and breadcrumbs. #}
 {% set page_title = 'My orders' %}
 {% set page_subtitle = 'Track, review or cancel your orders.' %}
 {% set crumbs = [['Dashboard', path('buyer_dashboard')], ['My orders', null]] %}
 
 {% block content %}
     <section class="panel">
+        {# Status filter: one chip (link) per status. #}
         <div class="toolbar">{{ t.filter_chips('status', status, statuses, 'buyer_orders') }}</div>
+        {# No order: empty message. Otherwise: the table and the page links. #}
         {% if pager.total == 0 %}
             <div class="panel-body">
                 {{ status ? ui.empty_state('No ' ~ statuses[status]|lower ~ ' orders', 'Try another filter.', 'Show all orders', path('buyer_orders'), 'funnel')

@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Service/DashboardStats.php
+ * WHAT: service that computes the numbers shown on the buyer and seller dashboards (and a few admin totals).
+ * ROLE IN THE PROJECT: keeps the statistics queries out of the controllers.
+ * USED BY: Buyer\DashboardController (buyer), Seller\DashboardController (seller).
+ */
+
 namespace App\Service;
 
 use App\Entity\AuditLog;
@@ -27,6 +34,12 @@ final class DashboardStats
     /** Statuses that count as real sales. */
     private const SOLD = [Order::STATUS_PAID, Order::STATUS_SHIPPED, Order::STATUS_DELIVERED];
 
+    /**
+     * @param EntityManagerInterface $em        Doctrine, to run the statistics queries
+     * @param UserRepository         $users     user counts
+     * @param AuditLogRepository     $auditLogs audit log counts
+     * @param ProductRepository      $products  to preload product images
+     */
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly UserRepository $users,
@@ -36,10 +49,15 @@ final class DashboardStats
     }
 
     /**
+     * Numbers of the buyer dashboard: orders, money spent, units in cart, reviews, wishlist size.
+     *
+     * @param User $buyer the logged-in buyer
+     *
      * @return array{orders: int, spent: string, cartUnits: int, reviews: int}
      */
     public function forBuyer(User $buyer): array
     {
+        // One query: number of non-cancelled orders and total really paid.
         $orders = $this->em->createQueryBuilder()
             // "Spent" only counts money really paid: an uncollected cash order is an order, not a spend.
             ->select('COUNT(o.id) AS cnt, COALESCE(SUM(CASE WHEN o.paymentStatus IN (:settled) THEN o.total ELSE 0 END), 0) AS spent')
@@ -66,6 +84,7 @@ final class DashboardStats
      */
     public function recommendedFor(User $buyer, int $limit = 4): array
     {
+        // What did the buyer already buy? (product ids and category ids)
         $bought = $this->em->createQueryBuilder()
             ->select('IDENTITY(i.product) AS pid, IDENTITY(p.category) AS cid')
             ->from(OrderItem::class, 'i')->innerJoin('i.order', 'o')->innerJoin('i.product', 'p')
@@ -74,6 +93,7 @@ final class DashboardStats
         $productIds = array_values(array_unique(array_map(static fn (array $r) => (int) $r['pid'], $bought)));
         $categoryIds = array_values(array_unique(array_map(static fn (array $r) => (int) $r['cid'], $bought)));
 
+        // Suggest active, in-stock products of the same categories that were not bought yet, best rated first.
         $qb = $this->em->createQueryBuilder()->select('p')->from(Product::class, 'p')
             ->where('p.isActive = true')->andWhere('p.stock > 0')
             ->orderBy('p.ratingAverage', 'DESC')->addOrderBy('p.createdAt', 'DESC')->setMaxResults($limit);
@@ -86,6 +106,7 @@ final class DashboardStats
         /** @var list<Product> $result */
         $result = $qb->getQuery()->getResult();
 
+        // Not enough suggestions: complete with the best-rated products of the whole shop.
         if (count($result) < $limit) {
             $more = $this->em->createQueryBuilder()->select('p')->from(Product::class, 'p')
                 ->where('p.isActive = true')->andWhere('p.stock > 0')
@@ -105,10 +126,15 @@ final class DashboardStats
     }
 
     /**
+     * Numbers of the seller dashboard: active products, units sold, revenue, items to ship, average rating.
+     *
+     * @param User $seller the logged-in seller
+     *
      * @return array{activeProducts: int, unitsSold: int, revenue: string, pendingShipments: int, avgRating: float|null, reviewCount: int}
      */
     public function forSeller(User $seller): array
     {
+        // Units sold and revenue of this seller (only paid or collected orders).
         $sales = $this->em->createQueryBuilder()
             ->select('COALESCE(SUM(i.quantity), 0) AS units, COALESCE(SUM(i.unitPrice * i.quantity), 0) AS revenue')
             ->from(OrderItem::class, 'i')->innerJoin('i.order', 'o')
@@ -118,6 +144,7 @@ final class DashboardStats
             ->andWhere('o.paymentStatus IN (:settled)')->setParameter('settled', PaymentStatus::settledValues())
             ->getQuery()->getSingleResult();
 
+        // Average rating and number of reviews over all the seller's products.
         $rating = $this->em->createQueryBuilder()
             ->select('AVG(r.rating) AS avg, COUNT(r.id) AS cnt')
             ->from(Review::class, 'r')->innerJoin('r.product', 'p')
@@ -141,6 +168,7 @@ final class DashboardStats
      */
     public function sellerSalesByDay(User $seller, int $days = 30): array
     {
+        // First day of the period (today included).
         $since = (new \DateTimeImmutable('today'))->modify(sprintf('-%d days', $days - 1));
 
         $rows = $this->em->createQueryBuilder()
@@ -151,6 +179,7 @@ final class DashboardStats
             ->andWhere('o.paymentStatus IN (:settled)')->setParameter('settled', PaymentStatus::settledValues())
             ->getQuery()->getArrayResult();
 
+        // One entry per day with 0, then add each sale to its day.
         $revenue = [];
         $units = [];
         for ($d = $since; $d <= new \DateTimeImmutable('today'); $d = $d->modify('+1 day')) {
@@ -173,6 +202,8 @@ final class DashboardStats
     }
 
     /**
+     * The newest reviews left on the products of $seller (seller dashboard).
+     *
      * @return list<Review>
      */
     public function latestReviewsForSeller(User $seller, int $limit = 5): array
@@ -186,6 +217,8 @@ final class DashboardStats
     }
 
     /**
+     * Global totals for an admin overview.
+     *
      * @return array<string, int|string>
      */
     public function forAdmin(): array
@@ -213,6 +246,9 @@ final class DashboardStats
     }
 
     /**
+     * Runs a DQL query that returns one number.
+     *
+     * @param string               $dql    the query text (always a constant written in this class)
      * @param array<string, mixed> $params
      */
     private function scalar(string $dql, array $params = []): int

@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Entity/WishlistItem.php
+ * WHAT: the WishlistItem entity = one product saved in a buyer's wishlist.
+ * ROLE IN THE PROJECT: "save for later" feature (the heart on product cards).
+ * USED BY: WishlistController (add / remove, buyer) and Buyer\WishlistController (wishlist page, buyer).
+ */
+
 namespace App\Entity;
 
 use App\Repository\WishlistItemRepository;
@@ -14,22 +21,30 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\UniqueConstraint(name: 'uniq_wishlist_user_product', columns: ['user_id', 'product_id'])]
 class WishlistItem
 {
+    // Internal auto-increment primary key. Never used in URLs.
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
 
+    // Owner of the wishlist line (the logged-in buyer).
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private User $user;
 
+    // The saved product. CASCADE: the line disappears if the product is deleted.
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Product $product;
 
+    // When the product was saved.
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
+    /**
+     * @param User    $user    the logged-in buyer
+     * @param Product $product the product to save
+     */
     public function __construct(User $user, Product $product)
     {
         $this->user = $user;

@@ -1,3 +1,6 @@
+{# FILE: templates/security/2fa_form.html.twig #}
+{# WHAT: second step of the login for users with 2FA: the form asking for the 6-digit code. #}
+{# USED BY: scheb/2fa-bundle, route /2fa (users whose password was accepted and who enabled 2FA). #}
 {% extends 'layouts/auth.html.twig' %}
 
 {% block title %}Two-factor authentication · Maison Secure{% endblock %}
@@ -8,11 +11,13 @@
     <h1 class="mb-2">Two-step verification</h1>
     <p class="text-muted mb-4">Open your authenticator app and enter the 6-digit code for Maison Secure.</p>
 
+    {# Error message given by the 2FA bundle (wrong code, too many tries). #}
     {% if authenticationError %}
         <div class="alert alert-danger d-flex gap-2" role="alert"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i><span>{{ authenticationError|trans(authenticationErrorData, 'SchebTwoFactorBundle') }}</span></div>
     {% endif %}
 
     {# SECURITY (rules 5, 6): codes are rate limited per account (5 / 5 min) and a code can't be reused. #}
+    {# Code form: it posts to the check route handled by scheb/2fa-bundle (not by one of our controllers). #}
     <form action="{{ checkPathUrl ? checkPathUrl : path(checkPathRoute) }}" method="post">
         <div class="mb-3">
             <label for="_auth_code" class="form-label">Authentication code</label>

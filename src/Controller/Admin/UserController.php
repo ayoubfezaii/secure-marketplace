@@ -1,5 +1,14 @@
 <?php
 
+/**
+ * FILE: src/Controller/Admin/UserController.php
+ * WHAT: controller of the admin "Users" pages: list, detail, lock / unlock, change role, force a password
+ *   reset, reset 2FA.
+ * ROLE IN THE PROJECT: the most powerful screens of the site, so they are the most protected: every action is
+ *   POST + CSRF token + UserManagementVoter + audit log.
+ * USED BY: admins only (ROLE_ADMIN). URLs start with /admin/users.
+ */
+
 namespace App\Controller\Admin;
 
 use App\Entity\AuditLog;
@@ -45,17 +54,28 @@ class UserController extends AbstractController
 {
     /** Sort whitelist (rule 1). */
     private const SORTS = ['email' => 'u.email', 'created' => 'u.createdAt', 'login' => 'u.lastLoginAt'];
+    // Values accepted for the ?role= filter of the list.
     private const ROLE_FILTERS = ['buyer' => User::ROLE_BUYER, 'seller' => User::ROLE_SELLER, 'admin' => User::ROLE_ADMIN];
 
+    /**
+     * @param EntityManagerInterface $em    Doctrine, to save
+     * @param AuditLogger            $audit writes into the audit log
+     */
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly AuditLogger $audit,
     ) {
     }
 
+    /**
+     * List of users with search, filters (role, locked, 2FA), sorting and pagination. Admin only.
+     *
+     * @return Response the rendered template admin/users/index.html.twig
+     */
     #[Route('', name: 'admin_users', methods: ['GET'])]
     public function index(Request $request, UserRepository $users): Response
     {
+        // Search text and sort (sort column taken from the SORTS whitelist).
         $list = ListQuery::fromRequest($request, self::SORTS, 'created');
         // SECURITY (rule 15): whitelisted filters.
         $role = $request->query->getString('role');
@@ -63,6 +83,7 @@ class UserController extends AbstractController
         $status = in_array($request->query->getString('status'), ['active', 'locked'], true) ? $request->query->getString('status') : null;
         $twofa = in_array($request->query->getString('twofa'), ['on', 'off'], true) ? $request->query->getString('twofa') : null;
 
+        // Base query from the repository, then the optional filters (all bound parameters).
         $qb = $users->createAdminQueryBuilder($list->q, null !== $role ? self::ROLE_FILTERS[$role] : null);
         if ('locked' === $status) {
             $qb->andWhere('(u.blocked = true OR u.lockedUntil > :now)')->setParameter('now', new \DateTimeImmutable());
@@ -87,6 +108,11 @@ class UserController extends AbstractController
         ]);
     }
 
+    /**
+     * Detail page of one account: orders, products, login history, seller application. Admin only.
+     *
+     * @param User $target the account shown, loaded by the UUID of the URL
+     */
     #[Route('/{uuid}', name: 'admin_user_show', methods: ['GET'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function show(
         // Named $target (not $user): a controller argument called $user is reserved for the current user.
@@ -100,6 +126,7 @@ class UserController extends AbstractController
 
         return $this->render('admin/users/show.html.twig', [
             'user' => $target,
+            // Tells the template whether to show the action buttons (false for myself and for other admins).
             'canManage' => $this->isGranted(UserManagementVoter::MANAGE, $target),
             'orders' => $target->isBuyer() ? $orders->findForBuyer($target, 10) : [],
             'products' => $target->isSeller() ? $products->findBySeller($target) : [],
@@ -108,9 +135,13 @@ class UserController extends AbstractController
         ]);
     }
 
+    /**
+     * Locks an account (login refused, sessions ended). POST only. Admin only, not on self, not on an admin.
+     */
     #[Route('/{uuid}/block', name: 'admin_user_block', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function block(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] User $target): Response
     {
+        // SECURITY: CSRF + access control - guard() checks the token and UserManagementVoter::MANAGE.
         $this->guard($request, $target, 'block');
         $target->block();
         $this->em->flush();
@@ -120,6 +151,9 @@ class UserController extends AbstractController
         return $this->back($request, $target);
     }
 
+    /**
+     * Unlocks an account (also clears a brute-force lockout). POST only. Admin only.
+     */
     #[Route('/{uuid}/unblock', name: 'admin_user_unblock', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function unblock(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] User $target): Response
     {
@@ -132,6 +166,11 @@ class UserController extends AbstractController
         return $this->back($request, $target);
     }
 
+    /**
+     * Switches an account between buyer and seller. POST only. Admin only, not on self, not on an admin.
+     *
+     * @param AccountManager $accounts service that changes the role safely
+     */
     #[Route('/{uuid}/role', name: 'admin_user_role', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function changeRole(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] User $target, AccountManager $accounts): Response
     {
@@ -154,6 +193,8 @@ class UserController extends AbstractController
     /**
      * Forces a password reset: the current password stops working immediately (all sessions end) and a single-use
      * reset link is e-mailed to the account owner. The admin never chooses or sees a password.
+     *
+     * POST only. Admin only, not on self, not on an admin.
      */
     #[Route('/{uuid}/force-reset', name: 'admin_user_force_reset', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function forceReset(
@@ -171,6 +212,7 @@ class UserController extends AbstractController
         $target->setPassword($hasher->hashPassword($target, bin2hex(random_bytes(32))));
         $this->em->flush();
 
+        // Try to email a reset link to the owner of the account.
         $sent = false;
         try {
             $token = $resetHelper->generateResetToken($target);
@@ -185,6 +227,7 @@ class UserController extends AbstractController
             // A recent request is still valid (throttle) or the mailer is down: the user can use "Forgot password".
         }
 
+        // SECURITY: logging - the forced reset is written in the audit log.
         $this->audit->log(AuditLog::USER_PASSWORD_RESET_FORCED, ['target' => $target->getEmail(), 'email_sent' => $sent]);
         $this->addFlash('success', $sent
             ? sprintf('The password of %s was invalidated and a reset link was e-mailed.', $target->getEmail())
@@ -193,6 +236,9 @@ class UserController extends AbstractController
         return $this->back($request, $target);
     }
 
+    /**
+     * Removes the 2FA of an account. POST only. Admin only, not on self, not on an admin.
+     */
     #[Route('/{uuid}/reset-2fa', name: 'admin_user_reset_2fa', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function reset2fa(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] User $target): Response
     {
@@ -206,6 +252,12 @@ class UserController extends AbstractController
         return $this->back($request, $target);
     }
 
+    /**
+     * Common protection of every action above: CSRF token, then the voter.
+     *
+     * @param User   $target the account the admin wants to change
+     * @param string $action name of the action (part of the CSRF token name)
+     */
     private function guard(Request $request, User $target, string $action): void
     {
         // SECURITY (rule 3): per-user, per-action CSRF token.
@@ -217,6 +269,7 @@ class UserController extends AbstractController
         $this->denyAccessUnlessGranted(UserManagementVoter::MANAGE, $target);
     }
 
+    /** Where to go after an action: the user list or the detail page of the account. */
     private function back(Request $request, User $target): Response
     {
         // SECURITY (rule 12): fixed internal destinations only.

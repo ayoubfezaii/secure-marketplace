@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Form/NewPasswordFormType.php
+ * WHAT: the "choose a new password" form of the password reset.
+ * ROLE IN THE PROJECT: applies the same password policy as registration.
+ * USED BY: ResetPasswordController::reset (visitor who followed a reset link).
+ */
+
 namespace App\Form;
 
 use App\Security\PasswordPolicy;
@@ -16,6 +23,12 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  */
 class NewPasswordFormType extends AbstractType
 {
+    /**
+     * Declares one field: the new password, typed twice (RepeatedType).
+     *
+     * @param FormBuilderInterface<mixed> $builder object used to add fields
+     * @param array<string, mixed> $options options of the form (not used here)
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder->add('plainPassword', RepeatedType::class, [
@@ -35,6 +48,7 @@ class NewPasswordFormType extends AbstractType
         ]);
     }
 
+    /** Settings of the form: the name of its CSRF token. */
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([

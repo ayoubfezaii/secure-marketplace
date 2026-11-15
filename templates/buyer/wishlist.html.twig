@@ -1,11 +1,16 @@
+{# FILE: templates/buyer/wishlist.html.twig #}
+{# WHAT: the wishlist page: saved products with "Move to cart" and "Remove" buttons. #}
+{# USED BY: Buyer\WishlistController::index, route /buyer/wishlist (buyers only). #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
+{# Variables read by the dashboard layout: title, subtitle and breadcrumbs. #}
 {% set page_title = 'Wishlist' %}
 {% set page_subtitle = items|length ~ ' saved piece' ~ (items|length != 1 ? 's') %}
 {% set crumbs = [['Dashboard', path('buyer_dashboard')], ['Wishlist', null]] %}
 
 {% block content %}
+    {# Empty wishlist: message. Otherwise: loop over the saved products. #}
     {% if items is empty %}
         {{ ui.empty_state('Your wishlist is empty', 'Tap the heart on any piece to save it here.', 'Discover products', path('product_index'), 'heart') }}
     {% else %}
@@ -17,9 +22,11 @@
                     <div class="d-flex gap-2">
                         {# SECURITY (rule 3): POST + per-product CSRF token; looked up by (me, product) only (rule 4). #}
                         <form method="post" action="{{ path('buyer_wishlist_move', {uuid: p.uuid}) }}" class="flex-grow-1">
+                            {# Hidden CSRF token of "Move to cart" (one token per product). #}
                             <input type="hidden" name="_token" value="{{ csrf_token('wishlist-move-' ~ p.uuid) }}">
                             <button class="btn btn-sm btn-primary w-100" type="submit" {{ not p.purchasable ? 'disabled' }}><i class="bi bi-bag-plus" aria-hidden="true"></i> {{ p.purchasable ? 'Move to cart' : 'Unavailable' }}</button>
                         </form>
+                        {# "Remove" form: same route as the heart button. POST + CSRF token + the page to come back to. #}
                         <form method="post" action="{{ path('wishlist_toggle', {uuid: p.uuid}) }}">
                             <input type="hidden" name="_token" value="{{ csrf_token('wishlist-' ~ p.uuid) }}">
                             <input type="hidden" name="_back" value="{{ path('buyer_wishlist') }}">

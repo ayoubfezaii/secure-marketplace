@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Enum/PaymentMethod.php
+ * WHAT: the list of accepted payment methods (card, cash on delivery).
+ * ROLE IN THE PROJECT: a PHP enum, so the code and the database can only contain these two values.
+ * USED BY: Order, PaymentDto / CheckoutFormType (buyer chooses at checkout), admin order filters.
+ */
+
 namespace App\Enum;
 
 /**
@@ -13,6 +20,7 @@ enum PaymentMethod: string
     case Card = 'card';
     case CashOnDelivery = 'cash_on_delivery';
 
+    /** Text shown to the user for this payment method. */
     public function label(): string
     {
         return match ($this) {
@@ -21,6 +29,7 @@ enum PaymentMethod: string
         };
     }
 
+    /** Name of the Bootstrap icon shown next to the payment method. */
     public function icon(): string
     {
         return match ($this) {

@@ -1,2 +1,4 @@
+{# FILE: templates/_partials/status_badge.html.twig #}
+{# WHAT: a coloured label for a status (paid, shipped...). USED BY: order lists and order pages. #}
 {# Kept for backwards compatibility: delegates to the UI kit macro (fixed status -> class map). #}
 {% import '_ui/macros.html.twig' as ui %}{{ ui.status_badge(status) }}

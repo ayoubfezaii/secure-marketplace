@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Enum/PaymentStatus.php
+ * WHAT: the list of payment states of an order (paid, pending, collected, refunded).
+ * ROLE IN THE PROJECT: separates "where is the parcel" (order status) from "where is the money" (this enum).
+ * USED BY: Order (state machine), revenue statistics of the seller and admin dashboards, order pages.
+ */
+
 namespace App\Enum;
 
 /**
@@ -19,6 +26,7 @@ enum PaymentStatus: string
     case Collected = 'collected';
     case Refunded = 'refunded';
 
+    /** Text shown to the user for this payment state. */
     public function label(): string
     {
         return match ($this) {

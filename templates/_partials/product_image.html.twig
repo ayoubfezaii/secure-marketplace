@@ -1,2 +1,4 @@
+{# FILE: templates/_partials/product_image.html.twig #}
+{# WHAT: the main picture of a product. USED BY: lists that show a small product image (cart, orders, dashboards). #}
 {# Main product image or a neutral placeholder. Images are served by MediaController (stored outside public/). #}
 {% import '_ui/macros.html.twig' as ui %}{{ ui.product_image(product.mainImageFilename, product.name, class|default('img-fluid')) }}

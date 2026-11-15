@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Dto/PaymentDto.php
+ * WHAT: DTO that carries the data of the payment form (method + card fields) and validates it.
+ * ROLE IN THE PROJECT: card data lives only in this object, in memory, during one request. It is never saved.
+ * USED BY: CheckoutFormType and CheckoutController::payment (buyer).
+ */
+
 namespace App\Dto;
 
 use App\Enum\PaymentMethod;
@@ -25,6 +32,7 @@ final class PaymentDto
     #[Assert\NotNull(message: 'Please choose a payment method.')]
     public ?PaymentMethod $paymentMethod = PaymentMethod::Card;
 
+    // Name written on the card: letters, spaces, dots, apostrophes and dashes (card payments only).
     #[Assert\NotBlank(groups: ['card'])]
     #[Assert\Length(min: 2, max: 100, groups: ['card'])]
     #[Assert\Regex(pattern: "/^[\\p{L}][\\p{L} .'-]*$/u", message: 'Please enter the name as written on the card.', groups: ['card'])]
@@ -36,13 +44,17 @@ final class PaymentDto
     #[Assert\Luhn(message: 'This card number is not valid.', groups: ['card'])]
     private ?string $cardNumber = null;
 
+    // Expiry date typed as MM/YY (month 01 to 12).
     #[Assert\NotBlank(groups: ['card'])]
     #[Assert\Regex(pattern: '#^(0[1-9]|1[0-2])/\d{2}$#', message: 'Use the MM/YY format.', groups: ['card'])]
     public ?string $expiry = null;
 
+    // SECURITY: sensitive data - the 3 or 4 digit security code. Private, never stored, never displayed again.
     #[Assert\NotBlank(groups: ['card'])]
     #[Assert\Regex(pattern: '/^\d{3,4}$/', message: 'The CVV has 3 or 4 digits.', groups: ['card'])]
     private ?string $cvv = null;
+
+    // ----- Getters and setters. #[\SensitiveParameter] hides the value from error traces. -----
 
     public function getCardNumber(): ?string
     {
@@ -66,23 +78,32 @@ final class PaymentDto
         $this->cvv = $cvv;
     }
 
+    /** The last 4 digits of the card number (the only part that is kept on the order). */
     public function getLast4(): string
     {
         return substr((string) $this->cardNumber, -4);
     }
 
+    /** True when the buyer chose cash on delivery. */
     public function isCashOnDelivery(): bool
     {
         return PaymentMethod::CashOnDelivery === $this->paymentMethod;
     }
 
+    /**
+     * Extra validation rule (card payments only): the card must not be expired, and not more than 20 years ahead.
+     *
+     * @param ExecutionContextInterface $context where the error message is added
+     */
     #[Assert\Callback(groups: ['card'])]
     public function validateExpiry(ExecutionContextInterface $context): void
     {
+        // The format is already checked by the Regex constraint: do nothing here if it is wrong.
         if (null === $this->expiry || 1 !== preg_match('#^(0[1-9]|1[0-2])/(\d{2})$#', $this->expiry, $m)) {
             return;
         }
 
+        // A card is valid until the last second of its expiry month.
         $expiresAt = \DateTimeImmutable::createFromFormat('!Y-m', '20'.$m[2].'-'.$m[1])->modify('last day of this month 23:59:59');
         $now = new \DateTimeImmutable();
 
@@ -122,6 +143,7 @@ final class PaymentDto
         return ['paymentMethod' => $this->paymentMethod?->value, 'cardHolder' => $this->cardHolder, 'cardNumber' => '**** '.$this->getLast4(), 'expiry' => $this->expiry, 'cvv' => '***'];
     }
 
+    // Serialising gives the same masked data as __debugInfo() (never the real number or CVV).
     /** @return array<string, mixed> */
     public function __serialize(): array
     {

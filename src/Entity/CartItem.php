@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Entity/CartItem.php
+ * WHAT: the CartItem entity = one product in a buyer's cart (one row of the `cart_item` table).
+ * ROLE IN THE PROJECT: the cart is stored in the database (not in the session), one line per (user, product).
+ * USED BY: CartController (buyer cart page) and CheckoutService (turns the cart into an order).
+ */
+
 namespace App\Entity;
 
 use App\Service\Money;
@@ -16,17 +23,21 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\UniqueConstraint(name: 'uniq_cart_user_product', columns: ['user_id', 'product_id'])]
 class CartItem
 {
+    // Highest quantity allowed for one product in the cart.
     public const MAX_QUANTITY = 99;
 
+    // Internal auto-increment primary key. Never used in URLs.
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
 
+    // Owner of the cart line (the logged-in buyer).
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private User $user;
 
+    // The product put in the cart. CASCADE: if the product is deleted, the cart line disappears.
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Product $product;
@@ -36,9 +47,17 @@ class CartItem
     #[Assert\Range(min: 1, max: self::MAX_QUANTITY)]
     private int $quantity;
 
+    // When the product was added to the cart.
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
+    /**
+     * Creates a cart line.
+     *
+     * @param User    $user     the logged-in buyer
+     * @param Product $product  the product to add
+     * @param int     $quantity wanted quantity (forced into 1..99 by setQuantity())
+     */
     public function __construct(User $user, Product $product, int $quantity)
     {
         $this->user = $user;
@@ -67,6 +86,7 @@ class CartItem
         return $this->quantity;
     }
 
+    /** Changes the quantity. The value is forced between 1 and MAX_QUANTITY. */
     public function setQuantity(int $quantity): void
     {
         // SECURITY: clamped in the entity too, whatever the caller does.

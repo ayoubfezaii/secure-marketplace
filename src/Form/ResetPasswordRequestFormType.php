@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Form/ResetPasswordRequestFormType.php
+ * WHAT: the "forgot my password" form (one field: email).
+ * ROLE IN THE PROJECT: first step of the password reset.
+ * USED BY: ResetPasswordController::request (visitor).
+ */
+
 namespace App\Form;
 
 use Symfony\Component\Form\AbstractType;
@@ -9,10 +16,18 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
+ * Not bound to an entity: the controller only reads the email.
+ *
  * @extends AbstractType<mixed>
  */
 class ResetPasswordRequestFormType extends AbstractType
 {
+    /**
+     * Declares one field: the email.
+     *
+     * @param FormBuilderInterface<mixed> $builder object used to add fields
+     * @param array<string, mixed> $options options of the form (not used here)
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder->add('email', EmailType::class, [
@@ -27,6 +42,7 @@ class ResetPasswordRequestFormType extends AbstractType
         ]);
     }
 
+    /** Settings of the form: the name of its CSRF token. */
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([

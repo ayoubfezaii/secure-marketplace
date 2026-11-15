@@ -1,19 +1,26 @@
+{# FILE: templates/buyer/addresses/index.html.twig #}
+{# WHAT: the address book: one card per saved address with edit / set default / delete. #}
+{# USED BY: Buyer\AddressController::index, route /buyer/addresses (buyers only). #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
+{# Variables read by the dashboard layout: title, subtitle and breadcrumbs. #}
 {% set page_title = 'Addresses' %}
 {% set page_subtitle = addresses|length ~ ' of ' ~ max ~ ' saved addresses' %}
 {% set crumbs = [['Dashboard', path('buyer_dashboard')], ['Addresses', null]] %}
 
 {% block page_actions %}
+    {# The "Add" button is hidden when the limit is reached. The server checks the limit too. #}
     {% if addresses|length < max %}<a class="btn btn-primary" href="{{ path('buyer_address_new') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> Add an address</a>{% endif %}
 {% endblock %}
 
 {% block content %}
+    {# No address: message. Otherwise: one card per address. #}
     {% if addresses is empty %}
         {{ ui.empty_state('No saved address', 'Save an address to check out faster.', 'Add an address', path('buyer_address_new'), 'geo-alt') }}
     {% else %}
         <div class="row g-3">
+            {# Loop over the addresses of the logged-in buyer. #}
             {% for a in addresses %}
                 <div class="col-md-6 col-xxl-4">
                     <article class="panel h-100 d-flex flex-column">
@@ -30,10 +37,12 @@
                             {% if not a.default %}
                                 {# SECURITY (rules 3, 4): POST + per-address CSRF token; AddressVoter on the server. #}
                                 <form method="post" action="{{ path('buyer_address_default', {uuid: a.uuid}) }}">
+                                    {# Hidden CSRF token (one token per address). #}
                                     <input type="hidden" name="_token" value="{{ csrf_token('address-default-' ~ a.uuid) }}">
                                     <button class="btn btn-sm btn-light" type="submit">Set as default</button>
                                 </form>
                             {% endif %}
+                            {# Delete button: a POST form with a CSRF token and the confirmation window (macro confirm_delete_form). #}
                             <span class="ms-auto">{{ ui.confirm_delete_form(path('buyer_address_delete', {uuid: a.uuid}), 'address-delete-' ~ a.uuid, 'Delete', 'This address will be removed from your account. Past orders keep their own copy.', 'btn btn-sm btn-link text-danger') }}</span>
                         </div>
                     </article>

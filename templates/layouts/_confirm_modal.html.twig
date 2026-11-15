@@ -1,3 +1,6 @@
+{# FILE: templates/layouts/_confirm_modal.html.twig #}
+{# WHAT: the "Are you sure?" window, hidden until a form with data-confirm is submitted. #}
+{# USED BY: base.html.twig (so every page, every role). Driven by assets/controllers/confirm_controller.js. #}
 {# Shared confirmation modal (see assets/controllers/confirm_controller.js). The texts are set with textContent. #}
 <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalTitle" aria-hidden="true" {{ stimulus_target('confirm', 'modal') }}>
     <div class="modal-dialog modal-dialog-centered">
@@ -8,6 +11,7 @@
                 <p class="text-muted mb-0" {{ stimulus_target('confirm', 'message') }}></p>
             </div>
             <div class="modal-footer border-0 justify-content-center pb-4">
+                {# "Cancel" closes the window; "Confirm" calls accept() in the controller, which really sends the form. #}
                 <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-danger" {{ stimulus_target('confirm', 'confirmButton') }} {{ stimulus_action('confirm', 'accept') }}>Confirm</button>
             </div>

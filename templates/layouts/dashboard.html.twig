@@ -1,3 +1,6 @@
+{# FILE: templates/layouts/dashboard.html.twig #}
+{# WHAT: layout of all dashboard pages (left menu, top bar with search / notifications / user menu, page title, content). #}
+{# USED BY: every page under /buyer, /seller, /admin and /account (logged-in users only). #}
 {% extends 'base.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
@@ -9,10 +12,13 @@
 {% block title %}{{ page_title|default('Dashboard') }} · Maison Secure{% endblock %}
 {% block body_class %}dashboard-page{% endblock %}
 
+{# Replaces the "shell" block of base.html.twig with the dashboard structure. #}
 {% block shell %}
+    {# "me" = the logged-in user. #}
     {% set me = app.user %}
     <div class="app-shell" {{ stimulus_controller('sidebar') }}>
         <aside class="app-sidebar" aria-label="Sidebar">
+            {# Left menu, built on the server for the role of the user. #}
             {% include 'layouts/_sidebar.html.twig' %}
         </aside>
 
@@ -25,6 +31,7 @@
                     <i class="bi bi-list fs-5" aria-hidden="true"></i>
                 </button>
 
+                {# Search box of the top bar: shown only when the role has a page to search in. #}
                 {% set search_route = dashboard_search_route() %}
                 {% if search_route %}
                     {# GET search; the term is length-capped, bound as a parameter and auto-escaped (rules 1, 2, 15). #}
@@ -38,6 +45,7 @@
                 <div class="ms-auto d-flex align-items-center gap-2">
                     <a class="btn btn-light btn-sm d-none d-sm-inline-flex align-items-center gap-1" href="{{ path('app_home') }}"><i class="bi bi-shop" aria-hidden="true"></i> Store</a>
 
+                    {# Notification bell: the list is computed on the server for the logged-in user only. #}
                     {% set notifications = dashboard_notifications() %}
                     <div class="dropdown">
                         <button class="btn btn-icon btn-light position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notifications ({{ notifications|length }})">
@@ -46,6 +54,7 @@
                         </button>
                         <div class="dropdown-menu dropdown-menu-end notif-menu">
                             <h2 class="h6 px-2 pt-1 pb-2 mb-1 border-bottom">Notifications</h2>
+                            {# Loop over the notifications. The "else" part is shown when the list is empty. #}
                             {% for n in notifications %}
                                 <a class="dropdown-item d-flex gap-2 align-items-start" href="{{ path(n.route, n.params) }}">
                                     <i class="bi bi-{{ n.icon }} {{ n.tone == 'danger' ? 'text-danger' : (n.tone == 'accent' ? 'text-accent') }}" aria-hidden="true"></i>
@@ -59,6 +68,7 @@
 
                     <div class="dropdown">
                         <button class="btn btn-light d-flex align-items-center gap-2 py-1 ps-1 pe-2" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="User menu">
+                            {# User menu: avatar and name, then profile, security and logout. #}
                             {{ ui.avatar(me.publicName, 'sm', 'ink') }}
                             <span class="d-none d-md-inline small fw-semibold text-truncate user-name">{{ me.publicName }}</span>
                             <i class="bi bi-chevron-down small" aria-hidden="true"></i>
@@ -84,12 +94,14 @@
             <main id="main" class="app-content" tabindex="-1">
                 <header class="page-header pt-0 d-flex flex-wrap align-items-end justify-content-between gap-3">
                     <div class="min-w-0">
+                        {# Page title area: breadcrumbs, title, optional subtitle, and the action buttons of the page. #}
                         {{ ui.breadcrumbs(crumbs|default([['Dashboard', path('app_dashboard')], [page_title|default('Overview'), null]])) }}
                         <h1>{{ page_title|default('Dashboard') }}</h1>
                         {% if page_subtitle|default(null) %}<p class="text-muted mb-0 mt-1">{{ page_subtitle }}</p>{% endif %}
                     </div>
                     <div class="d-flex flex-wrap gap-2">{% block page_actions %}{% endblock %}</div>
                 </header>
+                {# "content" block: each dashboard page puts its content here. #}
                 {% block content %}{% endblock %}
             </main>
         </div>

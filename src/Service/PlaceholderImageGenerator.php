@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Service/PlaceholderImageGenerator.php
+ * WHAT: service that draws simple demo pictures for the sample products.
+ * ROLE IN THE PROJECT: demo data only (no real photos needed). Not used by the live site.
+ * USED BY: App\DataFixtures\AppFixtures when the demo database is loaded.
+ */
+
 namespace App\Service;
 
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -14,6 +21,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
  */
 final class PlaceholderImageGenerator
 {
+    // Size of the generated picture, in pixels.
     private const W = 800;
     private const H = 1000;
 
@@ -27,6 +35,10 @@ final class PlaceholderImageGenerator
         [[240, 236, 229], [221, 210, 196], [59, 110, 143], [212, 160, 23]],
     ];
 
+    /**
+     * @param string       $fontPath path of the TTF font used for the initials
+     * @param ImageStorage $storage  stores the generated picture like a real upload
+     */
     public function __construct(
         #[Autowire('%kernel.project_dir%/resources/fonts/PlayfairDisplay.ttf')]
         private readonly string $fontPath,
@@ -35,10 +47,18 @@ final class PlaceholderImageGenerator
     }
 
     /**
+     * Draws one picture and stores it.
+     *
+     * @param string $title   product name (its initials are written on the picture)
+     * @param string $shape   which shape to draw (ring, arch, book, bag, wave, star, device, vase...)
+     * @param int    $seed    number that chooses the colour palette
+     * @param int    $variant 0, 1, 2... to get different pictures for the same product
+     *
      * @return string the stored (random) filename
      */
     public function generate(string $title, string $shape, int $seed, int $variant = 0): string
     {
+        // Empty canvas and the 4 colours of the chosen palette.
         $img = imagecreatetruecolor(self::W, self::H);
         [$top, $bottom, $ink, $accent] = self::PALETTES[($seed + $variant) % count(self::PALETTES)];
 
@@ -50,6 +70,7 @@ final class PlaceholderImageGenerator
         }
         imageantialias($img, true);
 
+        // Colours for the shape, its accent and a transparent shadow; centre of the shape.
         $inkColor = imagecolorallocate($img, ...$ink);
         $accentColor = imagecolorallocate($img, ...$accent);
         $soft = imagecolorallocatealpha($img, $ink[0], $ink[1], $ink[2], 100);
@@ -75,6 +96,7 @@ final class PlaceholderImageGenerator
             imagestring($img, 5, 80, self::H - 120, $initials, $textColor);
         }
 
+        // Save as JPEG in a temporary file.
         $tmp = tempnam(sys_get_temp_dir(), 'ph');
         if (false === $tmp) {
             throw new \RuntimeException('No temporary directory.');
@@ -85,11 +107,15 @@ final class PlaceholderImageGenerator
         try {
             // Same validation + re-encoding as an upload (rule 7).
             return $this->storage->validateAndStore($tmp);
+        // Always delete the temporary file.
         } finally {
             @unlink($tmp);
         }
     }
 
+    /**
+     * Draws the big geometric shape of the picture (one "case" per shape name).
+     */
     private function drawShape(\GdImage $img, string $shape, int $cx, int $cy, int $ink, int $accent, int $variant): void
     {
         imagesetthickness($img, 14);
@@ -151,12 +177,15 @@ final class PlaceholderImageGenerator
         imagesetthickness($img, 1);
     }
 
+    /** Colour of the pixel at (x, y), with the coordinates kept inside the picture. */
     private function bg(\GdImage $img, int $x, int $y): int
     {
         return imagecolorat($img, max(0, min(self::W - 1, $x)), max(0, min(self::H - 1, $y)));
     }
 
     /**
+     * Mixes two colours: $t = 0 gives $a, $t = 1 gives $b (used for the gradient).
+     *
      * @param array{0: int, 1: int, 2: int} $a
      * @param array{0: int, 1: int, 2: int} $b
      *
@@ -167,6 +196,7 @@ final class PlaceholderImageGenerator
         return [(int) round($a[0] + ($b[0] - $a[0]) * $t), (int) round($a[1] + ($b[1] - $a[1]) * $t), (int) round($a[2] + ($b[2] - $a[2]) * $t)];
     }
 
+    /** First letters of the first two words of the title (words of 3+ characters), or "MS". */
     private function initials(string $title): string
     {
         $words = array_values(array_filter(preg_split('/[^\p{L}\p{N}]+/u', $title) ?: [], static fn ($w) => mb_strlen($w) > 2));

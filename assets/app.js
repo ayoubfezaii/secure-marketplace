@@ -1,3 +1,9 @@
+// FILE: assets/app.js
+// WHAT: the main JavaScript entry of the site. It is loaded on every page (see templates/base.html.twig).
+// ROLE IN THE PROJECT: starts Stimulus (the small JS framework that runs the controllers of assets/controllers/)
+//   and loads Bootstrap's JavaScript (dropdowns, modals, toasts).
+// USED BY: every page, every role.
+
 import './stimulus_bootstrap.js';
 import 'bootstrap';
 

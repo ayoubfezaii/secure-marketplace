@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Service/CheckoutService.php
+ * WHAT: service that turns a cart into an order.
+ * ROLE IN THE PROJECT: the heart of the shop and the main defence against PRICE TAMPERING and stock race
+ *   conditions. Read the class comment below: it lists the 5 steps of the transaction.
+ * USED BY: CheckoutController::place (buyer).
+ */
+
 namespace App\Service;
 
 use App\Entity\Address;
@@ -34,6 +42,12 @@ use Doctrine\ORM\Query;
  */
 final class CheckoutService
 {
+    /**
+     * @param EntityManagerInterface $em         Doctrine, to run the transaction and the locks
+     * @param CartItemRepository     $cartItems  reads the buyer's cart
+     * @param AuditLogger            $audit      writes into the audit log
+     * @param CashOnDeliveryPolicy   $cashPolicy anti-abuse rules of cash on delivery
+     */
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly CartItemRepository $cartItems,
@@ -43,9 +57,17 @@ final class CheckoutService
     }
 
     /**
+     * Creates the order of $buyer from the cart stored in the database.
+     * SECURITY: price tampering - look at the parameters: there is NO price, NO quantity and NO product list.
+     * The browser cannot send them; they are read from the database inside the transaction.
+     *
+     * @param User          $buyer      the logged-in buyer
+     * @param Address       $address    one of the buyer's own addresses
      * @param PaymentMethod $method     enum: the caller can only pass one of the two whitelisted methods
      * @param string|null   $cardHolder card only: name on the card (validated by PaymentDto)
      * @param string|null   $cardLast4  card only: last 4 digits; the full number never reaches this service
+     *
+     * @return Order the saved order
      *
      * @throws CashOnDeliveryException when an anti-abuse rule blocks a cash order (already audit-logged)
      * @throws CheckoutException       with a message safe to show to the buyer
@@ -56,6 +78,7 @@ final class CheckoutService
         if ($address->getUser()->getId() !== $buyer->getId()) {
             throw new CheckoutException('Invalid shipping address.');
         }
+        // True for cash on delivery, false for card.
         $cash = PaymentMethod::CashOnDelivery === $method;
         // SECURITY: the card rules depend on the method decided by the SERVER (enum), not on which fields are present.
         if (!$cash && (null === $cardHolder || '' === trim($cardHolder) || null === $cardLast4 || 1 !== preg_match('/^\d{4}$/', $cardLast4))) {
@@ -65,6 +88,7 @@ final class CheckoutService
         // Server-computed total of a blocked cash order, kept for the audit log.
         $total = null;
 
+        // wrapInTransaction(): BEGIN, run the function, COMMIT. If the function throws, ROLLBACK (nothing is saved).
         try {
             $order = $this->em->wrapInTransaction(function () use ($buyer, $address, $cash, $cardHolder, $cardLast4, &$total): Order {
                 if ($cash) {
@@ -74,11 +98,13 @@ final class CheckoutService
                     $this->em->lock($buyer, LockMode::PESSIMISTIC_WRITE);
                 }
 
+                // Read the cart from the database (never from the request).
                 $lines = $this->cartItems->findForUser($buyer);
                 if ([] === $lines) {
                     throw new CheckoutException('Your cart is empty.');
                 }
 
+                // Lock and re-read all the products of the cart (see lockProducts() below).
                 $products = $this->lockProducts(array_map(static fn (CartItem $l) => $l->getProduct()->getId(), $lines));
 
                 // SECURITY: a cash order never stores card data, even if some was sent.
@@ -86,6 +112,7 @@ final class CheckoutService
                 $order->setShippingAddress($address);
                 $sellerIds = [];
 
+                // Check every cart line against the locked product, then create the order line.
                 foreach ($lines as $line) {
                     $product = $products[$line->getProduct()->getId()] ?? null;
                     $quantity = $line->getQuantity();
@@ -97,9 +124,11 @@ final class CheckoutService
                     if ($product->getSeller()->getId() === $buyer->getId()) {
                         throw new CheckoutException('You cannot buy your own product.');
                     }
+                    // SECURITY: validation - quantity re-checked here even if the cart already limits it.
                     if ($quantity < 1 || $quantity > CartItem::MAX_QUANTITY) {
                         throw new CheckoutException('Invalid quantity in your cart.');
                     }
+                    // SECURITY: overselling - not enough stock: stop. Checked on the locked row, so the value cannot change now.
                     if ($product->getStock() < $quantity) {
                         throw new CheckoutException(sprintf('Only %d unit(s) of "%s" left in stock. Please update your cart.', $product->getStock(), $product->getName()));
                     }
@@ -110,6 +139,7 @@ final class CheckoutService
                     $item = new OrderItem($order, $product, $quantity);
                     $order->addItem($item);
                     $sellerIds[] = (int) $product->getSeller()->getId();
+                    // The cart line is deleted (the cart is emptied at the end of the transaction).
                     $this->em->remove($line);
                 }
 
@@ -120,6 +150,7 @@ final class CheckoutService
                     $this->cashPolicy->assertAllowed($buyer, $total, $sellerIds);
                 }
 
+                // Save the order, its lines, the new stock and the cart deletion. COMMIT happens after the return.
                 $this->em->persist($order);
                 $this->em->flush();
 
@@ -144,12 +175,15 @@ final class CheckoutService
     }
 
     /**
+     * Loads the products with a database lock (SELECT ... FOR UPDATE).
+     *
      * @param list<int|null> $ids
      *
      * @return array<int, Product> indexed by id
      */
     private function lockProducts(array $ids): array
     {
+        // Remove duplicates and sort the ids: always locking in the same order avoids deadlocks.
         $ids = array_values(array_unique(array_filter($ids)));
         sort($ids);
 
@@ -167,6 +201,7 @@ final class CheckoutService
             ->setHint(Query::HINT_REFRESH, true)
             ->getResult();
 
+        // Index the products by id for a fast lookup.
         $byId = [];
         foreach ($rows as $product) {
             $byId[(int) $product->getId()] = $product;

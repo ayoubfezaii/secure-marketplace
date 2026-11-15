@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Service/NotificationProvider.php
+ * WHAT: service that builds the list of notifications shown under the bell icon of the dashboards.
+ * ROLE IN THE PROJECT: small UX feature; the items are counted live from the database.
+ * USED BY: App\Twig\DashboardExtension -> templates/layouts/dashboard.html.twig (buyer, seller, admin).
+ */
+
 namespace App\Service;
 
 use App\Entity\AuditLog;
@@ -23,6 +30,13 @@ use Symfony\Component\Routing\RouterInterface;
  */
 final class NotificationProvider
 {
+    /**
+     * @param EntityManagerInterface      $em           Doctrine, to run count queries
+     * @param UserRepository              $users        locked accounts (admin)
+     * @param AuditLogRepository          $logs         failed logins (admin)
+     * @param SellerApplicationRepository $applications pending applications (admin)
+     * @param RouterInterface             $router       to check that the target route exists
+     */
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly UserRepository $users,
@@ -33,19 +47,26 @@ final class NotificationProvider
     }
 
     /**
+     * Returns the notifications of the given user, depending on the role.
+     *
+     * @param User $user the logged-in user
+     *
      * @return list<array{icon: string, text: string, route: string, params: array<string, string>, tone: string}>
      */
     public function forUser(User $user): array
     {
         $items = [];
         $routes = $this->router->getRouteCollection();
+        // Small helper: adds one notification, only if its target route exists.
         $add = static function (string $icon, string $text, string $route, array $params = [], string $tone = '') use (&$items, $routes): void {
             if (null !== $routes->get($route)) {
                 $items[] = ['icon' => $icon, 'text' => $text, 'route' => $route, 'params' => $params, 'tone' => $tone];
             }
         };
+        // Small helper: "1 order" / "2 orders".
         $plural = static fn (int $n, string $word) => sprintf('%d %s%s', $n, $word, $n > 1 ? 's' : '');
 
+        // --- Admin: applications to review, locked accounts, failed logins ---
         if ($user->isAdmin()) {
             if (($pending = $this->applications->countPending()) > 0) {
                 $add('person-badge', $plural($pending, 'seller application').' to review', 'admin_applications', ['status' => 'pending'], 'accent');
@@ -56,6 +77,7 @@ final class NotificationProvider
             if (($failed = $this->logs->countSince(AuditLog::LOGIN_FAILURE, new \DateTimeImmutable('-24 hours'))) > 0) {
                 $add('exclamation-triangle', $plural($failed, 'failed login').' in the last 24 h', 'admin_security', [], 'danger');
             }
+        // --- Seller: items to ship, low stock, reviews without reply (all filtered on this seller) ---
         } elseif ($user->isSeller()) {
             $toShip = (int) $this->em->createQuery('SELECT COUNT(i.id) FROM '.OrderItem::class.' i WHERE i.seller = :u AND i.status IN (:toShip)')
                 ->setParameter('u', $user)->setParameter('toShip', Order::AWAITING_SHIPMENT)->getSingleScalarResult();
@@ -72,6 +94,7 @@ final class NotificationProvider
             if ($toReply > 0) {
                 $add('chat-left-text', $plural($toReply, 'review').' without your reply', 'seller_reviews', ['replied' => 'no']);
             }
+        // --- Buyer: orders on the way (filtered on this buyer) ---
         } else {
             $shipped = (int) $this->em->createQuery('SELECT COUNT(o.id) FROM '.Order::class.' o WHERE o.buyer = :u AND o.status = :s')
                 ->setParameter('u', $user)->setParameter('s', Order::STATUS_SHIPPED)->getSingleScalarResult();

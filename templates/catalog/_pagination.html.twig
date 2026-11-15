@@ -1,3 +1,6 @@
+{# FILE: templates/catalog/_pagination.html.twig #}
+{# WHAT: page links under the product grid (previous, numbers, next). Each link keeps the current filters. #}
+{# USED BY: catalog/index.html.twig and shop/show.html.twig (everyone). #}
 {# Storefront pagination. params come from ProductSearchCriteria::toQuery() (normalised values only). #}
 {% if pages > 1 %}
     {% set current = criteria.page %}
@@ -6,6 +9,7 @@
             <li class="page-item {{ current <= 1 ? 'disabled' }}">
                 <a class="page-link" href="{{ path(route, route_params|default({})|merge(criteria.toQuery({page: current - 1}))) }}" aria-label="Previous page"><i class="bi bi-chevron-left" aria-hidden="true"></i></a>
             </li>
+            {# Loop: the current page and two pages on each side. #}
             {% for p in max(1, current - 2)..min(pages, current + 2) %}
                 <li class="page-item {{ p == current ? 'active' }}">
                     <a class="page-link" href="{{ path(route, route_params|default({})|merge(criteria.toQuery({page: p}))) }}" {% if p == current %}aria-current="page"{% endif %}>{{ p }}</a>

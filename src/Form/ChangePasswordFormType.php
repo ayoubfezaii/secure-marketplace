@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Form/ChangePasswordFormType.php
+ * WHAT: the "change my password" form (current password + new password typed twice).
+ * ROLE IN THE PROJECT: forces the user to prove they know the current password before changing it.
+ * USED BY: ProfileController::changePassword and the security settings page (any logged-in user).
+ */
+
 namespace App\Form;
 
 use App\Security\PasswordPolicy;
@@ -12,10 +19,19 @@ use Symfony\Component\Security\Core\Validator\Constraints\UserPassword;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
+ * The fields are "mapped => false": they are not copied to an entity. The controller reads the new password,
+ * hashes it and stores the hash.
+ *
  * @extends AbstractType<mixed>
  */
 class ChangePasswordFormType extends AbstractType
 {
+    /**
+     * Declares the fields of the form.
+     *
+     * @param FormBuilderInterface<mixed> $builder object used to add fields
+     * @param array<string, mixed> $options options of the form (not used here)
+     */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
@@ -26,9 +42,11 @@ class ChangePasswordFormType extends AbstractType
                 'attr' => ['autocomplete' => 'current-password'],
                 'constraints' => [
                     new Assert\NotBlank(),
+                    // UserPassword: Symfony constraint that checks the typed value against the hash of the logged-in user.
                     new UserPassword(message: 'Your current password is incorrect.'),
                 ],
             ])
+            // RepeatedType = two inputs that must contain the same value (avoids typing mistakes).
             ->add('newPassword', RepeatedType::class, [
                 'type' => PasswordType::class,
                 'mapped' => false,
@@ -41,6 +59,10 @@ class ChangePasswordFormType extends AbstractType
         ;
     }
 
+    /**
+     * Settings of the form.
+     * SECURITY: CSRF - Symfony adds a hidden token named "change_password" and refuses the form without it.
+     */
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([

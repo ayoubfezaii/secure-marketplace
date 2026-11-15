@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Controller/CheckoutController.php
+ * WHAT: controller of the checkout: choose an address, choose a payment, review, place the order, confirmation.
+ * ROLE IN THE PROJECT: the most sensitive flow of the site. It only collects choices; the real order creation
+ *   (prices, stock, transaction) is done by App\Service\CheckoutService.
+ * USED BY: buyers only (ROLE_BUYER).
+ */
+
 namespace App\Controller;
 
 use App\Service\Money;
@@ -54,10 +62,17 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/checkout')]
 class CheckoutController extends AbstractController
 {
+    // Session keys where the choices of steps 1 and 2 are kept (on the server, not in the browser).
     private const SESSION_ADDRESS = '_checkout_address';
     private const SESSION_PAYMENT = '_checkout_payment';
+    // Lifetime of the payment step: 900 seconds = 15 minutes.
     private const PAYMENT_TTL = 900;
 
+    /**
+     * @param CartItemRepository     $cartItems queries on the cart
+     * @param AddressRepository      $addresses queries on the buyer's addresses
+     * @param EntityManagerInterface $em        Doctrine, to save a new address
+     */
     public function __construct(
         private readonly CartItemRepository $cartItems,
         private readonly AddressRepository $addresses,
@@ -65,10 +80,16 @@ class CheckoutController extends AbstractController
     ) {
     }
 
+    /**
+     * STEP 1 - shipping address: pick a saved address or create a new one. Buyer only.
+     *
+     * @return Response the address page, or a redirect to the payment step
+     */
     #[Route('', name: 'checkout', methods: ['GET', 'POST'])]
     public function address(Request $request): Response
     {
         $buyer = $this->buyer();
+        // An empty cart cannot be checked out.
         if ([] === ($lines = $this->cartItems->findForUser($buyer))) {
             return $this->emptyCart();
         }
@@ -89,6 +110,7 @@ class CheckoutController extends AbstractController
 
                 return $this->redirectToRoute('checkout');
             }
+            // Remember the choice in the session and go to step 2.
             $session->set(self::SESSION_ADDRESS, (string) $address->getUuid());
 
             return $this->redirectToRoute('checkout_payment');
@@ -97,6 +119,7 @@ class CheckoutController extends AbstractController
         // Or add a new one (max 5 per buyer).
         $newAddress = new Address($buyer);
         $newAddress->setFullName($buyer->getDisplayName());
+        // Symfony form: reads the POST data, checks the CSRF token and validates the Address entity.
         $form = $this->createForm(AddressFormType::class, $newAddress, ['action' => $this->generateUrl('checkout')]);
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
@@ -106,6 +129,7 @@ class CheckoutController extends AbstractController
 
                 return $this->redirectToRoute('checkout');
             }
+            // Save the new address. The first address of a buyer (or one ticked "default") becomes the default one.
             $this->em->persist($newAddress);
             if ($newAddress->isDefault() || [] === $saved) {
                 $newAddress->setIsDefault(true);
@@ -118,6 +142,7 @@ class CheckoutController extends AbstractController
             return $this->redirectToRoute('checkout_payment');
         }
 
+        // No form sent (or errors): show the page. The address already chosen (or the default one) is preselected.
         $selected = $session->get(self::SESSION_ADDRESS);
 
         return $this->render('checkout/address.html.twig', [
@@ -127,9 +152,17 @@ class CheckoutController extends AbstractController
             'showForm' => [] === $saved || $form->isSubmitted(),
             'canAdd' => count($saved) < Address::MAX_PER_USER,
             'summary' => $this->summary($lines),
+        // HTTP 422 when the form has errors, 200 otherwise.
         ], new Response(null, $form->isSubmitted() ? 422 : 200));
     }
 
+    /**
+     * STEP 2 - payment: card (simulated) or cash on delivery. Buyer only.
+     *
+     * @param CashOnDeliveryPolicy $cashPolicy the anti-abuse rules of cash on delivery
+     *
+     * @return Response the payment page, or a redirect to the review step
+     */
     #[Route('/payment', name: 'checkout_payment', methods: ['GET', 'POST'])]
     public function payment(Request $request, CashOnDeliveryPolicy $cashPolicy): Response
     {
@@ -137,15 +170,19 @@ class CheckoutController extends AbstractController
         if ([] === ($lines = $this->cartItems->findForUser($buyer))) {
             return $this->emptyCart();
         }
+        // Step 1 must be done first.
         $address = $this->sessionAddress($request->getSession(), $buyer);
         if (null === $address) {
             return $this->redirectToRoute('checkout');
         }
 
+        // PaymentDto = a simple object that receives the form fields (card number, expiry, CVV, method).
+        // SECURITY: mass assignment - the form fills this DTO, never an entity.
         $payment = new PaymentDto();
         $form = $this->createForm(CheckoutFormType::class, $payment);
         $form->handleRequest($request);
 
+        // Totals for the right column (display only).
         $summary = $this->summary($lines);
 
         if ($form->isSubmitted() && $form->isValid() && $payment->isCashOnDelivery()) {
@@ -165,6 +202,7 @@ class CheckoutController extends AbstractController
                 // SECURITY: card fields are neither validated nor kept for a cash order; whatever was typed is dropped.
                 $payment->eraseCardData();
                 $request->getSession()->set(self::SESSION_PAYMENT, [
+                    // SECURITY: replay - random one-time token (128 bits) that will be required to place the order.
                     'token' => bin2hex(random_bytes(16)),
                     'method' => PaymentMethod::CashOnDelivery->value,
                     'expires' => time() + self::PAYMENT_TTL,
@@ -186,6 +224,7 @@ class CheckoutController extends AbstractController
             return $this->redirectToRoute('checkout_review');
         }
 
+        // Show the payment page (first visit, or form errors).
         return $this->noStore($this->render('checkout/payment.html.twig', [
             'form' => $form,
             'address' => $address,
@@ -195,6 +234,9 @@ class CheckoutController extends AbstractController
         ], new Response(null, $form->isSubmitted() ? 422 : 200)));
     }
 
+    /**
+     * STEP 3 - review: shows the cart, the address and the payment choice before the final click. GET only. Buyer only.
+     */
     #[Route('/review', name: 'checkout_review', methods: ['GET'])]
     public function review(Request $request): Response
     {
@@ -205,6 +247,7 @@ class CheckoutController extends AbstractController
         $session = $request->getSession();
         $address = $this->sessionAddress($session, $buyer);
         $payment = $this->sessionPayment($session);
+        // Steps 1 and 2 must be done; otherwise go back to the missing step.
         if (null === $address) {
             return $this->redirectToRoute('checkout');
         }
@@ -221,6 +264,15 @@ class CheckoutController extends AbstractController
         ]));
     }
 
+    /**
+     * FINAL STEP - places the order. POST only. Buyer only.
+     *
+     * @param CheckoutService             $checkout         creates the order inside a database transaction
+     * @param CashOnDeliveryPolicy        $cashPolicy       logs blocked cash orders
+     * @param RateLimiterFactoryInterface $cashOrderLimiter limiter "cash_order" from config/packages/rate_limiter.yaml
+     *
+     * @return Response redirect to the confirmation page (or back with an error message)
+     */
     #[Route('/place', name: 'checkout_place', methods: ['POST'])]
     public function place(Request $request, CheckoutService $checkout, CashOnDeliveryPolicy $cashPolicy, RateLimiterFactoryInterface $cashOrderLimiter): Response
     {
@@ -272,11 +324,15 @@ class CheckoutController extends AbstractController
 
             return $this->redirectToRoute('cart_index');
         }
+        // Order placed: forget the chosen address and show the confirmation page.
         $session->remove(self::SESSION_ADDRESS);
 
         return $this->redirectToRoute('checkout_confirmation', ['uuid' => $order->getUuid()]);
     }
 
+    /**
+     * Confirmation page ("Thank you for your order"). Buyer only.
+     */
     #[Route('/confirmation/{uuid}', name: 'checkout_confirmation', methods: ['GET'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function confirmation(#[MapEntity(mapping: ['uuid' => 'uuid'])] Order $order): Response
     {
@@ -289,6 +345,11 @@ class CheckoutController extends AbstractController
         return $this->render('checkout/confirmation.html.twig', ['order' => $order]);
     }
 
+    /**
+     * Reads the address chosen at step 1 from the session.
+     *
+     * @return Address|null null when no address was chosen or it no longer belongs to the buyer
+     */
     private function sessionAddress(SessionInterface $session, User $buyer): ?Address
     {
         $uuid = $session->get(self::SESSION_ADDRESS);
@@ -298,6 +359,8 @@ class CheckoutController extends AbstractController
     }
 
     /**
+     * Reads the payment choice of step 2 from the session and checks it is complete and not expired.
+     *
      * @return array{token: string, method: PaymentMethod, holder?: string, last4?: string, expiry?: string, expires: int}|null
      */
     private function sessionPayment(SessionInterface $session): ?array
@@ -309,11 +372,13 @@ class CheckoutController extends AbstractController
         $valid = is_array($payment) && null !== $method && isset($payment['token'], $payment['expires']) && $payment['expires'] >= time()
             // A card payment must carry the masked card; a cash payment carries nothing else.
             && (PaymentMethod::CashOnDelivery === $method || isset($payment['holder'], $payment['last4']));
+        // Invalid or expired: delete it so the buyer must redo step 2.
         if (!$valid) {
             $session->remove(self::SESSION_PAYMENT);
 
             return null;
         }
+        // Give back the enum object instead of the stored text.
         $payment['method'] = $method;
 
         return $payment;
@@ -338,6 +403,7 @@ class CheckoutController extends AbstractController
         return ['lines' => $lines, 'subtotal' => $subtotal, 'shipping' => Money::ZERO, 'total' => $subtotal, 'units' => $units];
     }
 
+    /** Flash message + redirect used when the cart is empty. */
     private function emptyCart(): Response
     {
         $this->addFlash('info', 'Your cart is empty.');
@@ -345,6 +411,7 @@ class CheckoutController extends AbstractController
         return $this->redirectToRoute('cart_index');
     }
 
+    /** Adds the "do not cache" header to a response (used for pages that show payment data). */
     private function noStore(Response $response): Response
     {
         // SECURITY (rule 11): pages that can contain card data are never cached by the browser or a proxy.
@@ -353,6 +420,7 @@ class CheckoutController extends AbstractController
         return $response;
     }
 
+    /** Returns the logged-in user as a User object (or stops with "access denied"). */
     private function buyer(): User
     {
         $user = $this->getUser();

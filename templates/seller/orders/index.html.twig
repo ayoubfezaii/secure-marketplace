@@ -1,14 +1,20 @@
+{# FILE: templates/seller/orders/index.html.twig #}
+{# WHAT: the seller "Orders" list with a status filter and pagination. #}
+{# USED BY: Seller\OrderController::index, route /seller/orders (sellers only). #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 {% import '_ui/table.html.twig' as t %}
 
+{# Variables read by the dashboard layout: title, subtitle and breadcrumbs. #}
 {% set page_title = 'Orders' %}
 {% set page_subtitle = 'Orders containing your products. You only see your own items and the shipping address.' %}
 {% set crumbs = [['Dashboard', path('seller_dashboard')], ['Orders', null]] %}
 
 {% block content %}
     <section class="panel">
+        {# Status filter: one chip (link) per status. #}
         <div class="toolbar">{{ t.filter_chips('status', status, statuses, 'seller_orders') }}</div>
+        {# No order: empty message. Otherwise: the table of this seller's lines and the page links. #}
         {% if pager.total == 0 %}
             <div class="panel-body">{{ ui.empty_state(status ? 'Nothing here' : 'No orders yet', status ? 'No order has items with this status.' : 'Orders for your products will appear here.', status ? 'Show all' : null, status ? path('seller_orders') : null, 'receipt') }}</div>
         {% else %}

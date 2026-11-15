@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Controller/Seller/OrderController.php
+ * WHAT: controller of the seller's order pages: list, detail, "cash collected", "refused at delivery".
+ * ROLE IN THE PROJECT: shows least privilege: a seller sees only their own lines of an order.
+ * USED BY: sellers only (ROLE_SELLER). URLs start with /seller/orders.
+ */
+
 namespace App\Controller\Seller;
 
 use App\Service\Money;
@@ -42,14 +49,21 @@ class OrderController extends AbstractController
         Order::STATUS_REFUNDED => ['Refunded', [Order::STATUS_REFUNDED]],
     ];
 
+    /**
+     * List of the orders that contain at least one item of this seller (paginated, filter by status). Seller only.
+     *
+     * @return Response the rendered template seller/orders/index.html.twig
+     */
     #[Route('', name: 'seller_orders', methods: ['GET'])]
     public function index(Request $request, OrderRepository $orders): Response
     {
+        // Filter chosen in the URL (?status=to_ship).
         $status = $request->query->getString('status');
         // SECURITY (rule 15): whitelist. Anything else means "no filter".
         $status = array_key_exists($status, self::FILTERS) ? $status : null;
         $seller = $this->seller();
 
+        // SECURITY: IDOR - createSellerQueryBuilder() only returns orders in which this seller sold something.
         return $this->render('seller/orders/index.html.twig', [
             'pager' => Pagination::fromQueryBuilder($orders->createSellerQueryBuilder($seller, null !== $status ? self::FILTERS[$status][1] : []), $request, 15),
             'seller' => $seller,
@@ -59,6 +73,11 @@ class OrderController extends AbstractController
         ]);
     }
 
+    /**
+     * Detail of one order, seen by the seller. Seller only, and only if the order contains one of their items.
+     *
+     * @param Order $order loaded by the UUID of the URL (404 if unknown)
+     */
     #[Route('/{uuid}', name: 'seller_order_show', methods: ['GET'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function show(#[MapEntity(mapping: ['uuid' => 'uuid'])] Order $order): Response
     {
@@ -67,6 +86,7 @@ class OrderController extends AbstractController
         $seller = $this->seller();
         $items = $order->getItemsForSeller($seller);
 
+        // Total of the seller's own lines (exact decimal addition).
         $subtotal = Money::ZERO;
         foreach ($items as $item) {
             $subtotal = bcadd($subtotal, $item->getLineTotal(), Money::SCALE);
@@ -77,12 +97,16 @@ class OrderController extends AbstractController
             // SECURITY: only the seller's own lines (never what the buyer bought from other shops).
             'items' => $items,
             'subtotal' => $subtotal,
+            // The next possible status of each line (used to draw the "Mark as shipped / delivered" buttons).
             'nextStatuses' => array_filter(array_map(static fn (OrderItem $i) => $i->getNextStatus(), $items)),
         ]);
     }
 
     /**
      * Cash on delivery: the seller confirms the buyer paid in cash at the door (paymentStatus -> collected).
+     *
+     * @param Order        $order  loaded by the UUID of the URL
+     * @param OrderManager $orders service that changes the payment status inside a transaction
      */
     #[Route('/{uuid}/cash-collected', name: 'seller_order_cash_collected', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function cashCollected(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] Order $order, OrderManager $orders): Response
@@ -108,6 +132,9 @@ class OrderController extends AbstractController
 
     /**
      * Cash on delivery: the buyer refused the parcel. The order is cancelled and the stock restored (one transaction).
+     *
+     * @param Order        $order  loaded by the UUID of the URL
+     * @param OrderManager $orders service that cancels the order and restores the stock
      */
     #[Route('/{uuid}/refused', name: 'seller_order_refused', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function refusedAtDelivery(Request $request, #[MapEntity(mapping: ['uuid' => 'uuid'])] Order $order, OrderManager $orders): Response
@@ -129,6 +156,7 @@ class OrderController extends AbstractController
         return $this->redirectToRoute('seller_order_show', ['uuid' => $order->getUuid()]);
     }
 
+    /** Returns the logged-in user as a User object (or stops with "access denied"). */
     private function seller(): User
     {
         $user = $this->getUser();

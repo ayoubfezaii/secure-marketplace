@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/DataFixtures/AppFixtures.php
+ * WHAT: the demo data of the project (users, shops, products, orders, reviews, audit log...).
+ * ROLE IN THE PROJECT: fills an empty database so the site can be shown and tested. It is run from the
+ *   terminal with "php bin/console doctrine:fixtures:load -n" (this first EMPTIES the database).
+ * USED BY: the developer and the automated tests (tests/ log in with these demo accounts). Never used by the live site.
+ */
+
 namespace App\DataFixtures;
 
 use App\Entity\Address;
@@ -43,6 +51,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  */
 final class AppFixtures extends Fixture
 {
+    // The password of every demo account.
     public const PASSWORD = 'Password2026!';
     /** Well-known demo TOTP secret for seller4 (DEV ONLY) so the 2FA login can be tested with any authenticator. */
     public const DEMO_TOTP_SECRET = 'JBSWY3DPEHPK3PXP';
@@ -133,6 +142,11 @@ final class AppFixtures extends Fixture
         'We are sorry it was not perfect. Please write to us, we would love to make it right.',
     ];
 
+    /**
+     * @param UserPasswordHasherInterface $hasher    hashes the demo password (Argon2id)
+     * @param PlaceholderImageGenerator   $generator draws the demo product pictures
+     * @param string                      $uploadDir folder where product images are stored
+     */
     public function __construct(
         private readonly UserPasswordHasherInterface $hasher,
         private readonly PlaceholderImageGenerator $generator,
@@ -141,10 +155,17 @@ final class AppFixtures extends Fixture
     ) {
     }
 
+    /**
+     * Main method, called by the fixtures command. It creates everything, section by section.
+     *
+     * @param ObjectManager $manager Doctrine entity manager (persist = "to save", flush = "save now")
+     */
     public function load(ObjectManager $manager): void
     {
+        // Fixed seed: the "random" choices below are the same on every run, so the demo data is reproducible.
         mt_srand(2026);
         $out = new ConsoleOutput();
+        // Delete the image files of a previous run.
         $this->purgeImages();
         $now = new \DateTimeImmutable();
 
@@ -152,6 +173,7 @@ final class AppFixtures extends Fixture
         $admin = $this->user('admin@shop.test', 'Site Admin', User::ROLE_ADMIN, '-120 days');
         $manager->persist($admin);
 
+        // 4 sellers, each with a shop.
         $sellers = [];
         foreach (self::SELLERS as $i => [$email, $name, $shopName, $shopDescription]) {
             $seller = $this->user($email, $name, User::ROLE_SELLER, sprintf('-%d days', 110 - $i * 5));
@@ -164,6 +186,7 @@ final class AppFixtures extends Fixture
         // Seller4 has 2FA enabled with a well-known demo secret (DEV ONLY), to demonstrate the 2FA login.
         $sellers[3]->setTotpSecret(self::DEMO_TOTP_SECRET);
         $sellers[3]->enableTotp();
+// 8 buyers.
 
         $buyers = [];
         foreach (self::BUYERS as $i => [$email, $name]) {
@@ -175,6 +198,7 @@ final class AppFixtures extends Fixture
         $buyers[7]->block();
 
         // ---------------------------------------------------------------- Addresses
+        // One "Home" address per buyer (and an "Office" address for some of them).
         $cities = [['Paris', '75011', 'FR'], ['Lyon', '69002', 'FR'], ['Bruxelles', '1000', 'BE'], ['Bordeaux', '33000', 'FR'], ['Genève', '1201', 'CH'], ['Lille', '59000', 'FR'], ['Nantes', '44000', 'FR'], ['Marseille', '13001', 'FR']];
         $streets = ['rue des Lilas', 'avenue Jean Jaurès', 'rue du Marché', 'boulevard Voltaire', 'rue de la Paix', 'quai des Brumes', 'place du Château', 'rue Victor Hugo'];
         $addresses = [];
@@ -191,6 +215,7 @@ final class AppFixtures extends Fixture
         }
 
         // ---------------------------------------------------------------- Categories
+        // The 8 categories of the CATEGORIES constant, in order.
         $categories = [];
         $position = 1;
         foreach (self::CATEGORIES as $slug => [$name, $icon, $tagline]) {
@@ -203,6 +228,7 @@ final class AppFixtures extends Fixture
         $products = [];
         $finalStock = [];
         foreach (self::PRODUCTS as $i => [$name, $cat, $price, $compareAt, $stock, $sellerIndex, $description]) {
+            // Stock is raised by 50 for now so the demo orders below never run out; the real value is set later.
             $product = (new Product($sellers[$sellerIndex]))
                 ->setName($name)->setDescription($description)->setCategory($categories[$cat])
                 ->setPrice($price)->setCompareAtPrice($compareAt)->setStock($stock + 50);
@@ -221,6 +247,7 @@ final class AppFixtures extends Fixture
         $out->writeln(sprintf('<info>%d products created.</info>', count($products)));
 
         // ---------------------------------------------------------------- Orders: 60 over the last 60 days
+        // Only visible products can be ordered.
         $active = array_values(array_filter($products, static fn (Product $p) => $p->isActive()));
         $purchases = []; // [buyer index, product, order date]
         $orders = [];
@@ -236,11 +263,13 @@ final class AppFixtures extends Fixture
             $buyer = $buyers[$b];
             $age = $o < 3 ? $o : mt_rand(0, 59);
             $date = $now->modify(sprintf('-%d days -%d hours -%d minutes', $age, mt_rand(0, 12), mt_rand(0, 59)));
+// New card order, dated in the past.
 
             $order = new Order($buyer, PaymentMethod::Card, (string) $buyer->getDisplayName(), (string) mt_rand(1000, 9999));
             $order->setShippingAddress($addresses[$b]);
             $order->backdate($date);
 
+            // 1 to 3 different random products, quantity 1 or 2.
             $picked = [];
             foreach ((array) array_rand($active, mt_rand(1, 3)) as $idx) {
                 $product = $active[$idx];
@@ -252,6 +281,7 @@ final class AppFixtures extends Fixture
                 $order->addItem($item);
             }
 
+            // Status: the forced one, or a random one that depends on the age of the order (old orders are delivered).
             $status = $forced[$o] ?? match (true) {
                 $age < 3 => [Order::STATUS_PAID, Order::STATUS_PAID, Order::STATUS_SHIPPED][mt_rand(0, 2)],
                 $age < 10 => [Order::STATUS_PAID, Order::STATUS_SHIPPED, Order::STATUS_SHIPPED, Order::STATUS_DELIVERED][mt_rand(0, 3)],
@@ -261,6 +291,7 @@ final class AppFixtures extends Fixture
             $manager->persist($order);
             $orders[] = $order;
 
+            // Remember what was shipped / delivered: only these purchases can get a review below.
             if (in_array($order->getStatus(), [Order::STATUS_SHIPPED, Order::STATUS_DELIVERED], true)) {
                 foreach ($order->getItems() as $item) {
                     $purchases[] = [$b, $item->getProduct(), $date];
@@ -329,17 +360,20 @@ final class AppFixtures extends Fixture
         $replyCount = 0;
         foreach ($purchases as [$b, $product, $date]) {
             $key = $b.'-'.spl_object_id($product);
+            // One review per (buyer, product); the blocked buyer writes none; about 70 % of purchases get a review.
             if (isset($reviewed[$key]) || 7 === $b || mt_rand(1, 10) > 7) {
                 continue;
             }
             $reviewed[$key] = true;
             $rating = [5, 5, 5, 4, 4, 4, 3, 2][mt_rand(0, 7)];
             $review = (new Review($product, $buyers[$b]))->setRating($rating)->setComment(self::REVIEW_TEXTS[$rating][mt_rand(0, count(self::REVIEW_TEXTS[$rating]) - 1)]);
+            // Review written 3 to 8 days after the order (never in the future).
             $review->backdate($date->modify(sprintf('+%d days', mt_rand(3, 8))) > $now ? $now : $date->modify(sprintf('+%d days', mt_rand(3, 8))));
             $manager->persist($review);
             $ratings[spl_object_id($product)][] = $rating;
             ++$reviewCount;
 
+            // Half of the reviews get a seller reply (a thank-you for 4-5 stars, an apology for 2-3 stars).
             if (0 === mt_rand(0, 1)) {
                 $reply = (new ReviewReply($review, $product->getSeller()))->setBody(self::REPLIES[$rating >= 4 ? mt_rand(0, 1) : mt_rand(2, 3)]);
                 $review->setReply($reply);
@@ -354,6 +388,7 @@ final class AppFixtures extends Fixture
         }
 
         // ---------------------------------------------------------------- Wishlists & carts
+        // A few wishlist lines for some buyers, and two cart lines for buyer1.
         foreach ([0, 1, 2, 3, 5] as $b) {
             foreach ((array) array_rand($active, 3 + $b % 3) as $idx) {
                 $manager->persist(new WishlistItem($buyers[$b], $active[$idx]));
@@ -363,6 +398,7 @@ final class AppFixtures extends Fixture
         $manager->persist(new CartItem($buyers[0], $products[20], 1));
 
         // ---------------------------------------------------------------- Seller applications
+        // Three pending applications (buyer index, shop name, description) and one rejected application.
         $pending = [
             [5, 'Les Bougies de Farid', 'Hand-poured candles and diffusers made with rapeseed wax and natural essential oils, from my workshop in Marseille.'],
             [6, 'Ceramica Giulia', 'Small-batch tableware inspired by Sicilian majolica, hand-painted plates, bowls and tiles.'],
@@ -383,6 +419,7 @@ final class AppFixtures extends Fixture
             $manager->persist(new NewsletterSubscriber($email));
         }
 
+        // Save everything created so far.
         $manager->flush();
 
         // ---------------------------------------------------------------- Audit history (security center demo)
@@ -393,6 +430,9 @@ final class AppFixtures extends Fixture
         $this->printAccounts($out);
     }
 
+    /**
+     * Puts a demo order in the wanted status, using the same state machine as the real application.
+     */
     private function applyStatus(Order $order, string $status): void
     {
         match ($status) {
@@ -402,6 +442,12 @@ final class AppFixtures extends Fixture
         };
     }
 
+    /**
+     * Moves every line of an order forward (shipped, then delivered) and optionally refunds the order.
+     *
+     * @param string $target      status to reach (shipped or delivered)
+     * @param bool   $refundAfter true to refund the order once delivered
+     */
     private function advanceAll(Order $order, string $target, bool $refundAfter): void
     {
         $steps = match ($target) {
@@ -420,6 +466,8 @@ final class AppFixtures extends Fixture
     }
 
     /**
+     * Creates a believable audit log history (normal activity + attacks) for the admin security pages.
+     *
      * @param list<User>  $sellers
      * @param list<User>  $buyers
      * @param list<Order> $orders
@@ -427,11 +475,13 @@ final class AppFixtures extends Fixture
     private function auditHistory(ObjectManager $manager, User $admin, array $sellers, array $buyers, array $orders, \DateTimeImmutable $now): void
     {
         $ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+        // Small helper that creates one log line with a chosen date (set by reflection because createdAt has no setter).
         $log = function (string $action, array $details, ?User $user, string $ip, \DateTimeImmutable $at, string $agent = '') use ($manager, $ua): void {
             $entry = new AuditLog($action, $details, $user, $ip, '' !== $agent ? $agent : $ua);
             (new \ReflectionProperty(AuditLog::class, 'createdAt'))->setValue($entry, $at);
             $manager->persist($entry);
         };
+        // All the demo accounts.
         $everyone = array_merge([$admin], $sellers, $buyers);
 
         // Registrations and normal logins.
@@ -491,6 +541,14 @@ final class AppFixtures extends Fixture
         $log(AuditLog::APPLICATION_REJECTED, ['applicant' => $buyers[4]->getEmail()], $admin, '192.0.2.10', $now->modify('-19 days'));
     }
 
+    /**
+     * Creates one demo account.
+     *
+     * @param string $email   login
+     * @param string $name    display name
+     * @param string $role    ROLE_BUYER, ROLE_SELLER or ROLE_ADMIN
+     * @param string $created relative creation date, e.g. "-90 days"
+     */
     private function user(string $email, string $name, string $role, string $created): User
     {
         $user = (new User())->setEmail($email)->setRoles([$role])->setIsVerified(true)->setDisplayName($name);
@@ -501,6 +559,7 @@ final class AppFixtures extends Fixture
         return $user;
     }
 
+    /** Deletes the product image files left by a previous run. */
     private function purgeImages(): void
     {
         // Old uploaded images are orphans once the product table is purged.
@@ -512,6 +571,7 @@ final class AppFixtures extends Fixture
         }
     }
 
+    /** Prints the list of demo accounts in the terminal after loading. */
     private function printAccounts(ConsoleOutput $out): void
     {
         $out->writeln('');

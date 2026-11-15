@@ -1,5 +1,9 @@
+{# FILE: templates/buyer/addresses/form.html.twig #}
+{# WHAT: the form to add or edit a shipping address. #}
+{# USED BY: Buyer\AddressController::new and ::edit, routes /buyer/addresses/new and /{uuid}/edit (buyers only, own addresses). #}
 {% extends 'layouts/dashboard.html.twig' %}
 
+{# Variables read by the dashboard layout. "address" is null when creating. #}
 {% set page_title = address ? 'Edit address' : 'New address' %}
 {% set crumbs = [['Dashboard', path('buyer_dashboard')], ['Addresses', path('buyer_addresses')], [page_title, null]] %}
 
@@ -9,6 +13,7 @@
             {# SECURITY (rules 3, 9): CSRF token; explicit fields only, the owner comes from the session. #}
             {{ form_start(form, {attr: {novalidate: 'novalidate'}}) }}
                 {{ form_errors(form) }}
+                {# The fields declared in AddressFormType, placed in a grid. #}
                 <div class="row g-2">
                     <div class="col-md-4">{{ form_row(form.label) }}</div>
                     <div class="col-md-8">{{ form_row(form.fullName) }}</div>

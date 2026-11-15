@@ -1,6 +1,10 @@
+{# FILE: templates/buyer/dashboard.html.twig #}
+{# WHAT: the buyer dashboard: statistic cards, recent orders, products to review, recommendations. #}
+{# USED BY: Buyer\DashboardController::index, route /buyer (buyers only). #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
+{# Variables read by the dashboard layout: title, subtitle and breadcrumbs. #}
 {% set page_title = 'Welcome back, ' ~ (app.user.displayName ?? 'there') %}
 {% set page_subtitle = 'Here is what is happening with your orders.' %}
 {% set crumbs = [['Dashboard', null]] %}
@@ -10,6 +14,7 @@
 {% endblock %}
 
 {% block content %}
+    {# Four statistic cards. The numbers are computed by DashboardStats for the logged-in buyer. #}
     <div class="row g-3 mb-4">
         <div class="col-6 col-xl-3">{{ ui.stat_card('Orders', stats.orders, 'box-seam', 'ink') }}</div>
         <div class="col-6 col-xl-3">{{ ui.stat_card('Total spent', stats.spent|price, 'wallet2', 'accent') }}</div>
@@ -21,6 +26,7 @@
         <div class="col-xl-8">
             <section class="panel h-100">
                 <div class="panel-head"><h2>Recent orders</h2><a class="small" href="{{ path('buyer_orders') }}">All orders <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+                {# Recent orders, or an empty message. #}
                 {% if recentOrders is empty %}
                     <div class="panel-body">{{ ui.empty_state('No orders yet', 'Your orders will appear here once you check out.', 'Start shopping', path('product_index'), 'box-seam') }}</div>
                 {% else %}
@@ -32,6 +38,7 @@
             <section class="panel h-100">
                 <div class="panel-head"><h2>Products to review</h2></div>
                 <div class="panel-body">
+                    {# Loop: products bought but not reviewed yet. The "else" part is shown when there is nothing to review. #}
                     {% for product in toReview %}
                         <div class="d-flex align-items-center gap-3 {{ not loop.last ? 'mb-3' }}">
                             <span class="thumb">{{ ui.product_image(product.mainImageFilename, product.name) }}</span>
@@ -52,6 +59,7 @@
         <section class="mt-4">
             <div class="d-flex justify-content-between align-items-end mb-3"><h2 class="h4 mb-0">Recommended for you</h2><a class="small" href="{{ path('product_index') }}">Shop all</a></div>
             <div class="row row-cols-2 row-cols-lg-4 g-3">
+                {# Loop: recommended products. #}
                 {% for product in recommended %}<div class="col">{{ ui.product_card(product) }}</div>{% endfor %}
             </div>
         </section>

@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Service/OrderManager.php
+ * WHAT: service that changes an order AFTER it was placed: cancel, refund, cash collected, delivery refused.
+ * ROLE IN THE PROJECT: keeps the status change and the stock update together in one database transaction.
+ * USED BY: OrderController::cancel (buyer), Admin\ModerationController (admin cancel / refund),
+ *   Seller\OrderController (seller cash collected / refused).
+ */
+
 namespace App\Service;
 
 use App\Entity\AuditLog;
@@ -21,6 +29,10 @@ use Doctrine\ORM\Query;
  */
 final class OrderManager
 {
+    /**
+     * @param EntityManagerInterface $em    Doctrine, to run transactions and locks
+     * @param AuditLogger            $audit writes into the audit log
+     */
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly AuditLogger $audit,
@@ -28,12 +40,16 @@ final class OrderManager
     }
 
     /**
+     * Cancels an order and puts the units back in stock. Buyer (own order) or admin.
+     *
+     * @param Order  $order the order to cancel
      * @param string $by 'buyer' or 'admin' (for the audit log)
      *
      * @throws \DomainException when the order can't be cancelled any more
      */
     public function cancel(Order $order, string $by): void
     {
+        // One transaction: lock the order, change its status, restore the stock, save.
         $this->em->wrapInTransaction(function () use ($order): void {
             $this->lock($order);
             $order->markCancelled();
@@ -41,6 +57,7 @@ final class OrderManager
             $this->em->flush();
         });
 
+        // SECURITY: logging - written after the transaction succeeded.
         $this->audit->log(AuditLog::ORDER_CANCELLED, [
             'order' => (string) $order->getUuid(), 'total' => $order->getTotal(), 'by' => $by,
             'payment' => $order->getPaymentMethod()->value,
@@ -48,6 +65,8 @@ final class OrderManager
     }
 
     /**
+     * Refunds an order (simulated) and puts the units back in stock. Admin only.
+     *
      * @throws \DomainException when the order can't be refunded
      */
     public function refund(Order $order): void
@@ -97,14 +116,19 @@ final class OrderManager
         $this->audit->log(AuditLog::CASH_REFUSED, ['order' => (string) $order->getUuid(), 'total' => $order->getTotal(), 'by' => 'seller']);
     }
 
+    /** Locks the order row and reloads its current values from the database. */
     private function lock(Order $order): void
     {
         // Re-read the order under a write lock: a concurrent cancel/refund waits, then sees the new status.
         $this->em->refresh($order, LockMode::PESSIMISTIC_WRITE);
     }
 
+    /**
+     * Puts the quantities of every order line back in the product stock.
+     */
     private function restoreStock(Order $order): void
     {
+        // The products of the order (lines whose product was deleted are skipped).
         $products = array_filter(array_map(static fn (OrderItem $i) => $i->getProduct(), $order->getItems()->toArray()));
         if ([] !== $products) {
             $ids = array_values(array_unique(array_map(static fn (Product $p) => $p->getId(), $products)));
@@ -117,6 +141,7 @@ final class OrderManager
                 ->setHint(Query::HINT_REFRESH, true)->getResult();
         }
 
+        // Add each quantity back to its product.
         foreach ($order->getItems() as $item) {
             // A product deleted since the order (SET NULL) has no stock to restore.
             $item->getProduct()?->restoreStock($item->getQuantity());

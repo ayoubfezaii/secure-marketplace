@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Controller/OrderController.php
+ * WHAT: controller of the buyer's orders (list, detail, cancel) and of the status change of an order line.
+ * ROLE IN THE PROJECT: best file to show the IDOR defence: every action on an order first asks OrderVoter.
+ * USED BY: buyers (list, detail, cancel), sellers and admins (status of an order line; detail redirects them
+ *   to their own order page).
+ */
+
 namespace App\Controller;
 
 use App\Entity\AuditLog;
@@ -20,6 +28,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Requirement\Requirement;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
+/** Order pages shared between roles. Each method has its own #[IsGranted] role. */
 class OrderController extends AbstractController
 {
     /** Status filter labels (also the whitelist of accepted values). */
@@ -28,10 +37,16 @@ class OrderController extends AbstractController
         Order::STATUS_CANCELLED => 'Cancelled', Order::STATUS_REFUNDED => 'Refunded',
     ];
 
+    /**
+     * "My orders" list with an optional status filter and pagination. Buyer only.
+     *
+     * @return Response the rendered template buyer/orders.html.twig
+     */
     #[IsGranted('ROLE_BUYER')]
     #[Route('/buyer/orders', name: 'buyer_orders', methods: ['GET'])]
     public function buyerOrders(Request $request, OrderRepository $orders): Response
     {
+        // Status filter from the URL (?status=shipped).
         $status = $request->query->getString('status');
         // SECURITY (rule 15): whitelist.
         $status = array_key_exists($status, self::STATUS_LABELS) ? $status : null;
@@ -47,6 +62,8 @@ class OrderController extends AbstractController
 
     /**
      * Shared order URL (/orders/{uuid}): each role gets its own view of the same order.
+     *
+     * @param Order $order loaded by the UUID of the URL (404 if unknown)
      */
     #[IsGranted('IS_AUTHENTICATED_FULLY')]
     #[Route('/orders/{uuid}', name: 'order_show', methods: ['GET'], requirements: ['uuid' => Requirement::UUID_V4])]
@@ -56,6 +73,7 @@ class OrderController extends AbstractController
         $this->denyAccessUnlessGranted(OrderVoter::VIEW, $order);
         $user = $this->getAppUser();
 
+        // Admins and sellers have their own, different order page: send them there.
         if ($user->isAdmin() && $this->routeExists('admin_order_show')) {
             return $this->redirectToRoute('admin_order_show', ['uuid' => $order->getUuid()]);
         }
@@ -70,6 +88,8 @@ class OrderController extends AbstractController
     /**
      * Buyer cancels their own order while nothing has shipped ("paid" card order or "placed" cash order). Stock is
      * restored in the same transaction.
+     *
+     * @param OrderManager $orders service that cancels the order and restores the stock in one transaction
      */
     #[IsGranted('ROLE_BUYER')]
     #[Route('/buyer/orders/{uuid}/cancel', name: 'buyer_order_cancel', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
@@ -82,6 +102,7 @@ class OrderController extends AbstractController
         // SECURITY (rule 4): own order only (IDOR), and only while nothing has shipped.
         $this->denyAccessUnlessGranted(OrderVoter::CANCEL, $order);
 
+        // The service checks the state again; a DomainException means "too late to cancel".
         try {
             $orders->cancel($order, 'buyer');
             $this->addFlash('success', $order->isCashOnDelivery() ? 'Your order has been cancelled. There is nothing to pay.' : 'Your order has been cancelled. You will not be charged.');
@@ -95,6 +116,8 @@ class OrderController extends AbstractController
     /**
      * Seller (own items) or admin (any item) moves an item one step forward: paid -> shipped -> delivered
      * (cash on delivery: placed -> shipped -> delivered).
+     *
+     * @param OrderItem $item the order line, loaded by the UUID of the URL
      */
     #[IsGranted(new \Symfony\Component\ExpressionLanguage\Expression("is_granted('ROLE_SELLER') or is_granted('ROLE_ADMIN')"))]
     #[Route('/order-items/{uuid}/status', name: 'order_item_status', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
@@ -111,6 +134,7 @@ class OrderController extends AbstractController
         // SECURITY (rule 4): only the seller of THIS item, or an admin.
         $this->denyAccessUnlessGranted(OrderVoter::ITEM_UPDATE_STATUS, $item);
 
+        // Remember the old status for the audit log.
         $from = $item->getStatus();
         try {
             // SECURITY: state machine, only the next step is accepted (paid -> shipped -> delivered).
@@ -120,8 +144,10 @@ class OrderController extends AbstractController
 
             return $this->redirect($this->backUrl($request, $item));
         }
+        // Save the new status.
         $em->flush();
 
+        // SECURITY: logging - who changed what, kept in the audit log.
         $audit->log(AuditLog::ORDER_STATUS_CHANGED, [
             'order' => (string) $item->getOrder()->getUuid(),
             'item' => (string) $item->getUuid(),
@@ -134,6 +160,11 @@ class OrderController extends AbstractController
         return $this->redirect($this->backUrl($request, $item));
     }
 
+    /**
+     * Where to go after the status change, chosen by the hidden field "back".
+     *
+     * @return string an internal URL
+     */
     private function backUrl(Request $request, OrderItem $item): string
     {
         $uuid = ['uuid' => $item->getOrder()->getUuid()];
@@ -146,11 +177,13 @@ class OrderController extends AbstractController
         };
     }
 
+    /** True when a route with this name exists (the seller/admin order pages). */
     private function routeExists(string $name): bool
     {
         return null !== $this->container->get('router')->getRouteCollection()->get($name);
     }
 
+    /** Returns the logged-in user as a User object (or stops with "access denied"). */
     private function getAppUser(): User
     {
         $user = $this->getUser();

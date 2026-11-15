@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Entity/Shop.php
+ * WHAT: the Shop entity = the public shop page of a seller (name, address in the URL, description, logo).
+ * ROLE IN THE PROJECT: gives each seller a public identity without showing their email.
+ * USED BY: ShopController (public shop page, everyone), Seller\ShopController (the seller edits their shop),
+ *   AccountManager (creates the shop when a buyer becomes a seller), ShopVoter.
+ */
+
 namespace App\Entity;
 
 use App\Repository\ShopRepository;
@@ -23,15 +31,19 @@ class Shop
     /** Slugs that would be confusing or collide with app words. */
     public const RESERVED_SLUGS = ['admin', 'seller', 'buyer', 'api', 'login', 'logout', 'register', 'new', 'edit', 'shop', 'maison-secure', 'support', 'security'];
 
+    // Internal auto-increment primary key.
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
 
+    // The seller who owns the shop (one shop per seller, see the unique index on owner_id).
     #[ORM\OneToOne(inversedBy: 'shop')]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private User $owner;
 
+    // Shop name shown to customers.
+    // SECURITY: validation - only letters, digits, spaces and a few symbols, so no HTML can be stored.
     #[ORM\Column(length: 80)]
     #[Assert\NotBlank]
     #[Assert\Length(min: 3, max: 80)]
@@ -55,18 +67,29 @@ class Shop
     #[ORM\Column(length: 64, nullable: true)]
     private ?string $logoFilename = null;
 
+    // When the shop was created.
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
+    /**
+     * @param User   $owner the seller who owns the shop
+     * @param string $name  shop name
+     * @param string $slug  text used in the public URL of the shop
+     */
     public function __construct(User $owner, string $name, string $slug)
     {
         $this->owner = $owner;
         $this->setName($name);
         $this->setSlug($slug);
         $this->createdAt = new \DateTimeImmutable();
+        // Keep both sides of the one-to-one link in sync ($user->getShop() works immediately).
         $owner->setShop($this);
     }
 
+    /**
+     * Extra validation rule for the slug: refuses reserved words such as "admin" or "login".
+     * SECURITY: validation - a shop cannot take an address that looks like an official page of the site.
+     */
     public static function validateSlug(mixed $value, \Symfony\Component\Validator\Context\ExecutionContextInterface $context): void
     {
         if (is_string($value) && in_array($value, self::RESERVED_SLUGS, true)) {
@@ -77,11 +100,16 @@ class Shop
     /** Builds a URL-safe slug from any name (used for the initial slug; the seller can change it). */
     public static function slugify(string $name): string
     {
+        // Turn the name into plain lower-case ASCII with dashes ("Café Déco" becomes "cafe-deco").
         $ascii = (new \Symfony\Component\String\Slugger\AsciiSlugger())->slug($name)->lower()->toString();
+        // Replace repeated dashes by one and remove dashes at both ends.
         $ascii = trim((string) preg_replace('/-+/', '-', $ascii), '-');
 
+        // Keep at most 50 characters; use "shop" if nothing is left.
         return '' !== $ascii ? mb_substr($ascii, 0, 50) : 'shop';
     }
+
+    // ----- Getters and setters. -----
 
     public function getId(): ?int
     {
@@ -147,6 +175,7 @@ class Shop
         return $this->createdAt;
     }
 
+    /** One or two capital letters taken from the shop name, used as a placeholder when there is no logo. */
     public function getInitials(): string
     {
         $words = preg_split('/\s+/u', $this->name) ?: [];

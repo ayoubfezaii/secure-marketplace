@@ -1,3 +1,6 @@
+{# FILE: templates/bundles/TwigBundle/Exception/error.html.twig #}
+{# WHAT: the custom error page (403, 404, 500...). Symfony uses it automatically in production instead of its default page. #}
+{# USED BY: everyone, whenever an error happens. #}
 {% extends 'base.html.twig' %}
 
 {#
@@ -7,6 +10,7 @@
     It deliberately uses a minimal shell with NO database query (no categories menu, no cart counter), so it still
     renders when the error comes from the database itself.
 #}
+{# Fixed title, message and icon for each HTTP status code. Nothing here comes from the error itself. #}
 {% set titles = {
     400: 'Bad request', 403: 'Access denied', 404: 'Page not found', 405: 'Method not allowed',
     422: 'Invalid request', 429: 'Too many requests', 500: 'Something went wrong', 503: 'Service unavailable'
@@ -22,6 +26,7 @@
 
 {% block title %}{{ titles[status_code] ?? 'Error' }} · Maison Secure{% endblock %}
 
+{# A very small page structure: logo and one link, no database query. #}
 {% block shell %}
     <header class="site-header">
         <div class="container py-3 d-flex align-items-center justify-content-between">
@@ -32,6 +37,7 @@
     <main id="main" class="container error-page" tabindex="-1">
         <div class="row align-items-center g-4 g-lg-5 w-100 mx-0">
             <div class="col-lg-6 order-lg-2 text-center">
+                {# Only the status code (a number) and the fixed texts are displayed (SECURITY: information disclosure). #}
                 <div class="error-code" aria-hidden="true">{{ status_code }}</div>
                 <div class="empty-illus mx-auto"><i class="bi bi-{{ icons[status_code] ?? 'exclamation-diamond' }}" aria-hidden="true"></i></div>
             </div>
@@ -41,6 +47,7 @@
                 <p class="lead text-muted mb-4">{{ messages[status_code] ?? 'The request could not be completed.' }}</p>
                 <div class="d-flex flex-wrap gap-2">
                     <a href="{{ path('app_home') }}" class="btn btn-primary btn-lg">Back to the home page</a>
+                    {# Second button, chosen from the situation: log in, my dashboard, or browse the shop. #}
                     {% if status_code == 403 and not app.user %}
                         <a href="{{ path('app_login') }}" class="btn btn-outline-dark btn-lg">Log in</a>
                     {% elseif app.user %}

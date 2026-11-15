@@ -1,8 +1,12 @@
+{# FILE: templates/layouts/_store_header.html.twig #}
+{# WHAT: the top of the shop pages (announcement bar, logo, menu, search, account / wishlist / cart icons). #}
+{# USED BY: base.html.twig on every shop page (visitor, buyer, seller, admin). #}
 {#
     Storefront header: announcement bar, logo, main navigation (with categories dropdown), search, account /
     wishlist / cart icons; offcanvas menu on mobile.
     SECURITY: counters come from StoreExtension (logged-in buyer only). Logout is a POST + CSRF token (rule 3).
 #}
+{# Variables used below: current route name, categories, "is the user a buyer?", current search text (max 100 chars). #}
 {% set route = app.request.attributes.get('_route') %}
 {% set categories = store_categories() %}
 {% set shopper = can_shop() %}
@@ -31,6 +35,7 @@
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="{{ path('product_index') }}" role="button" data-bs-toggle="dropdown" aria-expanded="false">Categories</a>
                     <ul class="dropdown-menu">
+                        {# Loop: one menu entry per category. The category name is escaped by Twig. #}
                         {% for c in categories %}
                             <li><a class="dropdown-item d-flex align-items-center gap-2" href="{{ path('product_index', {category: c.slug}) }}"><i class="bi bi-{{ c.icon }}" aria-hidden="true"></i> {{ c.name }}</a></li>
                         {% endfor %}
@@ -46,6 +51,7 @@
             <form class="search-pill header-search ms-auto d-none d-md-block" action="{{ path('product_index') }}" method="get" role="search">
                 <label class="visually-hidden" for="headerSearch">Search products</label>
                 <i class="bi bi-search" aria-hidden="true"></i>
+                {# SECURITY: XSS - the search text is printed back in the "value" attribute ESCAPED by Twig, so typing a script tag does nothing. #}
                 <input id="headerSearch" class="form-control" type="search" name="q" value="{{ q }}" maxlength="100" placeholder="Search pieces, shops…">
             </form>
 
@@ -55,6 +61,7 @@
                         <i class="bi bi-person fs-5" aria-hidden="true"></i>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
+                        {# Permission check: menu of a logged-in user, or log in / register links for a visitor. #}
                         {% if app.user %}
                             <li class="px-3 py-2 small text-muted text-truncate">Signed in as<br><strong class="text-body">{{ app.user.publicName }}</strong></li>
                             <li><a class="dropdown-item" href="{{ path('app_dashboard') }}"><i class="bi bi-grid me-2" aria-hidden="true"></i>My dashboard</a></li>
@@ -65,6 +72,7 @@
                             <li>
                                 {# SECURITY (rule 3): logout is a POST with a CSRF token, never a GET link. #}
                                 <form method="post" action="{{ path('app_logout') }}">
+                                    {# Hidden CSRF token of the logout form. #}
                                     <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
                                     <button type="submit" class="dropdown-item"><i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>Log out</button>
                                 </form>
@@ -75,6 +83,7 @@
                         {% endif %}
                     </ul>
                 </div>
+                {# Wishlist and cart icons: for buyers (with counters) and for visitors (they lead to the login page). Not shown to sellers and admins. #}
                 {% if shopper or not app.user %}
                     <a class="btn btn-icon btn-light" href="{{ shopper ? path('buyer_wishlist') : path('app_login') }}" aria-label="Wishlist ({{ wishlist_count() }} items)">
                         <i class="bi bi-heart fs-5" aria-hidden="true"></i>
@@ -112,6 +121,7 @@
         <div>
             <p class="eyebrow mb-2">Categories</p>
             <div class="d-flex flex-wrap gap-2">
+                {# Loop: category shortcuts of the mobile menu. #}
                 {% for c in categories %}
                     <a class="chip" href="{{ path('product_index', {category: c.slug}) }}"><i class="bi bi-{{ c.icon }}" aria-hidden="true"></i> {{ c.name }}</a>
                 {% endfor %}

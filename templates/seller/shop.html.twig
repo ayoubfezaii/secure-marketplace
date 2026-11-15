@@ -1,5 +1,9 @@
+{# FILE: templates/seller/shop.html.twig #}
+{# WHAT: the seller "My shop" page: form (name, address, description, logo) and a preview of the banner. #}
+{# USED BY: Seller\ShopController::shop, route /seller/shop (sellers only, own shop only). #}
 {% extends 'layouts/dashboard.html.twig' %}
 
+{# Variables read by the dashboard layout: title, subtitle and breadcrumbs. #}
 {% set page_title = 'My shop' %}
 {% set page_subtitle = 'Your public shop page.' %}
 {% set crumbs = [['Dashboard', path('seller_dashboard')], ['My shop', null]] %}
@@ -16,6 +20,7 @@
                     {# SECURITY (rules 3, 7, 9): CSRF token; explicit fields; the logo goes through ImageStorage. #}
                     {{ form_start(form, {attr: {novalidate: 'novalidate'}}) }}
                         {{ form_errors(form) }}
+                        {# The fields of ShopFormType. The "remove logo" checkbox is shown only when a logo exists. #}
                         {{ form_row(form.name) }}
                         {{ form_row(form.slug) }}
                         {{ form_row(form.description) }}
@@ -31,6 +36,7 @@
             <div class="shop-banner p-4">
                 <span class="glow" aria-hidden="true"></span>
                 <div class="d-flex align-items-center gap-3 position-relative">
+                    {# Preview: the logo (served by MediaController) or the initials, the name and the public address of the shop. #}
                     <div class="shop-logo">{% if shop.logoFilename %}<img src="{{ path('media_product', {filename: shop.logoFilename}) }}" alt="{{ shop.name }} logo">{% else %}<span aria-hidden="true">{{ shop.initials }}</span>{% endif %}</div>
                     <div class="min-w-0"><p class="h5 text-white mb-1 text-truncate">{{ shop.name }}</p><p class="small text-white-50 mb-0 text-break">/shop/{{ shop.slug }}</p></div>
                 </div>
