@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Controller/Admin/CategoryController.php
+ * WHAT: controller of the admin pages for categories: list, create, edit, delete.
+ * ROLE IN THE PROJECT: a simple CRUD reserved to admins.
+ * USED BY: admins only (ROLE_ADMIN). URLs start with /admin/categories.
+ */
+
 namespace App\Controller\Admin;
 
 use App\Entity\AuditLog;
@@ -22,12 +29,17 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/admin/categories')]
 class CategoryController extends AbstractController
 {
+    /**
+     * @param EntityManagerInterface $em    Doctrine, to save / delete
+     * @param AuditLogger            $audit writes into the audit log
+     */
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly AuditLogger $audit,
     ) {
     }
 
+    /** List of categories with the number of products in each. Admin only. */
     #[Route('', name: 'admin_categories', methods: ['GET'])]
     public function index(CategoryRepository $categories): Response
     {
@@ -37,10 +49,12 @@ class CategoryController extends AbstractController
         ]);
     }
 
+    /** Form to create a category (GET shows it, POST saves it). Admin only. */
     #[Route('/new', name: 'admin_category_new', methods: ['GET', 'POST'])]
     public function new(Request $request): Response
     {
         $category = new Category();
+        // Symfony form: fills the category, checks the CSRF token and validates the constraints (slug format, icon list...).
         $form = $this->createForm(CategoryFormType::class, $category);
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
@@ -55,10 +69,16 @@ class CategoryController extends AbstractController
         return $this->render('admin/categories/form.html.twig', ['form' => $form, 'category' => null], new Response(null, $form->isSubmitted() ? 422 : 200));
     }
 
+    /**
+     * Form to edit a category. Admin only.
+     *
+     * @param string $slug slug of the category taken from the URL
+     */
     // SECURITY (rule 15): the slug in the URL must match the strict slug format.
     #[Route('/{slug}/edit', name: 'admin_category_edit', methods: ['GET', 'POST'], requirements: ['slug' => '[a-z0-9]+(?:-[a-z0-9]+)*'])]
     public function edit(Request $request, string $slug, CategoryRepository $categories): Response
     {
+        // Find the category (bound parameter) or answer 404.
         $category = $categories->findOneBySlug($slug) ?? throw $this->createNotFoundException();
         $form = $this->createForm(CategoryFormType::class, $category);
         $form->handleRequest($request);
@@ -69,6 +89,7 @@ class CategoryController extends AbstractController
 
             return $this->redirectToRoute('admin_categories');
         }
+        // Invalid form: reload the category from the database so the wrong values are not kept.
         if ($form->isSubmitted()) {
             $this->em->refresh($category);
         }
@@ -76,6 +97,9 @@ class CategoryController extends AbstractController
         return $this->render('admin/categories/form.html.twig', ['form' => $form, 'category' => $category], new Response(null, $form->isSubmitted() ? 422 : 200));
     }
 
+    /**
+     * Deletes a category. POST only. Admin only. Refused while the category still has products.
+     */
     #[Route('/{slug}/delete', name: 'admin_category_delete', methods: ['POST'], requirements: ['slug' => '[a-z0-9]+(?:-[a-z0-9]+)*'])]
     public function delete(Request $request, string $slug, CategoryRepository $categories): Response
     {
@@ -91,6 +115,7 @@ class CategoryController extends AbstractController
             return $this->redirectToRoute('admin_categories');
         }
 
+        // Delete, log, confirm.
         $name = $category->getName();
         $this->em->remove($category);
         $this->em->flush();

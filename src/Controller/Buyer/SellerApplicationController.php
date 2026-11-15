@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Controller/Buyer/SellerApplicationController.php
+ * WHAT: controller of the "Become a seller" page.
+ * ROLE IN THE PROJECT: a buyer can only ASK to become a seller; the role change itself is done by an admin.
+ *   This is the defence against privilege escalation.
+ * USED BY: buyers only (ROLE_BUYER).
+ */
+
 namespace App\Controller\Buyer;
 
 use App\Entity\AuditLog;
@@ -23,11 +31,17 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[IsGranted('ROLE_BUYER')]
 class SellerApplicationController extends AbstractController
 {
+    /**
+     * Shows the status of the last application and, when allowed, the application form. Buyer only.
+     *
+     * @return Response the rendered template buyer/seller_application.html.twig
+     */
     #[Route('/buyer/become-a-seller', name: 'buyer_seller_application', methods: ['GET', 'POST'])]
     public function index(Request $request, SellerApplicationRepository $applications, EntityManagerInterface $em, AuditLogger $audit): Response
     {
         $buyer = $this->getUser();
         \assert($buyer instanceof User);
+        // The most recent application of this buyer (to display "pending", "approved" or "rejected").
         $latest = $applications->findLatestFor($buyer);
 
         $form = null;
@@ -35,6 +49,7 @@ class SellerApplicationController extends AbstractController
         if ($this->isGranted(SellerApplicationVoter::APPLY)) {
             // SECURITY (rule 9): the applicant comes from the session.
             $application = new SellerApplication($buyer);
+            // The form has only two fields: shop name and description (see SellerApplicationFormType).
             $form = $this->createForm(SellerApplicationFormType::class, $application);
             $form->handleRequest($request);
 
@@ -46,6 +61,7 @@ class SellerApplicationController extends AbstractController
 
                 return $this->redirectToRoute('buyer_seller_application');
             }
+        // A POST while an application is already pending is refused.
         } elseif ($request->isMethod('POST')) {
             throw $this->createAccessDeniedException('You already have a pending application.');
         }

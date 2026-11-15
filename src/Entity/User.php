@@ -345,7 +345,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     }
 
     /**
-     * Saves the seller's IBAN. Seller only (profile page).
+     * Saves the seller's IBAN. Seller only ("Payouts" page, Seller\ShopController::payouts).
      *
      * @param string $ciphertext output of FieldEncryptor::encrypt(), never the clear IBAN
      */

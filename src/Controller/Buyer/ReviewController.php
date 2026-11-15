@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Controller/Buyer/ReviewController.php
+ * WHAT: controller of "My reviews": list of the buyer's reviews and edit form.
+ * ROLE IN THE PROJECT: lets a buyer manage their own reviews; protected against IDOR by ReviewVoter.
+ * USED BY: buyers only (ROLE_BUYER). URLs start with /buyer/reviews.
+ */
+
 namespace App\Controller\Buyer;
 
 use App\Entity\AuditLog;
@@ -28,6 +35,9 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/buyer/reviews')]
 class ReviewController extends AbstractController
 {
+    /**
+     * List of the buyer's reviews (paginated) + products still to review. Buyer only.
+     */
     #[Route('', name: 'buyer_reviews', methods: ['GET'])]
     public function index(Request $request, ReviewRepository $reviews): Response
     {
@@ -35,6 +45,7 @@ class ReviewController extends AbstractController
         \assert($buyer instanceof User);
 
         // SECURITY (rule 4): scoped to the author = logged-in buyer.
+        // SECURITY: SQL injection - QueryBuilder with the bound parameter :me.
         $qb = $reviews->createQueryBuilder('r')
             ->innerJoin('r.product', 'p')->addSelect('p')
             ->leftJoin('r.reply', 'rep')->addSelect('rep')
@@ -47,6 +58,13 @@ class ReviewController extends AbstractController
         ]);
     }
 
+    /**
+     * Edit form of one review. Buyer only, and only the author of the review.
+     *
+     * @param Review               $review  loaded by the UUID of the URL (404 if unknown)
+     * @param ProductRatingUpdater $ratings recomputes the product's average rating
+     * @param AuditLogger          $audit   writes into the audit log
+     */
     #[Route('/{uuid}/edit', name: 'buyer_review_edit', methods: ['GET', 'POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function edit(
         Request $request,
@@ -62,6 +80,7 @@ class ReviewController extends AbstractController
         $form = $this->createForm(ReviewFormType::class, $review);
         $form->handleRequest($request);
         if ($form->isSubmitted() && $form->isValid()) {
+            // Mark as edited, recompute the product rating, save.
             $review->markEdited();
             $ratings->refresh($review->getProduct());
             $em->flush();
@@ -70,6 +89,7 @@ class ReviewController extends AbstractController
 
             return $this->redirectToRoute('buyer_reviews');
         }
+        // Invalid form: reload the review from the database so the wrong values are not kept.
         if ($form->isSubmitted()) {
             $em->refresh($review);
         }

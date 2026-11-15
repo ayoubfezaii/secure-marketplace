@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Controller/WishlistController.php
+ * WHAT: controller of the "heart" button: saves or removes a product from the wishlist.
+ * ROLE IN THE PROJECT: small buyer feature; shows CSRF, IDOR and open redirect defences.
+ * USED BY: buyers only (ROLE_BUYER).
+ */
+
 namespace App\Controller;
 
 use App\Entity\Product;
@@ -27,6 +34,16 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[IsGranted('ROLE_BUYER')]
 class WishlistController extends AbstractController
 {
+    /**
+     * Saves the product if it is not in the wishlist, removes it if it is. POST only. Buyer only.
+     *
+     * @param Request                $request  the HTTP request (fields: _token, _back)
+     * @param Product                $product  the product, loaded by the UUID of the URL
+     * @param WishlistItemRepository $wishlist queries on wishlist lines
+     * @param EntityManagerInterface $em       Doctrine, to save changes
+     *
+     * @return Response redirect back to the page the buyer came from
+     */
     #[Route('/wishlist/{uuid}/toggle', name: 'wishlist_toggle', methods: ['POST'], requirements: ['uuid' => Requirement::UUID_V4])]
     public function toggle(
         Request $request,
@@ -38,9 +55,11 @@ class WishlistController extends AbstractController
         if (!$this->isCsrfTokenValid('wishlist-'.$product->getUuid(), $request->request->getString('_token'))) {
             throw $this->createAccessDeniedException('Invalid CSRF token.');
         }
+        // The logged-in buyer (guaranteed by #[IsGranted('ROLE_BUYER')] on the class).
         $user = $this->getUser();
         \assert($user instanceof User);
 
+        // Is the product already saved? Then remove it; otherwise add it.
         $line = $wishlist->findOneForUserAndProduct($user, $product);
         if (null !== $line) {
             $em->remove($line);
