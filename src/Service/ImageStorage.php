@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Service/ImageStorage.php
+ * WHAT: service that validates an image file and stores it safely on the disk.
+ * ROLE IN THE PROJECT: THE file to open for the "secure FILE UPLOAD" question. The class comment lists the 6 checks.
+ * USED BY: Seller\ProductController (product images), Seller\ShopController (shop logo), SafeImageFetcher (image
+ *   imported from a URL), MediaController (reads the files), fixtures. Seller flow.
+ */
+
 namespace App\Service;
 
 use App\Exception\ImageRejectedException;
@@ -22,6 +30,7 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
  */
 final class ImageStorage
 {
+    // Limits: 2 MB per file, 20 million pixels, 8000 pixels per side.
     public const MAX_BYTES = 2 * 1024 * 1024;
     private const MAX_PIXELS = 20_000_000;  // ~ 5000 x 4000
     private const MAX_SIDE = 8000;
@@ -36,6 +45,10 @@ final class ImageStorage
     /** Strict pattern for stored names; MediaController uses the same one. */
     public const FILENAME_PATTERN = '[a-f0-9]{32}\.(?:jpg|png|webp)';
 
+    /**
+     * @param string     $uploadDir  folder where images are stored (parameter app.upload_dir, outside public/)
+     * @param Filesystem $filesystem Symfony helper to create folders and delete files
+     */
     public function __construct(
         #[Autowire('%app.upload_dir%')]
         private readonly string $uploadDir,
@@ -44,18 +57,30 @@ final class ImageStorage
     }
 
     /**
+     * Stores a file sent through an upload form.
+     *
+     * @param UploadedFile $file the file received by PHP
+     *
+     * @return string the random stored file name
+     *
      * @throws ImageRejectedException
      */
     public function storeUploadedFile(UploadedFile $file): string
     {
+        // PHP reports upload errors here (file too big for php.ini, interrupted upload...).
         if (!$file->isValid()) {
             throw new ImageRejectedException('The upload failed or the file is too large (max 2 MB).');
         }
 
+        // The uploaded file is in a temporary folder: validate it and move a clean copy to the upload folder.
         return $this->validateAndStore($file->getPathname());
     }
 
     /**
+     * Runs all the checks on a file, then stores a clean re-encoded copy. See the 6 steps in the class comment.
+     *
+     * @param string $tmpPath path of the file to check (temporary upload or downloaded file)
+     *
      * @return string the random stored filename
      *
      * @throws ImageRejectedException when the file is refused (message safe to show to the user)
@@ -73,6 +98,7 @@ final class ImageStorage
         if (!is_string($mime) || !isset(self::ALLOWED[$mime])) {
             throw new ImageRejectedException(sprintf('File type "%s" is not allowed. Use JPG, PNG or WebP.', is_string($mime) ? $mime : 'unknown'));
         }
+        // Type and extension that go with the detected MIME type.
         [$expectedType, $extension] = self::ALLOWED[$mime];
 
         // 4. SECURITY: the image header must parse and match the detected type.
@@ -99,9 +125,11 @@ final class ImageStorage
         // 6. SECURITY: random name, extension derived from the detected type, never from the client's filename
         // (no path traversal "../../", no ".php", no double extension "x.php.jpg").
         $filename = bin2hex(random_bytes(16)).'.'.$extension;
+        // Create the upload folder if needed (owner + group only), and build the final path.
         $this->filesystem->mkdir($this->uploadDir, 0750);
         $target = $this->uploadDir.\DIRECTORY_SEPARATOR.$filename;
 
+        // Write the clean image: only the pixels decoded above are saved.
         $ok = match ($expectedType) {
             \IMAGETYPE_JPEG => imagejpeg($image, $target, 85),
             \IMAGETYPE_PNG => $this->savePng($image, $target),
@@ -109,6 +137,7 @@ final class ImageStorage
         };
         imagedestroy($image);
 
+        // Writing failed: remove the partial file.
         if (!$ok) {
             $this->filesystem->remove($target);
             throw new ImageRejectedException('The image could not be saved.');
@@ -117,6 +146,9 @@ final class ImageStorage
         return $filename;
     }
 
+    /**
+     * Deletes a stored image. Does nothing for null or for a name that is not one of ours.
+     */
     public function delete(?string $filename): void
     {
         // SECURITY: only names matching our own pattern are ever deleted (no path traversal through the DB).
@@ -125,6 +157,12 @@ final class ImageStorage
         }
     }
 
+    /**
+     * Full path of a stored image.
+     * SECURITY: file upload / path traversal - a name such as "../../.env" does not match the pattern, so it returns null.
+     *
+     * @return string|null null when the name is invalid or the file does not exist
+     */
     public function getPath(string $filename): ?string
     {
         if (!self::isValidFilename($filename)) {
@@ -135,11 +173,15 @@ final class ImageStorage
         return is_file($path) ? $path : null;
     }
 
+    /** True when the name is exactly "32 hex characters + .jpg / .png / .webp" (the /D flag forbids a trailing newline). */
     public static function isValidFilename(string $filename): bool
     {
         return 1 === preg_match('/^'.self::FILENAME_PATTERN.'$/D', $filename);
     }
 
+    /**
+     * Content-Type to send for a stored file, chosen from its extension (which we generated ourselves).
+     */
     public static function mimeForFilename(string $filename): string
     {
         return match (pathinfo($filename, \PATHINFO_EXTENSION)) {
@@ -150,6 +192,7 @@ final class ImageStorage
         };
     }
 
+    /** Saves a PNG and keeps its transparency. */
     private function savePng(\GdImage $image, string $target): bool
     {
         imagesavealpha($image, true);

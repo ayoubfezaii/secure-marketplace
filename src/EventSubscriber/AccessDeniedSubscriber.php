@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/EventSubscriber/AccessDeniedSubscriber.php
+ * WHAT: event subscriber that writes an audit log line each time a logged-in user gets "403 access denied".
+ * ROLE IN THE PROJECT: an event subscriber is code that Symfony calls automatically when something happens
+ *   (here: an exception). It makes IDOR attempts visible to the admin.
+ * USED BY: Symfony itself, on every request that ends with an access-denied error (buyer, seller, admin).
+ */
+
 namespace App\EventSubscriber;
 
 use App\Entity\AuditLog;
@@ -18,21 +26,32 @@ use Symfony\Component\Security\Core\Exception\AccessDeniedException;
  */
 final class AccessDeniedSubscriber implements EventSubscriberInterface
 {
+    /**
+     * @param AuditLogger $audit    writes into the audit log
+     * @param Security    $security gives the logged-in user
+     */
     public function __construct(
         private readonly AuditLogger $audit,
         private readonly Security $security,
     ) {
     }
 
+    /** Tells Symfony which event this class listens to, which method to call, and with which priority. */
     public static function getSubscribedEvents(): array
     {
         // Priority 2: before the security ExceptionListener (priority 1) converts the exception.
         return [KernelEvents::EXCEPTION => ['onException', 2]];
     }
 
+    /**
+     * Called by Symfony when any exception is thrown during a request.
+     *
+     * @param ExceptionEvent $event contains the exception and the request
+     */
     public function onException(ExceptionEvent $event): void
     {
         $e = $event->getThrowable();
+        // Only "access denied" exceptions are interesting here.
         if (!$e instanceof AccessDeniedException && !$e instanceof AccessDeniedHttpException) {
             return;
         }
@@ -43,6 +62,7 @@ final class AccessDeniedSubscriber implements EventSubscriberInterface
             return;
         }
 
+        // SECURITY: logging - who was refused, on which URL and with which HTTP method.
         $this->audit->log(AuditLog::ACCESS_DENIED, [
             'path' => mb_substr($event->getRequest()->getPathInfo(), 0, 255),
             'method' => $event->getRequest()->getMethod(),

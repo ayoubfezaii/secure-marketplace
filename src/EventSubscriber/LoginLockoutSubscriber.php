@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/EventSubscriber/LoginLockoutSubscriber.php
+ * WHAT: event subscriber that counts wrong passwords, locks the account after 5 failures, and logs every
+ *   login success, failure and logout.
+ * ROLE IN THE PROJECT: the BRUTE FORCE defence stored on the account (works even if the attacker changes IP).
+ * USED BY: Symfony Security, which sends an event after each login attempt and each logout (all roles).
+ */
+
 namespace App\EventSubscriber;
 
 use App\Entity\AuditLog;
@@ -23,6 +31,11 @@ use Symfony\Component\Security\Http\Event\LogoutEvent;
  */
 final class LoginLockoutSubscriber implements EventSubscriberInterface
 {
+    /**
+     * @param UserRepository         $users to find the account behind the typed email
+     * @param EntityManagerInterface $em    Doctrine, to save the failure counter
+     * @param AuditLogger            $audit writes into the audit log
+     */
     public function __construct(
         private readonly UserRepository $users,
         private readonly EntityManagerInterface $em,
@@ -30,6 +43,7 @@ final class LoginLockoutSubscriber implements EventSubscriberInterface
     ) {
     }
 
+    /** Tells Symfony which security events this class listens to and which method handles each one. */
     public static function getSubscribedEvents(): array
     {
         return [
@@ -39,6 +53,11 @@ final class LoginLockoutSubscriber implements EventSubscriberInterface
         ];
     }
 
+    /**
+     * Called by Symfony after a FAILED login attempt.
+     *
+     * @param LoginFailureEvent $event contains the typed email and the reason of the failure
+     */
     public function onLoginFailure(LoginFailureEvent $event): void
     {
         // The 2FA step is logged by TwoFactorSubscriber; a wrong 2FA code must not count as a wrong password.
@@ -46,6 +65,7 @@ final class LoginLockoutSubscriber implements EventSubscriberInterface
             return;
         }
 
+        // The email typed in the form (cut to 180 characters), the reason, and the matching account if it exists.
         $identifier = mb_substr($event->getPassport()?->getBadge(UserBadge::class)?->getUserIdentifier() ?? '', 0, 180);
         $exception = $event->getException();
         $user = '' !== $identifier ? $this->users->findOneByEmail($identifier) : null;
@@ -61,13 +81,16 @@ final class LoginLockoutSubscriber implements EventSubscriberInterface
         // SECURITY: failures for unknown emails are logged too, without revealing anything to the client.
         $this->audit->log(AuditLog::LOGIN_FAILURE, ['email' => $identifier], $user);
 
+        // Unknown email: nothing to count.
         if (!$user instanceof User) {
             return;
         }
 
+        // SECURITY: brute force - count this failure on the account; at 5 the account is locked for 15 minutes.
         $user->registerFailedLogin();
         $this->em->flush();
 
+        // The account just became locked: log it.
         if ($user->isLocked()) {
             $this->audit->log(AuditLog::ACCOUNT_LOCKED, [
                 'email' => $user->getEmail(),
@@ -76,9 +99,15 @@ final class LoginLockoutSubscriber implements EventSubscriberInterface
         }
     }
 
+    /**
+     * Called by Symfony after a SUCCESSFUL password check.
+     *
+     * @param LoginSuccessEvent $event contains the user who logged in
+     */
     public function onLoginSuccess(LoginSuccessEvent $event): void
     {
         $user = $event->getUser();
+        // Skip other user classes, and skip the 2FA step (it has its own subscriber).
         if (!$user instanceof User || self::isTwoFactorStep($event->getAuthenticator())) {
             return;
         }
@@ -91,9 +120,13 @@ final class LoginLockoutSubscriber implements EventSubscriberInterface
         $user->recordLogin();
         $this->em->flush();
 
+        // SECURITY: logging - successful login (with a note when a 2FA code is still required).
         $this->audit->log(AuditLog::LOGIN_SUCCESS, ['email' => $user->getEmail(), '2fa_pending' => $user->isTotpAuthenticationEnabled()], $user);
     }
 
+    /**
+     * Called by Symfony when a user logs out.
+     */
     public function onLogout(LogoutEvent $event): void
     {
         $user = $event->getToken()?->getUser();
@@ -102,6 +135,7 @@ final class LoginLockoutSubscriber implements EventSubscriberInterface
         }
     }
 
+    /** True when the event comes from the 2FA code step and not from the password form. */
     private static function isTwoFactorStep(object $authenticator): bool
     {
         // In debug mode the authenticator is wrapped for the profiler.

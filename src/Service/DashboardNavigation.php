@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Service/DashboardNavigation.php
+ * WHAT: service that builds the left menu (sidebar) of the dashboards.
+ * ROLE IN THE PROJECT: one menu definition per role, used by the dashboard layout.
+ * USED BY: App\Twig\DashboardExtension -> templates/layouts/dashboard.html.twig (buyer, seller, admin).
+ */
+
 namespace App\Service;
 
 use App\Entity\User;
@@ -60,10 +67,14 @@ final class DashboardNavigation
         ['app_security_settings', 'Security', 'shield-lock', ['account_password']],
     ];
 
+    /**
+     * @param RouterInterface $router Symfony router, used to check that a route exists
+     */
     public function __construct(private readonly RouterInterface $router)
     {
     }
 
+    /** Returns the main role of the user (admin, seller or buyer) as a ROLE_* constant. */
     public static function roleOf(User $user): string
     {
         return match (true) {
@@ -74,10 +85,16 @@ final class DashboardNavigation
     }
 
     /**
+     * Builds the menu of the user's role, plus the shared "Account" section.
+     *
+     * @param User        $user         the logged-in user
+     * @param string|null $currentRoute name of the current route, to highlight the active item
+     *
      * @return array<string, list<array{route: string, label: string, icon: string, active: bool}>>
      */
     public function menu(User $user, ?string $currentRoute): array
     {
+        // Menu of the role + the "Account" section shared by everyone.
         $sections = self::MENUS[self::roleOf($user)];
         $sections['Account'] = self::ACCOUNT;
 
@@ -89,6 +106,7 @@ final class DashboardNavigation
                 if (null === $routes->get($route)) {
                     continue;
                 }
+                // "active" is true for the current page (or one of its sub-pages).
                 $menu[$title][] = [
                     'route' => $route,
                     'label' => $label,
@@ -113,6 +131,7 @@ final class DashboardNavigation
         return null !== $this->router->getRouteCollection()->get($route) ? $route : null;
     }
 
+    /** Text shown in the empty search box of the top bar, depending on the role. */
     public function searchPlaceholder(User $user): string
     {
         return match (self::roleOf($user)) {

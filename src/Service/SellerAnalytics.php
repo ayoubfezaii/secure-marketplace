@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Service/SellerAnalytics.php
+ * WHAT: service that computes the sales statistics of one seller (totals, charts, best sellers, payouts).
+ * ROLE IN THE PROJECT: keeps the statistics queries out of the controllers; every query is limited to one seller.
+ * USED BY: Seller\DashboardController (dashboard + analytics) and Seller\ShopController::payouts (seller).
+ */
+
 namespace App\Service;
 
 use App\Entity\Order;
@@ -28,11 +35,20 @@ final class SellerAnalytics
     /** Simulated marketplace commission on payouts. */
     public const COMMISSION = '0.10';
 
+    /**
+     * @param EntityManagerInterface $em Doctrine, to run the statistics queries
+     */
     public function __construct(private readonly EntityManagerInterface $em)
     {
     }
 
     /**
+     * Revenue, units sold and number of orders of $seller between two dates.
+     *
+     * @param User               $seller the logged-in seller
+     * @param \DateTimeImmutable $from   start (included)
+     * @param \DateTimeImmutable $to     end (excluded)
+     *
      * @return array{revenue: float, units: int, orders: int}
      */
     public function totals(User $seller, \DateTimeImmutable $from, \DateTimeImmutable $to): array
@@ -57,6 +73,7 @@ final class SellerAnalytics
      */
     public function overview(User $seller): array
     {
+        // This month so far, compared with the same number of days of last month.
         $monthStart = new \DateTimeImmutable('first day of this month 00:00');
         $prevStart = $monthStart->modify('-1 month');
         // Same number of days into last month, for a fair comparison.
@@ -66,6 +83,7 @@ final class SellerAnalytics
         $current = $this->totals($seller, $monthStart, new \DateTimeImmutable('+1 second'));
         $previous = $this->totals($seller, $prevStart, min($prevEnd, $monthStart));
 
+        // Average rating and number of reviews over the seller's products.
         $rating = $this->em->createQueryBuilder()
             ->select('AVG(r.rating) AS avg, COUNT(r.id) AS cnt')
             ->from(Review::class, 'r')->innerJoin('r.product', 'p')
@@ -74,6 +92,7 @@ final class SellerAnalytics
 
         return [
             'revenueMonth' => $current['revenue'],
+            // Change in percent versus last month (null when last month had no revenue).
             'revenueDelta' => $previous['revenue'] > 0 ? round(($current['revenue'] - $previous['revenue']) / $previous['revenue'] * 100, 1) : null,
             'unitsMonth' => $current['units'],
             'pendingShipments' => (int) $this->em->createQuery('SELECT COUNT(i.id) FROM '.OrderItem::class.' i WHERE i.seller = :s AND i.status IN (:p)')
@@ -92,6 +111,7 @@ final class SellerAnalytics
      */
     public function salesByDay(User $seller, int $days): array
     {
+        // First day of the period (today included).
         $since = (new \DateTimeImmutable('today'))->modify(sprintf('-%d days', $days - 1));
         $rows = $this->em->createQueryBuilder()
             ->select('o.createdAt AS createdAt, i.unitPrice AS unitPrice, i.quantity AS quantity')
@@ -101,6 +121,7 @@ final class SellerAnalytics
             ->andWhere('o.paymentStatus IN (:settled)')->setParameter('settled', PaymentStatus::settledValues())
             ->getQuery()->getArrayResult();
 
+        // One entry per day with 0, then add each sale to its day.
         $revenue = [];
         $units = [];
         for ($d = $since; $d <= new \DateTimeImmutable('today'); $d = $d->modify('+1 day')) {
@@ -123,6 +144,8 @@ final class SellerAnalytics
     }
 
     /**
+     * Revenue per category over the last $days days (doughnut chart of the analytics page).
+     *
      * @return array{labels: list<string>, data: list<float>}
      */
     public function revenueByCategory(User $seller, int $days): array
@@ -141,6 +164,8 @@ final class SellerAnalytics
     }
 
     /**
+     * The products that sold the most units over the last $days days.
+     *
      * @return list<array{product: Product, units: int, revenue: float}>
      */
     public function topProducts(User $seller, int $days, int $limit = 5): array
@@ -156,6 +181,7 @@ final class SellerAnalytics
             ->groupBy('p.id')->orderBy('units', 'DESC')->setMaxResults($limit)
             ->getQuery()->getResult();
 
+        // Convert the raw rows: the product object, units sold and revenue.
         return array_map(static fn (array $r) => ['product' => $r[0], 'units' => (int) $r['units'], 'revenue' => round((float) $r['revenue'], Money::SCALE)], $rows);
     }
 
@@ -192,6 +218,7 @@ final class SellerAnalytics
             ->orderBy('o.createdAt', 'DESC')
             ->getQuery()->getArrayResult();
 
+        // Group the delivered lines by month ("2026-11") and add up the amounts with exact decimal math.
         $months = [];
         foreach ($rows as $row) {
             $key = $row['createdAt']->format('Y-m');
@@ -200,6 +227,7 @@ final class SellerAnalytics
             $months[$key]['items'] += (int) $row['quantity'];
         }
 
+        // Build one payout line per month: gross amount, commission (10 %), net amount, status.
         $current = (new \DateTimeImmutable())->format('Y-m');
         $result = [];
         foreach ($months as $key => $m) {

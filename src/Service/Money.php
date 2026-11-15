@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Service/Money.php
+ * WHAT: constants and two functions to format money amounts (Tunisian dinar, 3 decimals).
+ * ROLE IN THE PROJECT: one place for the currency, so every page shows prices the same way.
+ * USED BY: entities (Product, Order...), services, App\Twig\MoneyExtension (the |price filter in templates),
+ *   the CSV export. Tested by tests/Unit/MoneyTest.
+ */
+
 namespace App\Service;
 
 /**
@@ -14,10 +22,12 @@ namespace App\Service;
  */
 final class Money
 {
+    // ISO code and symbol of the currency.
     public const CURRENCY = 'TND';
     public const SYMBOL = 'DT';
     /** Decimals of the dinar (1 DT = 1000 millimes). Also the bcmath scale used everywhere. */
     public const SCALE = 3;
+    // Zero written with 3 decimals; start value of every total.
     public const ZERO = '0.000';
     /** Highest product price a seller may set, in DT. */
     public const MAX_PRICE = 300000;
@@ -41,6 +51,7 @@ final class Money
         return number_format(self::toFloat($amount), self::SCALE, '.', '');
     }
 
+    /** Converts any input to a float for display. */
     private static function toFloat(string|int|float|null $amount): float
     {
         // Anything that is not a number (null, '', a stray string) is shown as zero rather than raising an error.

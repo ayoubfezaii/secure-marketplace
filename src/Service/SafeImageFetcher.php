@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Service/SafeImageFetcher.php
+ * WHAT: service that downloads an image from a URL given by a seller, safely.
+ * ROLE IN THE PROJECT: THE file to open for the "SSRF" question. The class comment lists the 7 defences.
+ * USED BY: Seller\ProductController::handleImages ("import image from URL" field, seller).
+ */
+
 namespace App\Service;
 
 use App\Exception\ImageRejectedException;
@@ -29,6 +36,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  */
 final class SafeImageFetcher
 {
+    // Maximum time for the whole download (seconds) and maximum length of the URL.
     private const TIMEOUT = 5.0;
     private const MAX_URL_LENGTH = 2048;
 
@@ -45,8 +53,13 @@ final class SafeImageFetcher
         '2001:db8::/32',      // documentation
     ];
 
+    // The HTTP client used for the download (wrapped in the constructor).
     private readonly HttpClientInterface $client;
 
+    /**
+     * @param HttpClientInterface $httpClient Symfony HTTP client
+     * @param ImageStorage        $storage    validates and stores the downloaded file
+     */
     public function __construct(
         HttpClientInterface $httpClient,
         private readonly ImageStorage $storage,
@@ -56,6 +69,10 @@ final class SafeImageFetcher
     }
 
     /**
+     * Main method: checks the URL, downloads the file and stores it as an image.
+     *
+     * @param string $url the URL typed by the seller
+     *
      * @return string the stored filename
      *
      * @throws SsrfBlockedException   URL refused by the SSRF checks (to be audit-logged)
@@ -63,32 +80,42 @@ final class SafeImageFetcher
      */
     public function fetchAndStore(string $url): string
     {
+        // Step 1: all the SSRF checks. Returns the host name and the IP address that was validated.
         [$host, $ip] = $this->validateUrl(trim($url));
 
+        // Temporary file that receives the download.
         $tmp = tempnam(sys_get_temp_dir(), 'imgimport');
         if (false === $tmp) {
             throw new ImageRejectedException('Temporary storage unavailable.');
         }
 
         try {
+            // Step 2: download (pinned to the validated IP, no redirect, time and size limits).
             $this->download(trim($url), $host, $ip, $tmp);
 
             // SECURITY: the same validation and re-encoding as a normal upload (rule 7).
             return $this->storage->validateAndStore($tmp);
         } finally {
+            // Always delete the temporary file.
             @unlink($tmp);
         }
     }
 
     /**
+     * Checks that a URL is allowed. Throws SsrfBlockedException otherwise.
+     *
+     * @param string $url the URL to check
+     *
      * @return array{0: string, 1: string} [host, validated IP to connect to]
      */
     public function validateUrl(string $url): array
     {
+        // Refuse empty, very long, or URLs with spaces / control characters.
         if ('' === $url || strlen($url) > self::MAX_URL_LENGTH || 1 === preg_match('/[\x00-\x20\x7F]/', $url)) {
             throw new SsrfBlockedException('malformed_url', 'Please enter a valid https:// image URL.');
         }
 
+        // Split the URL into scheme, host, port, user...
         $parts = parse_url($url);
         if (false === $parts || !isset($parts['scheme'], $parts['host'])) {
             throw new SsrfBlockedException('malformed_url', 'Please enter a valid https:// image URL.');
@@ -107,6 +134,7 @@ final class SafeImageFetcher
             throw new SsrfBlockedException('non_standard_port');
         }
 
+        // Host in lower case, without the [ ] used around IPv6 addresses.
         $host = strtolower(trim($parts['host'], '[]'));
 
         // Literal IP in the URL (https://127.0.0.1/, https://[::1]/).
@@ -122,6 +150,7 @@ final class SafeImageFetcher
             throw new SsrfBlockedException('invalid_hostname');
         }
 
+        // Ask the DNS for the addresses of this host.
         $ips = $this->resolve($host);
         if ([] === $ips) {
             throw new SsrfBlockedException('dns_resolution_failed', 'This host could not be resolved.');
@@ -132,9 +161,15 @@ final class SafeImageFetcher
             $this->assertPublicIp($ip);
         }
 
+        // Return the first address: the download will connect to exactly this one.
         return [$host, $ips[0]];
     }
 
+    /**
+     * True when the address is a public Internet address.
+     * SECURITY: SSRF - false for loopback (127.0.0.1, ::1), private networks (10/8, 172.16/12, 192.168/16),
+     * link-local (169.254/16, cloud metadata) and the other internal ranges.
+     */
     public static function isPublicIp(string $ip): bool
     {
         if (false === filter_var($ip, \FILTER_VALIDATE_IP)) {
@@ -144,6 +179,7 @@ final class SafeImageFetcher
         return !IpUtils::checkIp($ip, array_merge(IpUtils::PRIVATE_SUBNETS, self::EXTRA_BLOCKED));
     }
 
+    /** Throws SsrfBlockedException when the address is not public. */
     private function assertPublicIp(string $ip): void
     {
         if (!self::isPublicIp($ip)) {
@@ -152,6 +188,8 @@ final class SafeImageFetcher
     }
 
     /**
+     * Asks the DNS for all the IPv4 (A) and IPv6 (AAAA) addresses of a host.
+     *
      * @return list<string>
      */
     private function resolve(string $host): array
@@ -165,6 +203,7 @@ final class SafeImageFetcher
                 $ips[] = $record['ipv6'];
             }
         }
+        // Fallback when dns_get_record() returns nothing (some systems): IPv4 lookup.
         if ([] === $ips) {
             $v4 = @gethostbynamel($host);
             $ips = false === $v4 ? [] : $v4;
@@ -173,6 +212,14 @@ final class SafeImageFetcher
         return array_values(array_unique($ips));
     }
 
+    /**
+     * Downloads the URL into the temporary file.
+     *
+     * @param string $url  the validated URL
+     * @param string $host host name of the URL
+     * @param string $ip   the validated IP address to connect to
+     * @param string $tmp  path of the temporary file
+     */
     private function download(string $url, string $host, string $ip, string $tmp): void
     {
         $handle = fopen($tmp, 'wb');
@@ -187,6 +234,7 @@ final class SafeImageFetcher
                 'resolve' => [$host => $ip],
                 // SECURITY: no redirects at all.
                 'max_redirects' => 0,
+                // Time limits, and normal TLS certificate checks.
                 'timeout' => self::TIMEOUT,
                 'max_duration' => self::TIMEOUT,
                 'verify_peer' => true,
@@ -199,6 +247,7 @@ final class SafeImageFetcher
                 throw new ImageRejectedException('The URL did not return an image (HTTP '.$response->getStatusCode().').');
             }
 
+            // If the server announces a size, refuse early when it is too big.
             $declared = $response->getHeaders(false)['content-length'][0] ?? null;
             if (null !== $declared && (int) $declared > ImageStorage::MAX_BYTES) {
                 throw new ImageRejectedException('The image must be smaller than 2 MB.');
