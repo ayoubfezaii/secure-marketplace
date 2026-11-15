@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Security/Voter/OrderVoter.php
+ * WHAT: the voter that answers "may this user see / cancel / refund / update THIS order?".
+ * ROLE IN THE PROJECT: access control on each order and order line (defence against IDOR).
+ * USED BY: OrderController (buyer), Seller\OrderController (seller), Admin\ModerationController (admin) and the
+ *   templates (is_granted) to show or hide the buttons.
+ */
+
 namespace App\Security\Voter;
 
 use App\Entity\Order;
@@ -24,6 +32,7 @@ use Symfony\Component\Security\Core\Authorization\Voter\Voter;
  */
 final class OrderVoter extends Voter
 {
+    // Names of the permissions this voter understands (explained in the class comment above).
     public const VIEW = 'ORDER_VIEW';
     public const CANCEL = 'ORDER_CANCEL';
     public const ADMIN_CANCEL = 'ORDER_ADMIN_CANCEL';
@@ -32,20 +41,35 @@ final class OrderVoter extends Voter
     public const CASH_REFUSE = 'ORDER_CASH_REFUSE';
     public const ITEM_UPDATE_STATUS = 'ORDER_ITEM_UPDATE_STATUS';
 
+    /**
+     * Says if this voter handles the question: order permissions on an Order, item permission on an OrderItem.
+     */
     protected function supports(string $attribute, mixed $subject): bool
     {
         return (in_array($attribute, [self::VIEW, self::CANCEL, self::ADMIN_CANCEL, self::REFUND, self::CASH_COLLECT, self::CASH_REFUSE], true) && $subject instanceof Order)
             || (self::ITEM_UPDATE_STATUS === $attribute && $subject instanceof OrderItem);
     }
 
+    /**
+     * The decision itself.
+     *
+     * @param string         $attribute the permission asked
+     * @param mixed          $subject   the Order or OrderItem
+     * @param TokenInterface $token     gives the logged-in user
+     *
+     * @return bool true = allowed, false = denied (error 403)
+     */
     protected function voteOnAttribute(string $attribute, mixed $subject, TokenInterface $token): bool
     {
         $user = $token->getUser();
+        // Nobody logged in: always refused.
         if (!$user instanceof User) {
             return false;
         }
 
+        // --- Question about ONE LINE of an order (change its status) ---
         if ($subject instanceof OrderItem) {
+            // A finished, cancelled or refunded line has no next status: nothing can be done.
             if (null === $subject->getNextStatus()) {
                 return false;
             }
@@ -54,6 +78,8 @@ final class OrderVoter extends Voter
             return $user->isAdmin() || ($user->isSeller() && $subject->getSeller()->getId() === $user->getId());
         }
 
+        // --- Questions about a whole ORDER ---
+        // SECURITY: IDOR - true only when the logged-in buyer is the buyer of this order.
         /** @var Order $subject */
         $isBuyer = $user->isBuyer() && $subject->getBuyer()->getId() === $user->getId();
         // SECURITY: the cash outcome changes the whole order (payment status, or cancellation + stock), so it is
@@ -61,6 +87,7 @@ final class OrderVoter extends Voter
         // buyer can never mark their own order as paid.
         $isOnlySeller = $user->isSeller() && $subject->isSoldOnlyBy($user);
 
+        // One rule per permission. Each rule mixes WHO the user is and the STATE of the order.
         return match ($attribute) {
             self::VIEW => $user->isAdmin() || $isBuyer || ($user->isSeller() && $subject->hasSeller($user)),
             self::CANCEL => $isBuyer && $subject->isCancellable(),
