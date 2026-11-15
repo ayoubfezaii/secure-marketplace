@@ -1,3 +1,6 @@
+{# FILE: templates/reset_password/reset.html.twig #}
+{# WHAT: the "Choose a new password" page, opened from the link received by email. #}
+{# USED BY: ResetPasswordController::reset, route /reset-password/reset (visitors with a valid reset token). #}
 {% extends 'layouts/auth.html.twig' %}
 {% import '_ui/forms.html.twig' as f %}
 
@@ -11,6 +14,7 @@
        was moved from the URL to the session before this page was shown. #}
     {{ form_start(resetForm, {attr: {novalidate: 'novalidate'}}) }}
         {{ form_errors(resetForm) }}
+        {# The new password typed twice; the first field shows the strength bar. #}
         {{ f.password(resetForm.plainPassword.first, true) }}
         {{ f.password(resetForm.plainPassword.second) }}
         <button class="btn btn-primary btn-lg w-100" type="submit">Change password</button>

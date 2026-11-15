@@ -1,6 +1,10 @@
+{# FILE: templates/seller/products/form.html.twig #}
+{# WHAT: the form to create or edit a product (details, images) with a live preview card. #}
+{# USED BY: Seller\ProductController::new and ::edit, routes /seller/products/new and /{uuid}/edit (sellers only, own products). #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
+{# Variables read by the dashboard layout. "product" is null when creating. #}
 {% set page_title = product ? 'Edit product' : 'New product' %}
 {% set page_subtitle = product ? product.name : 'Add a new piece to your shop.' %}
 {% set crumbs = [['Dashboard', path('seller_dashboard')], ['Products', path('seller_products')], [page_title, null]] %}
@@ -21,6 +25,7 @@
             <section class="panel mb-4">
                 <div class="panel-head"><h2>Details</h2></div>
                 <div class="panel-body">
+                    {# The fields of ProductFormType. form_row() prints the label, the input and the errors. #}
                     {{ form_row(form.name) }}
                     {{ form_row(form.description) }}
                     <div class="row g-3">
@@ -36,8 +41,10 @@
             <section class="panel mb-4">
                 <div class="panel-head"><h2>Images</h2><span class="small text-muted">{{ product ? product.images|length : 0 }} / 4</span></div>
                 <div class="panel-body">
+                    {# Existing images (edit only): each one with a "remove" checkbox. #}
                     {% if product and product.images is not empty %}
                         <div class="row g-2 mb-3">
+                            {# Loop over the images of the product. #}
                             {% for image in product.images %}
                                 <div class="col-6 col-md-3">
                                     <div class="image-tile mb-1"><img src="{{ path('media_product', {filename: image.filename}) }}" alt="Image {{ loop.index }} of {{ product.name }}"></div>
@@ -52,6 +59,7 @@
                         </div>
                         {% if form.removeImages is defined %}{% do form.removeImages.setRendered %}{% endif %}
                     {% endif %}
+                    {# Upload field (several files) and "import from URL" field. Both are checked on the server. #}
                     {{ form_row(form.imageFiles) }}
                     {{ form_row(form.imageUrl) }}
                     <p class="small text-muted mb-0"><i class="bi bi-shield-check" aria-hidden="true"></i> Every image is checked (real file type, size, dimensions), re-encoded and renamed before it is stored.</p>
@@ -62,8 +70,10 @@
                 <button type="submit" class="btn btn-primary btn-lg">{{ product ? 'Save changes' : 'Create product' }}</button>
                 <a class="btn btn-light btn-lg" href="{{ path('seller_products') }}">Cancel</a>
             </div>
+            {# form_end() closes the form and prints the hidden CSRF token. #}
             {{ form_end(form) }}
 
+            {# Delete block (edit only): a separate POST form with its own CSRF token and a confirmation window. #}
             {% if product %}
                 <section class="panel mt-4 border-danger-subtle">
                     <div class="panel-body d-flex flex-wrap justify-content-between align-items-center gap-3">
@@ -80,6 +90,7 @@
                 <p class="eyebrow mb-2">Live preview</p>
                 <article class="product-card">
                     <div class="media">
+                        {# The data-preview-target elements below are filled by the preview controller while the seller types. #}
                         <div class="badges"><span class="badge badge-sale" hidden {{ stimulus_target('preview', 'outSale') }}></span></div>
                         {{ ui.product_image(product ? product.mainImageFilename : null, 'Preview') }}
                     </div>

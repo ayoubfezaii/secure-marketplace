@@ -1,7 +1,11 @@
+{# FILE: templates/seller/reviews.html.twig #}
+{# WHAT: the seller "Reviews" page: reviews of the seller's products, with a reply form under each one. #}
+{# USED BY: Seller\ReviewController::index, route /seller/reviews (sellers only, own products only). #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 {% import '_ui/table.html.twig' as t %}
 
+{# Variables read by the dashboard layout: title, subtitle and breadcrumbs. #}
 {% set page_title = 'Reviews' %}
 {% set page_subtitle = 'What customers say about your products. You can answer each review once, publicly.' %}
 {% set crumbs = [['Dashboard', path('seller_dashboard')], ['Reviews', null]] %}
@@ -9,16 +13,19 @@
 {% block content %}
     <section class="panel mb-3">
         <div class="toolbar">
+            {# Two filters shown as chips: by number of stars, and replied / not replied. #}
             {{ t.filter_chips('rating', rating, {5: '5 ★', 4: '4 ★', 3: '3 ★', 2: '2 ★', 1: '1 ★'}, 'seller_reviews', params) }}
             <span class="ms-lg-auto"></span>
             {{ t.filter_chips('replied', replied, {no: 'Awaiting reply', yes: 'Replied'}, 'seller_reviews', params) }}
         </div>
     </section>
 
+    {# No review: empty message. Otherwise: one card per review, then the page links. #}
     {% if pager.total == 0 %}
         {{ ui.empty_state('No reviews here', 'Reviews from verified buyers of your products will appear here.', null, null, 'chat-quote') }}
     {% else %}
         <div class="d-grid gap-3">
+            {# Loop over the reviews of this page. #}
             {% for review in pager.items %}
                 <article class="panel">
                     <div class="panel-body">
@@ -36,12 +43,14 @@
                         {# SECURITY (rule 2): buyer text, auto-escaped. #}
                         <p class="pre-line mt-3 mb-0">{{ review.comment }}</p>
 
+                        {# Already answered: show the reply. Otherwise, permission check: the reply form appears only if ReviewVoter allows it. #}
                         {% if review.reply %}
                             <div class="seller-reply"><strong class="small"><i class="bi bi-reply-fill" aria-hidden="true"></i> Your reply · {{ review.reply.createdAt|date('d M Y') }}</strong><p class="pre-line mb-0 mt-1">{{ review.reply.body }}</p></div>
                         {% elseif is_granted('REVIEW_REPLY', review) %}
                             {# SECURITY (rules 3, 4): POST + per-review CSRF token; ReviewVoter::REPLY (my product, no reply yet)
                                and a unique index guarantee one reply per review. #}
                             <form method="post" action="{{ path('seller_review_reply', {uuid: review.uuid}) }}" class="reply-box mt-3">
+                                {# Hidden CSRF token (one token per review). #}
                                 <input type="hidden" name="_token" value="{{ csrf_token('review-reply-' ~ review.uuid) }}">
                                 <label class="form-label small" for="reply-{{ review.uuid }}">Public reply</label>
                                 <textarea class="form-control" id="reply-{{ review.uuid }}" name="body" maxlength="1000" minlength="2" required placeholder="Thank the customer or answer their question…"></textarea>

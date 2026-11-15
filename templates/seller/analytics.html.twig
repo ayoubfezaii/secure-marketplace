@@ -1,6 +1,10 @@
+{# FILE: templates/seller/analytics.html.twig #}
+{# WHAT: the seller "Analytics" page: totals, revenue chart, revenue by category, best sellers. #}
+{# USED BY: Seller\DashboardController::analytics, route /seller/analytics (sellers only, own figures only). #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
+{# Variables read by the dashboard layout: title, subtitle and breadcrumbs. #}
 {% set page_title = 'Analytics' %}
 {% set page_subtitle = 'Your sales over the last ' ~ days ~ ' days (cancelled and refunded items excluded).' %}
 {% set crumbs = [['Dashboard', path('seller_dashboard')], ['Analytics', null]] %}
@@ -8,6 +12,7 @@
 {% block page_actions %}
     {# SECURITY (rule 15): only the whitelisted presets are accepted by the server. #}
     <div class="btn-group" role="group" aria-label="Date range">
+        {# Loop: one button per allowed period (7d, 30d, 90d). The current one is highlighted. #}
         {% for r in ranges %}
             <a class="btn btn-sm {{ r == range ? 'btn-primary' : 'btn-outline-dark' }}" href="{{ path('seller_analytics', {range: r}) }}" {% if r == range %}aria-current="true"{% endif %}>{{ r }}</a>
         {% endfor %}
@@ -15,6 +20,7 @@
 {% endblock %}
 
 {% block content %}
+    {# Change in percent compared with the previous period (null when there is nothing to compare with). #}
     {% set delta = previous.revenue > 0 ? ((totals.revenue - previous.revenue) / previous.revenue * 100)|round(1) : null %}
     <div class="row g-3 mb-4">
         <div class="col-6 col-xl-3">{{ ui.stat_card('Revenue', totals.revenue|price, 'cash-stack', 'accent', null, delta is not null ? (delta >= 0 ? '+' : '') ~ delta ~ '% vs previous ' ~ days ~ ' days' : 'No previous data') }}</div>
@@ -27,6 +33,7 @@
             <section class="panel h-100">
                 <div class="panel-head"><h2>Revenue by day</h2></div>
                 <div class="panel-body">
+                    {# Chart: the data is written as JSON in a data attribute (escaped by Twig) and read by the chart controller. No inline script. #}
                     <div class="chart-box" {{ stimulus_controller('chart', {config: {type: 'bar', title: 'Revenue by day', labels: chart.labels, datasets: [{label: 'Revenue (DT)', money: true, data: chart.revenue}]}}) }}><p class="text-muted small">Loading chart…</p></div>
                 </div>
             </section>
@@ -35,6 +42,7 @@
             <section class="panel h-100">
                 <div class="panel-head"><h2>Revenue by category</h2></div>
                 <div class="panel-body">
+                    {# No sale in the period: short text instead of an empty chart. #}
                     {% if byCategory.data is empty %}
                         <p class="small text-muted mb-0">No sales in this period.</p>
                     {% else %}
@@ -53,6 +61,7 @@
                         <table class="table table-cards align-middle">
                             <thead><tr><th scope="col">#</th><th scope="col">Product</th><th scope="col" class="text-end">Units</th><th scope="col" class="text-end">Revenue</th><th scope="col">Share</th></tr></thead>
                             <tbody>
+                                {# Loop: one row per best-selling product, with its share of the revenue drawn as a progress bar. #}
                                 {% for row in bestSellers %}
                                     <tr>
                                         <td data-label="Rank">{{ loop.index }}</td>

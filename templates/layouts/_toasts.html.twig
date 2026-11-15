@@ -1,13 +1,19 @@
+{# FILE: templates/layouts/_toasts.html.twig #}
+{# WHAT: shows the flash messages (success, error, warning, info) as small pop-ups. #}
+{# USED BY: base.html.twig (every page, every role). Messages are added by the controllers with addFlash(). #}
 {# Flash messages as toasts. Messages are auto-escaped (rule 2); the type maps to a FIXED set of styles/icons. #}
 {% set icons = {success: 'check-circle-fill', error: 'exclamation-octagon-fill', danger: 'exclamation-octagon-fill', warning: 'exclamation-triangle-fill', info: 'info-circle-fill'} %}
 {% set flashes = app.flashes %}
 <div class="toast-stack" {{ stimulus_controller('toast') }} aria-live="polite" aria-atomic="false">
+    {# Loop over the message types, then over the messages of each type (read once from the session). #}
     {% for type, messages in flashes %}
+        {# An unknown type becomes "info": only the fixed names above can end up in the CSS class. #}
         {% set t = type in icons|keys ? type : 'info' %}
         {% for message in messages %}
             <div class="toast show toast-{{ t }}" role="{{ t in ['error', 'danger'] ? 'alert' : 'status' }}" aria-atomic="true">
                 <div class="toast-body d-flex align-items-start gap-2">
                     <i class="bi bi-{{ icons[t] }} toast-icon" aria-hidden="true"></i>
+                    {# SECURITY: XSS - the message is escaped by Twig, even if it contains a product name typed by a seller. #}
                     <div class="flex-grow-1">{{ message }}</div>
                     <button type="button" class="btn-close btn-sm" data-bs-dismiss="toast" aria-label="Close"></button>
                 </div>

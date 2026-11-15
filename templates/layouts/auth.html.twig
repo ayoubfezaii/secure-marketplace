@@ -1,3 +1,6 @@
+{# FILE: templates/layouts/auth.html.twig #}
+{# WHAT: layout of the login, register, 2FA and password reset pages (picture on the left, form on the right). #}
+{# USED BY: templates/security/, templates/registration/ and templates/reset_password/ (visitors). #}
 {% extends 'base.html.twig' %}
 
 {#
@@ -6,6 +9,7 @@
 #}
 {% block body_class %}auth-page{% endblock %}
 
+{# Replaces the "shell" block of base.html.twig: these pages have no shop header or footer. #}
 {% block shell %}
     <div class="auth-shell">
         <aside class="auth-art" aria-hidden="true">
@@ -28,6 +32,7 @@
         <main id="main" class="auth-form-wrap" tabindex="-1">
             <div class="auth-card">
                 <div class="d-lg-none mb-4">{% include '_ui/logo.html.twig' %}</div>
+                {# Each page puts its form in this "body" block. #}
                 {% block body %}{% endblock %}
                 <p class="small text-muted mt-5 mb-0"><a class="text-muted" href="{{ path('app_home') }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> Back to the shop</a></p>
             </div>

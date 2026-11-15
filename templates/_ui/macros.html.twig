@@ -1,3 +1,6 @@
+{# FILE: templates/_ui/macros.html.twig #}
+{# WHAT: the UI kit: Twig macros for stars, badges, stat cards, breadcrumbs, delete buttons, prices, product cards... #}
+{# USED BY: almost every template (imported as "ui"). All roles. #}
 {#
     Maison Secure UI kit: reusable Twig macros.
     Usage: {% import '_ui/macros.html.twig' as ui %} then {{ ui.rating_stars(4.5) }}.
@@ -118,7 +121,9 @@
     <form method="post" action="{{ action }}" class="d-inline"
           data-confirm="{{ message }}" data-confirm-button="{{ confirm_button ?? label }}"
           data-confirm-title="{{ title ?? (label ~ '?') }}" data-confirm-variant="{{ variant }}">
+        {# Hidden CSRF token, generated for this exact action and object (SECURITY: CSRF). #}
         <input type="hidden" name="_token" value="{{ csrf_token(token_id) }}">
+        {# Loop: extra hidden fields given by the caller. #}
         {% for name, value in extra %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
         <button type="submit" class="{{ btn_class }}">{% if icon %}<i class="bi bi-{{ icon }}" aria-hidden="true"></i> {% endif %}{{ label }}</button>
     </form>
@@ -140,6 +145,7 @@
 {# ---------- Product image (served by MediaController from outside public/) ---------- #}
 {% macro product_image(filename, alt, class = '', lazy = true) %}
     {% if filename %}
+        {# The image address is the route media_product (MediaController), not a file inside public/ (SECURITY: file upload). #}
         <img src="{{ path('media_product', {filename: filename}) }}" alt="{{ alt }}" class="{{ class }}" {% if lazy %}loading="lazy"{% endif %} decoding="async">
     {% else %}
         <div class="product-placeholder {{ class }}" role="img" aria-label="{{ alt }}: no image"><i class="bi bi-image" aria-hidden="true"></i></div>
@@ -151,9 +157,11 @@
     SECURITY (rules 3, 12): POST + per-product CSRF token; the return path is validated server side (SafeRedirect).
 #}
 {% macro wishlist_button(product, extra_class = '') %}
+    {# Permission check: buyers get a real POST form, visitors get a link to the login page, sellers and admins get nothing. #}
     {% if can_shop() %}
         {% set saved = in_wishlist(product) %}
         <form method="post" action="{{ path('wishlist_toggle', {uuid: product.uuid}) }}">
+            {# Hidden CSRF token for this product, and the page to come back to. #}
             <input type="hidden" name="_token" value="{{ csrf_token('wishlist-' ~ product.uuid) }}">
             <input type="hidden" name="_back" value="{{ app.request.requestUri }}">
             <button type="submit" class="btn btn-icon btn-light {{ extra_class }}" aria-pressed="{{ saved ? 'true' : 'false' }}"
@@ -171,6 +179,7 @@
     <article class="product-card">
         <div class="media">
             <div class="badges">
+                {# Badges: discount, new, sold out. #}
                 {% if product.onSale %}<span class="badge badge-sale">-{{ product.discountPercent }}%</span>{% endif %}
                 {% if product.new %}<span class="badge badge-new">New</span>{% endif %}
                 {% if product.stock == 0 %}<span class="badge badge-outline">Sold out</span>{% endif %}
@@ -180,6 +189,7 @@
         </div>
         <div class="body">
             <span class="meta">{{ product.categoryLabel }}{% if product.shop %} · {{ product.shop.name }}{% endif %}</span>
+            {# Link to the product page. The URL contains the UUID, not the numeric id (SECURITY: IDOR). The name is escaped (SECURITY: XSS). #}
             <a class="title" href="{{ path('product_show', {uuid: product.uuid}) }}">{{ product.name }}</a>
             {% if product.ratingCount > 0 %}
                 <div>{{ _self.rating_stars(product.ratingAverage, product.ratingCount) }}</div>

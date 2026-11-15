@@ -1,2 +1,4 @@
+{# FILE: templates/_partials/stars.html.twig #}
+{# WHAT: a star rating. USED BY: older templates; new ones call the macro directly. #}
 {# Kept for backwards compatibility: delegates to the UI kit macro. #}
 {% import '_ui/macros.html.twig' as ui %}{{ ui.rating_stars(value|default(0)) }}

@@ -1,12 +1,17 @@
+{# FILE: templates/buyer/reviews/index.html.twig #}
+{# WHAT: the "My reviews" list: each review with edit / delete buttons and the seller's reply. #}
+{# USED BY: Buyer\ReviewController::index, route /buyer/reviews (buyers only). #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 {% import '_ui/table.html.twig' as t %}
 
+{# Variables read by the dashboard layout: title, subtitle and breadcrumbs. #}
 {% set page_title = 'My reviews' %}
 {% set page_subtitle = 'Reviews you wrote as a verified buyer.' %}
 {% set crumbs = [['Dashboard', path('buyer_dashboard')], ['My reviews', null]] %}
 
 {% block content %}
+    {# Reminder: products bought but not reviewed yet (shortcuts to 3 of them). #}
     {% if toReview is not empty %}
         <section class="surface p-3 mb-4 d-flex flex-wrap align-items-center gap-3">
             <i class="bi bi-pencil-square fs-4" aria-hidden="true"></i>
@@ -17,10 +22,12 @@
         </section>
     {% endif %}
 
+    {# No review: message. Otherwise: one card per review, then the page links. #}
     {% if pager.total == 0 %}
         {{ ui.empty_state('No reviews yet', 'After your order arrives, share what you think. It helps other customers and our makers.', 'See my orders', path('buyer_orders'), 'chat-heart') }}
     {% else %}
         <div class="d-grid gap-3">
+            {# Loop over the reviews of this page. #}
             {% for review in pager.items %}
                 <article class="panel">
                     <div class="panel-body">
@@ -33,6 +40,7 @@
                                 </div>
                             </div>
                             <div class="d-flex gap-2 align-items-start">
+                                {# Edit link and delete form (POST + CSRF token + confirmation). The server checks ReviewVoter again. #}
                                 <a class="btn btn-sm btn-outline-dark" href="{{ path('buyer_review_edit', {uuid: review.uuid}) }}"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</a>
                                 {{ ui.confirm_delete_form(path('review_delete', {uuid: review.uuid}), 'delete-review-' ~ review.uuid, 'Delete', 'Your review will be permanently removed.', 'btn btn-sm btn-outline-danger', 'trash3', {back: 'buyer'}) }}
                             </div>

@@ -1,9 +1,13 @@
+{# FILE: templates/catalog/index.html.twig #}
+{# WHAT: the catalogue page: filters on the left, product grid on the right, sort and pagination. #}
+{# USED BY: CatalogController::index, route /products (everyone). #}
 {% extends 'base.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
 {% block title %}{{ category ? category.name : (criteria.deals ? 'Deals' : 'Shop') }} · Maison Secure{% endblock %}
 
 {% block body %}
+    {# Page title: the category name, "Deals", or the default title. #}
     {% set title = category ? category.name : (criteria.deals ? 'Deals & private sale' : 'Shop all pieces') %}
     {{ ui.page_header(title, category and category.tagline ? category.tagline : 'Curated pieces from independent shops, chosen to last.', [['Home', path('app_home')], ['Shop', category or criteria.deals ? path('product_index') : null]]|merge(category ? [[category.name, null]] : (criteria.deals ? [['Deals', null]] : []))) }}
 
@@ -14,7 +18,9 @@
                 <i class="bi bi-sliders" aria-hidden="true"></i> Filters
             </button>
             <div id="filters" class="collapse d-lg-block">
+                {# GET form: the filters appear in the URL (the link can be shared). A GET changes no data, so it needs no CSRF token. #}
                 <form method="get" action="{{ path('product_index') }}" class="filter-panel">
+                    {# Hidden fields that keep the current search text and sort order when the filters are applied. #}
                     {% if criteria.query %}<input type="hidden" name="q" value="{{ criteria.query }}">{% endif %}
                     {% if criteria.sort != 'newest' %}<input type="hidden" name="sort" value="{{ criteria.sort }}">{% endif %}
 
@@ -25,6 +31,7 @@
                                 <input class="form-check-input" type="radio" name="category" id="cat-all" value="" {{ not category ? 'checked' }}>
                                 <label class="form-check-label" for="cat-all">All categories</label>
                             </div>
+                            {# Loop: one radio button per category, with its number of products. #}
                             {% for c in categories %}
                                 <div class="form-check d-flex justify-content-between">
                                     <span>
@@ -55,6 +62,7 @@
                                 <input class="form-check-input" type="radio" name="rating" id="rating-any" value="" {{ criteria.minRating is null ? 'checked' }}>
                                 <label class="form-check-label" for="rating-any">Any rating</label>
                             </div>
+                            {# Loop: the "minimum rating" choices. #}
                             {% for r in ratings %}
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="rating" id="rating-{{ r }}" value="{{ r }}" {{ criteria.minRating == r ? 'checked' }}>
@@ -93,6 +101,7 @@
                 </p>
                 <div class="d-flex align-items-center gap-2">
                     <form method="get" action="{{ path('product_index') }}" class="d-flex align-items-center gap-2" {{ stimulus_controller('autosubmit') }}>
+                        {# Loop: hidden fields that keep the current filters when only the sort order changes. #}
                         {% for name, value in criteria.toQuery({sort: null, page: null}) %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
                         <label class="small text-muted text-nowrap" for="sort">Sort by</label>
                         {# SECURITY (rule 1): only whitelisted sort keys are accepted server side. #}
@@ -108,6 +117,7 @@
                 </div>
             </div>
 
+            {# The active filters shown as chips. Clicking a chip removes that filter. #}
             {% if criteria.hasFilters %}
                 <div class="d-flex flex-wrap gap-2 mb-3">
                     {% if criteria.query %}<a class="chip" href="{{ path('product_index', criteria.toQuery({q: null})) }}">“{{ criteria.query }}” <i class="bi bi-x" aria-label="Remove"></i></a>{% endif %}
@@ -119,6 +129,7 @@
                 </div>
             {% endif %}
 
+            {# No result: empty message. Otherwise: loop over the products of this page, then the page links. #}
             {% if total == 0 %}
                 {{ ui.empty_state('No pieces match your search', 'Try another word, widen the price range or remove a filter.', 'Clear all filters', path('product_index'), 'search') }}
             {% else %}

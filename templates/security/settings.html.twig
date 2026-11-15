@@ -1,7 +1,11 @@
+{# FILE: templates/security/settings.html.twig #}
+{# WHAT: the "Security" page of the account: change password, turn 2FA on / off, recent sign-ins. #}
+{# USED BY: SecuritySettingsController::index, route /account/security (any logged-in user). #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 {% import '_ui/forms.html.twig' as f %}
 
+{# Variables read by the dashboard layout: title, subtitle and breadcrumbs. #}
 {% set page_title = 'Security' %}
 {% set page_subtitle = 'Password, two-factor authentication and recent sign-ins.' %}
 {% set crumbs = [['Dashboard', path('app_dashboard')], ['Security', null]] %}
@@ -32,12 +36,14 @@
                     {{ ui.status_badge(totpEnabled ? 'active' : 'inactive') }}
                 </div>
                 <div class="panel-body">
+                    {# Three cases: 2FA is on (form to disable it), set-up in progress (QR code + confirm form), or off (button to start). #}
                     {% if totpEnabled %}
                         <p>Every login asks for a 6-digit code from your authenticator app.</p>
                         <h3 class="h6 mt-4">Disable two-factor authentication</h3>
                         <p class="text-muted small">For your protection, enter your password <strong>and</strong> a current code.</p>
                         {# SECURITY (rules 3, 5): re-authentication with BOTH factors + CSRF + rate limit. #}
                         <form method="post" action="{{ path('app_2fa_disable') }}" data-confirm="Your account will only be protected by your password." data-confirm-title="Disable 2FA?" data-confirm-button="Disable 2FA">
+                            {# Hidden CSRF token. Each 2FA action has its own token name: totp_disable, totp_confirm, totp_cancel, totp_start. #}
                             <input type="hidden" name="_token" value="{{ csrf_token('totp_disable') }}">
                             <div class="row g-2 align-items-end">
                                 <div class="col-md-6">{{ f.raw_password('current_password', 'current_password', 'Current password') }}</div>
@@ -62,6 +68,7 @@
                                 <code class="fs-6 user-select-all text-break">{{ pendingSecret }}</code>
                             </div>
                         </div>
+                        {# Confirm form: typing a first valid code proves the authenticator app is set up correctly. #}
                         <form method="post" action="{{ path('app_2fa_confirm') }}" class="row g-2 align-items-end">
                             <input type="hidden" name="_token" value="{{ csrf_token('totp_confirm') }}">
                             <div class="col-md-6">
@@ -89,6 +96,7 @@
         <div class="col-xl-6">
             <section class="panel" id="history">
                 <div class="panel-head"><h2><i class="bi bi-clock-history me-1" aria-hidden="true"></i> Recent sign-ins</h2><span class="small text-muted">Last 20</span></div>
+                {# No sign-in yet: short message. Otherwise: the table of the last sign-ins of THIS user. #}
                 {% if loginHistory is empty %}
                     <div class="panel-body text-muted small">No sign-in recorded yet.</div>
                 {% else %}
@@ -96,7 +104,9 @@
                         <table class="table table-cards align-middle">
                             <thead><tr><th scope="col">Date</th><th scope="col">IP address</th><th scope="col">Result</th></tr></thead>
                             <tbody>
+                                {# Fixed label and colour for each event name. #}
                                 {% set labels = {'login.success': ['Success', 'delivered'], 'login.failure': ['Wrong password', 'refunded'], 'login.blocked': ['Blocked', 'refunded'], '2fa.failure': ['Wrong 2FA code', 'shipped'], 'account.locked': ['Account locked', 'refunded']} %}
+                                {# Loop over the sign-in events. #}
                                 {% for e in loginHistory %}
                                     {% set l = labels[e.action] ?? [e.action, 'cancelled'] %}
                                     <tr>

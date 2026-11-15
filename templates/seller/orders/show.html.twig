@@ -1,6 +1,10 @@
+{# FILE: templates/seller/orders/show.html.twig #}
+{# WHAT: one order seen by a seller: only the seller's own lines, the shipping address and the cash-on-delivery actions. #}
+{# USED BY: Seller\OrderController::show, route /seller/orders/{uuid} (a seller who has items in this order, checked by OrderVoter). #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
+{# Variables read by the dashboard layout: title, subtitle and breadcrumbs. #}
 {% set page_title = 'Order ' ~ order.number %}
 {% set page_subtitle = 'Placed on ' ~ order.createdAt|date('d M Y \\a\\t H:i') %}
 {% set crumbs = [['Dashboard', path('seller_dashboard')], ['Orders', path('seller_orders')], [order.number, null]] %}
@@ -14,6 +18,7 @@
                     <table class="table table-cards align-middle">
                         <thead><tr><th scope="col">Product</th><th scope="col" class="text-end">Unit price</th><th scope="col" class="text-end">Qty</th><th scope="col" class="text-end">Total</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Action</span></th></tr></thead>
                         <tbody>
+                            {# Loop: the lines of this order that belong to the logged-in seller (prepared by the controller). #}
                             {% for item in items %}
                                 <tr>
                                     <td class="cell-main">
@@ -38,6 +43,7 @@
             </section>
         </div>
         <div class="col-lg-4 d-grid gap-4 align-content-start">
+            {# The cash-on-delivery block is shown only for cash orders. #}
             {% if order.cashOnDelivery %}
                 {#
                     Cash on delivery. SECURITY (privilege matrix): the seller sees the method and the amount to collect,
@@ -48,12 +54,14 @@
                 <section class="panel">
                     <div class="panel-head"><h2><i class="bi bi-cash-coin me-1" aria-hidden="true"></i> Cash on delivery</h2>{{ ui.payment_status_badge(order) }}</div>
                     <div class="panel-body">
+                        {# Three cases: cash already collected, order cancelled / refused, or still waiting. #}
                         {% if order.paymentStatus.value == 'collected' %}
                             <p class="mb-0">You collected <strong>{{ order.total|price }}</strong> in cash. This order counts in your revenue.</p>
                         {% elseif order.status == 'cancelled' %}
                             <p class="text-muted mb-0">This order was cancelled or refused. Nothing was collected and the items are back in stock.</p>
                         {% else %}
                             <p class="mb-3">Amount to collect at delivery: <strong>{{ order.total|price }}</strong></p>
+                            {# Permission check: each button appears only when OrderVoter allows the action. The server checks again on click. #}
                             {% if is_granted('ORDER_CASH_COLLECT', order) or is_granted('ORDER_CASH_REFUSE', order) %}
                                 <div class="d-grid gap-2">
                                     {% if is_granted('ORDER_CASH_COLLECT', order) %}
@@ -76,6 +84,7 @@
                     {# SECURITY (privilege matrix): shipping name + address only. The buyer's email, phone and payment
                        details are never shown to sellers. #}
                     {% if order.shippingLines is not empty %}
+                        {# Loop: the lines of the shipping address copied into the order. #}
                         <address class="mb-0">{% for l in order.shippingLines %}{{ l }}<br>{% endfor %}</address>
                     {% else %}
                         <p class="text-muted small mb-0">No address recorded for this older order.</p>

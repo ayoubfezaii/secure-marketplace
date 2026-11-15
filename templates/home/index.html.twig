@@ -1,3 +1,6 @@
+{# FILE: templates/home/index.html.twig #}
+{# WHAT: the home page (hero, categories, best sellers, promo countdown, figures, reviews, newsletter, FAQ). #}
+{# USED BY: HomeController::index, route / (everyone). #}
 {% extends 'base.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
@@ -38,6 +41,7 @@
                 <a class="btn btn-link" href="{{ path('product_index') }}">View all <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
             </div>
             <div class="cat-circles">
+                {# Loop: one round icon per category, linking to the catalogue filtered on that category. #}
                 {% for c in categories %}
                     <a class="cat-circle" href="{{ path('product_index', {category: c.slug}) }}">
                         <span class="ring"><i class="bi bi-{{ c.icon }}" aria-hidden="true"></i></span>
@@ -53,6 +57,7 @@
         <section class="section-sm" aria-label="Featured categories">
             <div class="container">
                 <div class="row g-3">
+                    {# Loop: the first 4 categories as big tiles, with their number of products. #}
                     {% for c in categories|slice(0, 4) %}
                         <div class="col-sm-6 col-lg-3">
                             <a class="category-tile {{ loop.first ? 'tone-dark' : 'tone-' ~ loop.index }}" href="{{ path('product_index', {category: c.slug}) }}">
@@ -78,6 +83,7 @@
                 </div>
                 <a class="btn btn-outline-dark" href="{{ path('product_index', {sort: 'rating'}) }}">Shop best rated</a>
             </div>
+            {# No product yet: friendly empty message. Otherwise: loop over the best sellers. #}
             {% if bestSellers is empty %}
                 {{ ui.empty_state('The shelves are being filled', 'Our sellers are adding their first pieces. Come back very soon!', null, null, 'shop') }}
             {% else %}
@@ -102,6 +108,7 @@
                     </div>
                     <div class="col-lg-5">
                         <p class="small text-white-50 mb-2">Ends in</p>
+                        {# Countdown: the end date is decided by the server. The numbers are printed by the server first, then refreshed every second by the countdown controller. #}
                         <div class="countdown" {{ stimulus_controller('countdown', {end: promoEnd|date('c')}) }} role="timer" aria-label="Time left in the sale">
                             {% set left = promoEnd.timestamp - 'now'|date('U') %}
                             <span class="unit"><span class="num" {{ stimulus_target('countdown', 'days') }}>{{ '%02d'|format(left // 86400) }}</span><span class="lbl">Days</span></span>
@@ -126,6 +133,7 @@
                 <div class="col-lg-6 text-muted">Every review comes from a verified buyer, every payout IBAN is encrypted, and every account can be protected with two-factor authentication.</div>
             </div>
             <div class="row g-3">
+                {# Figures computed by HomeController (number of buyers, active products, share of positive reviews). #}
                 <div class="col-6 col-lg-3"><div class="surface p-4 h-100"><div class="stat-figure">{{ stats.customers|number_format }}</div><p class="mb-0 mt-2 text-muted">happy customers</p></div></div>
                 <div class="col-6 col-lg-3"><div class="surface p-4 h-100"><div class="stat-figure">{{ stats.products|number_format }}</div><p class="mb-0 mt-2 text-muted">pieces available</p></div></div>
                 <div class="col-6 col-lg-3"><div class="surface p-4 h-100"><div class="stat-figure">{{ stats.positive }}%</div><p class="mb-0 mt-2 text-muted">positive reviews</p></div></div>
@@ -146,6 +154,7 @@
                     </div>
                 </div>
                 <div class="scroller" {{ stimulus_target('scroller', 'track') }} tabindex="0" aria-label="Customer reviews">
+                    {# Loop over the latest positive reviews. #}
                     {% for review in latestReviews %}
                         <figure class="quote-card m-0 d-flex flex-column">
                             {{ ui.rating_stars(review.rating) }}
@@ -176,6 +185,7 @@
                         {# SECURITY (rules 3, 6): CSRF token + per-IP rate limit; the same answer whether or not the
                            address was already subscribed (no enumeration). #}
                         <form method="post" action="{{ path('newsletter_subscribe') }}" class="d-flex flex-column flex-sm-row gap-2">
+                            {# Hidden CSRF token of the newsletter form, and the page to come back to. #}
                             <input type="hidden" name="_token" value="{{ csrf_token('newsletter') }}">
                             <input type="hidden" name="_back" value="{{ path('app_home') }}">
                             <label class="visually-hidden" for="newsEmail">Email address</label>
@@ -207,6 +217,7 @@
                             ['How do I sell on Maison Secure?', 'Create a free account, then apply to become a seller from your dashboard. Our team reviews each application before your shop opens.'],
                             ['How do I protect my account?', 'Use a long, unique password and turn on two-factor authentication (TOTP) in your security settings. You can also see your recent login history there.'],
                         ] %}
+                        {# Loop over the questions defined above (each one is a foldable Bootstrap accordion item). #}
                         {% for faq in faqs %}
                             <div class="accordion-item">
                                 <h3 class="accordion-header">

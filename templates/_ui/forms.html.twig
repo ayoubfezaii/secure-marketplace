@@ -1,9 +1,13 @@
+{# FILE: templates/_ui/forms.html.twig #}
+{# WHAT: Twig macros (reusable pieces of HTML, like functions) for password fields. #}
+{# USED BY: login, registration, reset password and account password forms (visitors and logged-in users). #}
 {#
     Form helpers. Usage: {% import '_ui/forms.html.twig' as f %} {{ f.password(form.plainPassword.first, true) }}
 
     password(): password input with a show/hide toggle and an optional strength meter (Stimulus controllers;
     no inline JS, rule 13). The meter is UX only: the policy is enforced server side (PasswordPolicy, rule 15).
 #}
+{# password(field, strength): "field" is a Symfony form field; "strength" = true adds the strength bar. #}
 {% macro password(field, strength = false) %}
     <div class="mb-3" {% if strength %}{{ stimulus_controller('password-strength') }}{% endif %}>
         {{ form_label(field) }}
@@ -12,6 +16,7 @@
             {% if strength %}
                 {% set attr = attr|merge({'data-password-strength-target': 'input', 'data-action': 'input->password-strength#update'}) %}
             {% endif %}
+            {# form_widget() prints the input. The data-* attributes connect it to the Stimulus controllers. #}
             {{ form_widget(field, {attr: attr}) }}
             <button type="button" class="toggle" aria-label="Show password" aria-pressed="false"
                     {{ stimulus_target('password-toggle', 'button') }} {{ stimulus_action('password-toggle', 'toggle') }}>
@@ -24,6 +29,7 @@
         {% else %}
             {{ form_help(field) }}
         {% endif %}
+        {# Validation errors of the field, sent back by the server. #}
         {{ form_errors(field) }}
     </div>
 {% endmacro %}

@@ -1,3 +1,6 @@
+{# FILE: templates/catalog/show.html.twig #}
+{# WHAT: the product page: gallery, price, add-to-cart form, seller box, description and reviews. #}
+{# USED BY: CatalogController::show, route /products/{uuid} (everyone; buying is for buyers only). #}
 {% extends 'base.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
@@ -8,6 +11,7 @@
     {% set shop = product.shop %}
     {{ ui.breadcrumbs([['Home', path('app_home')], ['Shop', path('product_index')], [product.categoryLabel, product.category ? path('product_index', {category: product.category.slug}) : null], [product.name, null]]) }}
 
+    {# A hidden product is only reachable by its seller or an admin (checked in the controller with ProductVoter). This banner reminds them. #}
     {% if not product.active %}
         <div class="alert alert-warning d-flex gap-2 align-items-center"><i class="bi bi-eye-slash" aria-hidden="true"></i> This product is hidden from the catalogue. Only its seller and administrators can see this page.</div>
     {% endif %}
@@ -22,6 +26,7 @@
                         {% if product.onSale %}<span class="badge badge-sale">-{{ product.discountPercent }}%</span>{% endif %}
                         {% if product.new %}<span class="badge badge-new">New</span>{% endif %}
                     </div>
+                    {# Main image, served by MediaController (route media_product), not from the public folder. #}
                     {% if images is not empty %}
                         <img src="{{ path('media_product', {filename: images.first.filename}) }}" alt="{{ product.name }}, image 1" {{ stimulus_target('gallery', 'main') }}>
                     {% else %}
@@ -30,6 +35,7 @@
                 </div>
                 {% if images|length > 1 %}
                     <div class="gallery-thumbs" role="list" aria-label="Product images">
+                        {# Loop: one small button per image of the product. #}
                         {% for image in images %}
                             <button type="button" role="listitem" aria-current="{{ loop.first ? 'true' : 'false' }}" aria-label="Show image {{ loop.index }}"
                                     data-src="{{ path('media_product', {filename: image.filename}) }}" data-alt="{{ product.name }}, image {{ loop.index }}"
@@ -71,10 +77,12 @@
                 {% endif %}
             </p>
 
+            {# Permission check: the add-to-cart form is shown only to buyers, and only when the product can be bought. #}
             {% if can_shop() and product.purchasable %}
                 {# SECURITY (rules 3, 10): POST + CSRF; only a product id and a quantity are sent, never a price. #}
                 <div class="d-flex gap-2 align-items-center mb-3">
                     <form method="post" action="{{ path('cart_add', {uuid: product.uuid}) }}" class="d-flex flex-wrap gap-2 align-items-center flex-grow-1">
+                        {# Hidden CSRF token of the add-to-cart form (one token per product). #}
                         <input type="hidden" name="_token" value="{{ csrf_token('cart-add-' ~ product.uuid) }}">
                         <div class="qty-stepper" {{ stimulus_controller('quantity') }}>
                             <button type="button" {{ stimulus_action('quantity', 'dec') }} aria-label="Decrease quantity"><i class="bi bi-dash" aria-hidden="true"></i></button>
@@ -86,9 +94,11 @@
                     </form>
                     {{ ui.wishlist_button(product) }}
                 </div>
+            {# Other cases: buyer but product unavailable, visitor (link to the login page), seller or admin (cannot buy). #}
             {% elseif can_shop() %}
                 <div class="d-flex gap-2 mb-3"><button class="btn btn-primary btn-lg flex-grow-1" disabled>Currently unavailable</button>{{ ui.wishlist_button(product) }}</div>
             {% elseif not app.user and product.purchasable %}
+                {# _target_path brings the visitor back here after login. SECURITY: open redirect - the server accepts internal paths only. #}
                 <a href="{{ path('app_login', {_target_path: path('product_show', {uuid: product.uuid})}) }}" class="btn btn-primary btn-lg w-100 mb-3">Log in to buy</a>
             {% elseif app.user %}
                 <p class="small text-muted mb-3"><i class="bi bi-info-circle" aria-hidden="true"></i> Only buyer accounts can place orders.</p>
@@ -100,6 +110,7 @@
                 <div class="col-sm-4"><div class="surface p-3 h-100 d-flex gap-2"><i class="bi bi-shield-check" aria-hidden="true"></i><span>Secure checkout</span></div></div>
             </div>
 
+            {# Seller box: public shop name and link to the shop. The seller's email is never displayed. #}
             {% if shop %}
                 <div class="seller-box d-flex align-items-center gap-3">
                     <span class="avatar avatar-lg avatar-ink">{% if shop.logoFilename %}<img class="w-100 h-100 rounded-circle object-fit-cover" src="{{ path('media_product', {filename: shop.logoFilename}) }}" alt="">{% else %}{{ shop.initials }}{% endif %}</span>
@@ -142,6 +153,7 @@
                             {{ ui.rating_stars(rating.avg ?? 0, null, 'lg') }}
                             <p class="small text-muted mt-1">Based on {{ rating.count }} verified review{{ rating.count != 1 ? 's' }}</p>
                             <div class="d-grid gap-2 mt-3">
+                                {# Loop: one bar per star value (5 down to 1) with the number of reviews. #}
                                 {% for stars, count in distribution %}
                                     <div class="rating-row">
                                         <span>{{ stars }} <i class="bi bi-star-fill text-accent" aria-hidden="true"></i></span>
@@ -151,6 +163,7 @@
                                     </div>
                                 {% endfor %}
                             </div>
+                            {# Permission check: reviewForm exists only when ReviewVoter allowed it (a buyer who bought the product and has not reviewed it yet). #}
                             {% if reviewForm %}
                                 <button class="btn btn-primary w-100 mt-4" type="button" data-bs-toggle="collapse" data-bs-target="#reviewFormBox" aria-expanded="false" aria-controls="reviewFormBox"><i class="bi bi-pencil me-1" aria-hidden="true"></i> Write a review</button>
                             {% elseif can_shop() %}
@@ -176,6 +189,7 @@
                             </div>
                         {% endif %}
 
+                        {# Loop over the reviews. The "else" part is displayed when there is no review. #}
                         {% for review in reviews %}
                             <article class="review-card">
                                 <div class="d-flex justify-content-between align-items-start gap-3">
@@ -187,6 +201,7 @@
                                             <div class="d-flex align-items-center gap-2 mt-1">{{ ui.rating_stars(review.rating) }}<span class="small text-muted">{{ review.createdAt|date('d M Y') }}</span></div>
                                         </div>
                                     </div>
+                                    {# Permission check: the delete button appears only for the author of the review or an admin. The server checks it again. #}
                                     {% if is_granted('REVIEW_DELETE', review) %}
                                         {{ ui.confirm_delete_form(path('review_delete', {uuid: review.uuid}), 'delete-review-' ~ review.uuid, 'Delete', 'This review will be permanently removed.', 'btn btn-sm btn-link text-danger') }}
                                     {% endif %}
@@ -216,6 +231,7 @@
         <section class="section pb-0" aria-labelledby="similarTitle">
             <div class="section-title"><h2 id="similarTitle">You may also like</h2></div>
             <div class="row row-cols-2 row-cols-md-4 g-3 g-lg-4">
+                {# Loop: similar products. #}
                 {% for p in similar %}<div class="col">{{ ui.product_card(p) }}</div>{% endfor %}
             </div>
         </section>

@@ -1,3 +1,6 @@
+{# FILE: templates/checkout/address.html.twig #}
+{# WHAT: checkout step 1: choose a saved shipping address or add a new one. #}
+{# USED BY: CheckoutController::address, route /checkout (buyers only). #}
 {% extends 'checkout/_layout.html.twig' %}
 {% set step = 1 %}
 
@@ -5,12 +8,14 @@
     <section class="panel">
         <div class="panel-head"><h2>Shipping address</h2></div>
         <div class="panel-body">
+            {# Part 1: choose one of the saved addresses (only when the buyer has some). #}
             {% if addresses is not empty %}
                 {# SECURITY (rules 3, 4): CSRF token; the chosen UUID is looked up among the buyer's OWN addresses only. #}
                 <form method="post" action="{{ path('checkout') }}">
                     <input type="hidden" name="_token" value="{{ csrf_token('checkout-address') }}">
                     <fieldset class="d-grid gap-2">
                         <legend class="visually-hidden">Choose a saved address</legend>
+                        {# Loop: one radio button per saved address. The value sent is the UUID of the address. #}
                         {% for a in addresses %}
                             <label class="address-option">
                                 <input class="form-check-input" type="radio" name="address" value="{{ a.uuid }}" {{ selected == a.uuid.toRfc4122 ? 'checked' }} required>
@@ -29,11 +34,13 @@
                 {% endif %}
             {% endif %}
 
+            {# Part 2: form for a new address (not offered when the buyer already has 5 addresses). #}
             {% if canAdd %}
                 <div class="collapse {{ showForm ? 'show' }}" id="newAddress">
                     <div class="{{ addresses is not empty ? 'border-top pt-3 mt-2' }}">
                         <h3 class="h6 mb-3">New address</h3>
                         {# SECURITY (rule 9): explicit fields only (AddressFormType); the owner comes from the session. #}
+                        {# form_start() opens the form tag; form_end() closes it and adds the hidden CSRF token (SECURITY: CSRF). #}
                         {{ form_start(form) }}
                             {{ form_errors(form) }}
                             <div class="row g-2">

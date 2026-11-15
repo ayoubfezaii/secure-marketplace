@@ -1,7 +1,11 @@
+{# FILE: templates/checkout/payment.html.twig #}
+{# WHAT: checkout step 2: choose card or cash on delivery, and type the (simulated) card. #}
+{# USED BY: CheckoutController::payment, route /checkout/payment (buyers only). #}
 {% extends 'checkout/_layout.html.twig' %}
 {% set step = 2 %}
 
 {% block step %}
+    {# Values used below: the value of the "cash on delivery" option, whether it is selected, and the text / icon of each option. #}
     {% set cash_value = constant('App\\Enum\\PaymentMethod::CashOnDelivery').value %}
     {% set cash_selected = form.paymentMethod.vars.value == cash_value %}
     {% set option_text = {
@@ -30,6 +34,7 @@
                 <fieldset class="mb-4">
                     <legend class="h6 mb-3">How would you like to pay?</legend>
                     <div class="row g-3">
+                        {# Loop: the two payment methods, each one a radio button. #}
                         {% for child in form.paymentMethod %}
                             <div class="col-sm-6">
                                 <label class="payment-option" for="{{ child.vars.id }}">
@@ -59,6 +64,7 @@
                         <div class="d-flex justify-content-between small text-white-50"><span>CARD HOLDER</span><span>MM/YY</span></div>
                     </div>
                     <div class="alert alert-light border small d-flex gap-2"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Simulated payment. Use a test number such as <strong>4242 4242 4242 4242</strong>, any future expiry date and any 3-digit CVV.</span></div>
+                    {# Card fields. form_row() prints the label, the input and its error message. #}
                     {{ form_row(form.cardHolder) }}
                     {{ form_row(form.cardNumber) }}
                     <div class="row g-2">
@@ -84,6 +90,7 @@
 
                 <button class="btn btn-primary btn-lg w-100 mt-2" type="submit">Review your order <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i></button>
               </div>
+            {# form_end() closes the form and adds the hidden CSRF token (SECURITY: CSRF). #}
             {{ form_end(form) }}
         </div>
     </section>

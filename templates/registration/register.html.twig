@@ -1,3 +1,6 @@
+{# FILE: templates/registration/register.html.twig #}
+{# WHAT: the "Create an account" page. #}
+{# USED BY: RegistrationController::register, route /register (visitors). #}
 {% extends 'layouts/auth.html.twig' %}
 {% import '_ui/forms.html.twig' as f %}
 
@@ -13,12 +16,14 @@
        BUYER: the role is not a form field and is set by the server. #}
     {{ form_start(registrationForm, {attr: {novalidate: 'novalidate'}}) }}
         {{ form_errors(registrationForm) }}
+        {# form_row() prints the label, the input and the errors of one field. Only the fields of RegistrationFormType exist. #}
         {{ form_row(registrationForm.displayName) }}
         {{ form_row(registrationForm.email) }}
         {{ f.password(registrationForm.plainPassword.first, true) }}
         {{ f.password(registrationForm.plainPassword.second) }}
         {{ form_row(registrationForm.agreeTerms) }}
         <button type="submit" class="btn btn-primary btn-lg w-100">Create my account</button>
+    {# form_end() closes the form and prints the hidden CSRF token. #}
     {{ form_end(registrationForm) }}
 
     <div class="surface p-3 mt-4 d-flex gap-3 align-items-start">

@@ -1,14 +1,20 @@
+{# FILE: templates/base.html.twig #}
+{# WHAT: the root HTML page. Every other template extends it (directly or through a layout). #}
+{# ROLE: loads the CSS and JavaScript, and defines "blocks" (title, shell, body...) that child templates fill. #}
+{# USED BY: every page of the site, every role. Shop pages use it directly; dashboards use layouts/dashboard.html.twig. #}
 <!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="color-scheme" content="light">
+        {# A block is a named zone. A child template can replace it; otherwise the default text below is used. #}
         <title>{% block title %}Maison Secure · Shop beautifully. Shop safely.{% endblock %}</title>
         <meta name="description" content="{% block meta_description %}Maison Secure: curated pieces made to last, from independent sellers. Secure checkout, free shipping, easy returns.{% endblock %}">
         <link rel="icon" type="image/svg+xml" href="{{ asset('images/favicon.svg') }}">
         {% block stylesheets %}
             {# Served by this app through AssetMapper (versioned URLs), allowed by style-src / font-src 'self'. #}
+            {# The stylesheets, in order: Bootstrap, icons, fonts, design variables, then our own components. #}
             <link rel="stylesheet" href="{{ asset('vendor/bootstrap/dist/css/bootstrap.min.css') }}">
             <link rel="stylesheet" href="{{ asset('styles/vendor/bootstrap-icons.css') }}">
             <link rel="stylesheet" href="{{ asset('styles/fonts.css') }}">
@@ -27,14 +33,17 @@
     <body class="{% block body_class %}{% endblock %}" data-turbo="false" {{ stimulus_controller('confirm') }}>
         <a class="skip-link" href="#main">Skip to content</a>
 
+        {# "shell" block: shop header + page content + footer. The dashboard and login layouts replace this whole block. #}
         {% block shell %}
             {% include 'layouts/_store_header.html.twig' %}
             <main id="main" class="{% block main_class %}container py-4{% endblock %}" tabindex="-1">
+                {# "body" block: each page puts its own content here. #}
                 {% block body %}{% endblock %}
             </main>
             {% include 'layouts/_store_footer.html.twig' %}
         {% endblock %}
 
+        {# Present on every page: the flash messages ("Product updated.") and the shared confirmation window. #}
         {% include 'layouts/_toasts.html.twig' %}
         {% include 'layouts/_confirm_modal.html.twig' %}
     </body>

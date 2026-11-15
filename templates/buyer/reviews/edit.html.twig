@@ -1,6 +1,10 @@
+{# FILE: templates/buyer/reviews/edit.html.twig #}
+{# WHAT: the form to edit one of the buyer's reviews. #}
+{# USED BY: Buyer\ReviewController::edit, route /buyer/reviews/{uuid}/edit (the author of the review only). #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
+{# Variables read by the dashboard layout: title and breadcrumbs. #}
 {% set page_title = 'Edit your review' %}
 {% set crumbs = [['Dashboard', path('buyer_dashboard')], ['My reviews', path('buyer_reviews')], ['Edit', null]] %}
 
@@ -16,6 +20,7 @@
             {# SECURITY (rules 3, 9): CSRF token; only rating + comment can change. #}
             {{ form_start(form) }}
                 {{ form_errors(form) }}
+                {# Only two fields can be changed: the stars and the comment. #}
                 {{ form_row(form.rating) }}
                 {{ form_row(form.comment) }}
                 <div class="d-flex gap-2">

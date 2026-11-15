@@ -1,7 +1,11 @@
+{# FILE: templates/seller/products/index.html.twig #}
+{# WHAT: the seller "Products" list: search, filters, sortable table, show / hide, edit and delete buttons. #}
+{# USED BY: Seller\ProductController::index, route /seller/products (sellers only, own products only). #}
 {% extends 'layouts/dashboard.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 {% import '_ui/table.html.twig' as t %}
 
+{# Variables read by the dashboard layout: title, subtitle and breadcrumbs. #}
 {% set page_title = 'Products' %}
 {% set page_subtitle = pager.total ~ ' product' ~ (pager.total != 1 ? 's') ~ ' in your shop' %}
 {% set crumbs = [['Dashboard', path('seller_dashboard')], ['Products', null]] %}
@@ -12,10 +16,12 @@
 
 {% block content %}
     <section class="panel">
+        {# GET form: search text and filters go in the URL. It changes nothing in the database, so it needs no CSRF token. #}
         <form class="toolbar" method="get" action="{{ path('seller_products') }}" {{ stimulus_controller('autosubmit') }}>
             <div class="search-pill flex-grow-1">
                 <label class="visually-hidden" for="q">Search products</label>
                 <i class="bi bi-search" aria-hidden="true"></i>
+                {# The search text is printed back escaped by Twig (SECURITY: XSS). #}
                 <input class="form-control" id="q" type="search" name="q" maxlength="100" value="{{ list.q }}" placeholder="Search by name…">
             </div>
             <label class="visually-hidden" for="status">Status</label>
@@ -29,11 +35,13 @@
                 <option value="">Any stock</option>
                 <option value="low" {{ stock == 'low' ? 'selected' }}>Low stock (&lt; 5)</option>
             </select>
+            {# Hidden fields that keep the current sort when the filters change. #}
             <input type="hidden" name="sort" value="{{ list.sort }}"><input type="hidden" name="dir" value="{{ list.dir }}">
             <button class="btn btn-outline-dark" type="submit">Filter</button>
             {% if filters is not empty %}<a class="btn btn-link" href="{{ path('seller_products') }}">Reset</a>{% endif %}
         </form>
 
+        {# No product: empty message (different text when a filter is active). Otherwise: the table. #}
         {% if pager.total == 0 %}
             <div class="panel-body">
                 {{ filters is empty ? ui.empty_state('No products yet', 'Create your first listing: name, price, stock and up to 4 photos.', 'Create a product', path('seller_product_new'), 'box-seam')
@@ -44,6 +52,7 @@
                 <table class="table table-hover table-cards align-middle">
                     <thead>
                         <tr>
+                            {# Sortable column headers: the link only carries a sort KEY; the server maps it to a real column (SECURITY: SQL injection). #}
                             {{ t.sort_th('Product', 'name', list, 'seller_products', filters) }}
                             <th scope="col">Category</th>
                             {{ t.sort_th('Price', 'price', list, 'seller_products', filters, 'text-end') }}
@@ -54,6 +63,7 @@
                         </tr>
                     </thead>
                     <tbody>
+                        {# Loop: one row per product. #}
                         {% for product in products %}
                             <tr>
                                 <td class="cell-main">
@@ -70,6 +80,7 @@
                                 <td data-label="Status">
                                     {# SECURITY (rules 3, 4): POST + per-product CSRF token; ProductVoter::EDIT (owner) on the server. #}
                                     <form method="post" action="{{ path('seller_product_toggle', {uuid: product.uuid}) }}">
+                                        {# Hidden CSRF token of the show / hide button (one token per product). #}
                                         <input type="hidden" name="_token" value="{{ csrf_token('toggle-product-' ~ product.uuid) }}">
                                         <button type="submit" class="btn btn-sm p-0 border-0 bg-transparent" title="{{ product.active ? 'Hide from the catalogue' : 'Show in the catalogue' }}" aria-label="{{ product.active ? 'Hide' : 'Show' }} {{ product.name }}">
                                             {{ ui.status_badge(product.active ? 'active' : 'inactive') }} <i class="bi bi-arrow-repeat small text-muted" aria-hidden="true"></i>
@@ -77,6 +88,7 @@
                                     </form>
                                 </td>
                                 <td class="text-end text-nowrap">
+                                    {# Actions: preview, edit link, and delete form (POST + CSRF token + confirmation window). #}
                                     <a class="btn btn-sm btn-light" href="{{ path('product_show', {uuid: product.uuid}) }}" aria-label="Preview {{ product.name }}"><i class="bi bi-eye" aria-hidden="true"></i></a>
                                     <a class="btn btn-sm btn-outline-dark" href="{{ path('seller_product_edit', {uuid: product.uuid}) }}"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</a>
                                     {{ ui.confirm_delete_form(path('seller_product_delete', {uuid: product.uuid}), 'delete-product-' ~ product.uuid, 'Delete', '“' ~ product.name ~ '” will be permanently deleted with its images. Past orders keep their copy.', 'btn btn-sm btn-outline-danger', 'trash3', {}, 'Delete product', 'Delete this product?') }}

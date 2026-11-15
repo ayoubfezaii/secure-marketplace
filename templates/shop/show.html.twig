@@ -1,3 +1,6 @@
+{# FILE: templates/shop/show.html.twig #}
+{# WHAT: the public page of a seller's shop: banner, rating, sortable product grid. #}
+{# USED BY: ShopController::show, route /shop/{slug} (everyone). #}
 {% extends 'base.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
@@ -10,6 +13,7 @@
         <span class="glow" aria-hidden="true"></span>
         <div class="d-flex flex-column flex-md-row align-items-md-center gap-4 position-relative">
             <div class="shop-logo">
+                {# Shop logo (an uploaded image served by MediaController) or the initials of the shop name. #}
                 {% if shop.logoFilename %}<img src="{{ path('media_product', {filename: shop.logoFilename}) }}" alt="{{ shop.name }} logo">{% else %}<span aria-hidden="true">{{ shop.initials }}</span>{% endif %}
             </div>
             <div class="flex-grow-1">
@@ -30,6 +34,7 @@
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
         <h2 class="h3 mb-0">The collection</h2>
+        {# GET form to change the sort order. It is submitted automatically by the autosubmit controller. #}
         <form method="get" action="{{ path('shop_show', {slug: shop.slug}) }}" class="d-flex align-items-center gap-2" {{ stimulus_controller('autosubmit') }}>
             <label class="small text-muted" for="sort">Sort by</label>
             <select class="form-select form-select-sm" id="sort" name="sort" {{ stimulus_action('autosubmit', 'submit', 'change') }}>
@@ -39,6 +44,7 @@
         </form>
     </div>
 
+    {# No product: empty message. Otherwise: loop over the products, then the page links. #}
     {% if total == 0 %}
         {{ ui.empty_state('This shop is preparing its collection', 'New pieces will appear here soon.', 'Browse all products', path('product_index'), 'shop') }}
     {% else %}

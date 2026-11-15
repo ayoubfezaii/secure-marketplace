@@ -1,3 +1,6 @@
+{# FILE: templates/checkout/_layout.html.twig #}
+{# WHAT: shared layout of the 3 checkout steps: progress bar, the step on the left, the order summary on the right. #}
+{# USED BY: checkout/address, checkout/payment and checkout/review (buyers only). #}
 {% extends 'base.html.twig' %}
 {% import '_ui/macros.html.twig' as ui %}
 
@@ -5,6 +8,7 @@
 
 {% block body %}
     {{ ui.page_header('Checkout', null, [['Home', path('app_home')], ['Cart', path('cart_index')], ['Checkout', null]]) }}
+    {# The three steps. Each child template sets "step" (1, 2 or 3) to highlight the current one. #}
     {% set steps = ['Address', 'Payment', 'Review'] %}
     <ol class="steps" aria-label="Checkout progress">
         {% for label in steps %}
@@ -12,11 +16,13 @@
         {% endfor %}
     </ol>
     <div class="row g-4">
+        {# "step" block: the content of the current step. #}
         <div class="col-lg-7">{% block step %}{% endblock %}</div>
         <div class="col-lg-5">
             <aside class="panel summary-card" aria-label="Order summary">
                 <div class="panel-head"><h2>Order summary</h2><span class="small text-muted">{{ summary.units }} item{{ summary.units > 1 ? 's' }}</span></div>
                 <ul class="list-unstyled mb-0 px-3 pt-2">
+                    {# Loop: the products of the cart, shown in the summary. #}
                     {% for line in summary.lines %}
                         <li class="d-flex gap-3 align-items-center py-2">
                             <span class="thumb position-relative">{{ ui.product_image(line.product.mainImageFilename, line.product.name) }}</span>
