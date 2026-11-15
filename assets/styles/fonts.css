@@ -1,3 +1,8 @@
+/* FILE: assets/styles/fonts.css */
+/* WHAT: declares the two fonts of the site (Playfair Display for titles, Inter for text). */
+/* ROLE IN THE PROJECT: the font files are in assets/fonts/ and are served by the site itself. */
+/* USED BY: every page (linked in templates/base.html.twig). */
+
 /*
  * Self-hosted web fonts (Playfair Display + Inter, SIL Open Font License).
  * SECURITY (rule 13): served by this app through AssetMapper. No Google Fonts CDN, so the CSP can keep

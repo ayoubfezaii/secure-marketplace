@@ -1,3 +1,8 @@
+/* FILE: assets/styles/tokens.css */
+/* WHAT: the design variables of the site (colours, fonts, rounded corners, shadows). */
+/* ROLE IN THE PROJECT: change a value here and the whole site changes. app.css only uses these variables. */
+/* USED BY: every page (linked in templates/base.html.twig before app.css). */
+
 /*
  * Maison Secure: design tokens. Single source of truth for colours, type, radii and shadows.
  * Bootstrap 5.3 reads its own --bs-* variables, so mapping them here re-themes every Bootstrap component.
