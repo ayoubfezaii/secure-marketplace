@@ -1,5 +1,14 @@
 <?php
 
+/**
+ * FILE: src/Entity/Order.php
+ * WHAT: the Order entity = one purchase of a buyer (one row of the `orders` table).
+ * ROLE IN THE PROJECT: keeps the total, the status, the payment information and the shipping address, and
+ *   contains the "state machine" (the only allowed status changes).
+ * USED BY: CheckoutService creates it (buyer), OrderManager changes its status (buyer cancel, seller ship /
+ *   deliver / cash, admin refund), and the order pages of the buyer, the seller and the admin display it.
+ */
+
 namespace App\Entity;
 
 use App\Service\Money;
@@ -29,6 +38,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 class Order
 {
     /** Cash on delivery: order accepted, nothing paid yet. */
+    // All the possible statuses of an order.
     public const STATUS_PLACED = 'placed';
     public const STATUS_PAID = 'paid';
     public const STATUS_SHIPPED = 'shipped';
@@ -50,6 +60,7 @@ class Order
     /** Statuses of an order that is still running or done (not cancelled / refunded). */
     public const ACTIVE_STATUSES = [self::STATUS_PLACED, self::STATUS_PAID, self::STATUS_SHIPPED, self::STATUS_DELIVERED];
 
+    // Internal auto-increment primary key. Used only for joins, never shown in a URL.
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -59,6 +70,7 @@ class Order
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $uuid;
 
+    // The buyer who placed the order. Set by the server from the logged-in user, never from the form.
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false)]
     private User $buyer;
@@ -92,6 +104,7 @@ class Order
     #[Assert\Regex(pattern: '/^\d{4}$/')]
     private ?string $cardLast4 = null;
 
+    // When the order was placed.
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
@@ -116,15 +129,25 @@ class Order
     #[ORM\Column(length: 2, nullable: true)]
     private ?string $shippingCountry = null;
 
+    // The lines of the order (one per product). They are saved together with the order.
     /** @var Collection<int, OrderItem> */
     #[ORM\OneToMany(targetEntity: OrderItem::class, mappedBy: 'order', cascade: ['persist'])]
     private Collection $items;
 
+    /**
+     * Builds a new order. Called only by CheckoutService, inside the checkout transaction.
+     *
+     * @param User          $buyer         the logged-in buyer
+     * @param PaymentMethod $paymentMethod card or cash on delivery (enum = closed list)
+     * @param string|null   $cardHolder    name on the card (card orders only)
+     * @param string|null   $cardLast4     last 4 digits of the card (card orders only)
+     */
     public function __construct(User $buyer, PaymentMethod $paymentMethod, ?string $cardHolder = null, ?string $cardLast4 = null)
     {
         $this->uuid = Uuid::v4();
         $this->buyer = $buyer;
         $this->paymentMethod = $paymentMethod;
+        // Card order: it is paid immediately (simulated payment).
         if (PaymentMethod::Card === $paymentMethod) {
             // SECURITY (rule 15): a card order always carries a holder and exactly 4 digits.
             if (null === $cardHolder || '' === trim($cardHolder) || null === $cardLast4 || 1 !== preg_match('/^\d{4}$/', $cardLast4)) {
@@ -143,6 +166,11 @@ class Order
         $this->items = new ArrayCollection();
     }
 
+    /**
+     * Adds a line to the order and adds its amount to the total.
+     * SECURITY: price tampering - the total is built here, on the server, from prices read in the database.
+     * bcadd() does exact decimal additions (no float rounding).
+     */
     public function addItem(OrderItem $item): void
     {
         $this->items->add($item);
@@ -154,7 +182,9 @@ class Order
      */
     public function refreshStatus(): void
     {
+        // Collect the different statuses of all the lines (duplicates removed).
         $statuses = array_unique(array_map(static fn (OrderItem $i) => $i->getStatus(), $this->items->toArray()));
+        // Choose the order status from them: the first rule that matches wins.
         $this->status = match (true) {
             [] === $statuses => $this->getInitialStatus(),
             [self::STATUS_CANCELLED] === array_values($statuses) => self::STATUS_CANCELLED,
@@ -170,6 +200,8 @@ class Order
     {
         return PaymentMethod::CashOnDelivery === $this->paymentMethod ? self::STATUS_PLACED : self::STATUS_PAID;
     }
+
+    // ----- Getters. An order has no public setters: only the methods below can change it. -----
 
     public function getId(): ?int
     {
@@ -206,6 +238,7 @@ class Order
         return $this->paymentStatus;
     }
 
+    /** True when the order is paid in cash at delivery. */
     public function isCashOnDelivery(): bool
     {
         return PaymentMethod::CashOnDelivery === $this->paymentMethod;
@@ -230,6 +263,7 @@ class Order
         return $this->isCashPending() && in_array($this->status, [self::STATUS_SHIPPED, self::STATUS_DELIVERED], true);
     }
 
+    // Card data kept for display only (holder name + last 4 digits).
     public function getCardHolder(): ?string
     {
         return $this->cardHolder;
@@ -261,6 +295,7 @@ class Order
         return array_values(array_filter($this->items->toArray(), static fn (OrderItem $i) => $i->getSeller()->getId() === $seller->getId()));
     }
 
+    /** True when at least one line of this order is sold by $seller (used for the seller's access check). */
     public function hasSeller(User $seller): bool
     {
         return [] !== $this->getItemsForSeller($seller);
@@ -296,9 +331,11 @@ class Order
      */
     public function markCancelled(): void
     {
+        // Refuse when something was already shipped.
         if (!$this->isCancellable()) {
             throw new \DomainException('Only an order that has not shipped yet can be cancelled.');
         }
+        // Cancel every line, then the order itself.
         foreach ($this->items as $item) {
             $item->forceStatus(self::STATUS_CANCELLED);
         }
@@ -336,6 +373,10 @@ class Order
         $this->status = self::STATUS_CANCELLED;
     }
 
+    /**
+     * SECURITY: state machine - admin refund. Refused unless isRefundable() is true, so an order can never be
+     * refunded twice or refunded without having been paid.
+     */
     public function markRefunded(): void
     {
         if (!$this->isRefundable()) {
@@ -348,6 +389,7 @@ class Order
         $this->paymentStatus = PaymentStatus::Refunded;
     }
 
+    /** Copies the chosen address into the order (a snapshot, see the comment on the shipping fields). */
     public function setShippingAddress(Address $address): void
     {
         $this->shippingName = $address->getFullName();
@@ -363,6 +405,7 @@ class Order
         return $this->shippingName;
     }
 
+    // Address lines ready for display. Empty list when the order has no address.
     /** @return list<string> */
     public function getShippingLines(): array
     {

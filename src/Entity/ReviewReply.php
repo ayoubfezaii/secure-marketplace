@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Entity/ReviewReply.php
+ * WHAT: the ReviewReply entity = the seller's answer under a review.
+ * ROLE IN THE PROJECT: lets a seller answer customers publicly, once per review.
+ * USED BY: Seller\ReviewController (seller writes / deletes the reply), product page (everyone reads it).
+ */
+
 namespace App\Entity;
 
 use App\Repository\ReviewReplyRepository;
@@ -18,14 +25,17 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\UniqueConstraint(name: 'uniq_reply_review', columns: ['review_id'])]
 class ReviewReply
 {
+    // Internal auto-increment primary key.
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
 
+    // Random public identifier used in URLs and forms instead of the id.
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $uuid;
 
+    // The review that is answered (one reply per review).
     #[ORM\OneToOne(inversedBy: 'reply')]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private Review $review;
@@ -35,14 +45,20 @@ class ReviewReply
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private User $author;
 
+    // Text of the reply: plain text, 2 to 1000 characters.
     #[ORM\Column(type: Types::TEXT)]
     #[Assert\NotBlank(message: 'Please write a reply.')]
     #[Assert\Length(min: 2, max: 1000)]
     private string $body = '';
 
+    // When the reply was written.
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
+    /**
+     * @param Review $review the review being answered
+     * @param User   $author the logged-in seller
+     */
     public function __construct(Review $review, User $author)
     {
         $this->uuid = Uuid::v4();

@@ -1,5 +1,14 @@
 <?php
 
+/**
+ * FILE: src/Entity/AuditLog.php
+ * WHAT: the AuditLog entity = one line of the security journal (one row of the `audit_log` table).
+ * ROLE IN THE PROJECT: keeps a trace of logins, failures, lockouts, role changes, orders and blocked attacks,
+ *   so an admin can investigate what happened.
+ * USED BY: AuditLogger writes the lines; the admin "Audit log" and "Security" pages read them (admin only);
+ *   each user sees their own login history on the security settings page.
+ */
+
 namespace App\Entity;
 
 use App\Repository\AuditLogRepository;
@@ -16,6 +25,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Index(name: 'idx_audit_created', columns: ['created_at'])]
 class AuditLog
 {
+    // Names of every event that can be logged. Constants avoid typing mistakes in the action name.
     // Authentication
     public const LOGIN_SUCCESS = 'login.success';
     public const LOGIN_FAILURE = 'login.failure';
@@ -84,6 +94,7 @@ class AuditLog
         self::ACCESS_DENIED, self::CASH_ORDER_BLOCKED,
     ];
 
+    // Internal auto-increment primary key.
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -94,29 +105,41 @@ class AuditLog
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?User $user = null;
 
+    // Name of the event (one of the constants above), max 64 characters.
     #[ORM\Column(length: 64)]
     #[Assert\NotBlank]
     #[Assert\Length(max: 64)]
     private string $action;
 
+    // Extra information about the event, stored as JSON (for example the order number or the reason).
     /** @var array<string, mixed> */
     #[ORM\Column(type: Types::JSON)]
     private array $details = [];
 
+    // IP address of the client (45 characters = longest IPv6 address).
     #[ORM\Column(length: 45, nullable: true)]
     private ?string $ip = null;
 
+    // Browser identification sent by the client (User-Agent header).
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $userAgent = null;
 
+    // Date and time of the event.
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
     /**
+     * Builds one log line. Called only by AuditLogger.
+     *
+     * @param string      $action    event name (constant of this class)
+     * @param User|null   $user      the account concerned, if any
+     * @param string|null $ip        client IP address
+     * @param string|null $userAgent client User-Agent header
      * @param array<string, mixed> $details
      */
     public function __construct(string $action, array $details = [], ?User $user = null, ?string $ip = null, ?string $userAgent = null)
     {
+        // Cut the values to the column sizes so a very long input can never make the INSERT fail.
         $this->action = mb_substr($action, 0, 64);
         $this->details = $details;
         $this->user = $user;
@@ -125,6 +148,8 @@ class AuditLog
         $this->userAgent = null !== $userAgent ? mb_substr($userAgent, 0, 255) : null;
         $this->createdAt = new \DateTimeImmutable();
     }
+
+    // ----- Getters only. There is no setter: a log line must never be changed after it is written. -----
 
     public function getId(): ?int
     {

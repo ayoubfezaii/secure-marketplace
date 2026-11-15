@@ -1,5 +1,14 @@
 <?php
 
+/**
+ * FILE: src/Entity/Product.php
+ * WHAT: the Product entity = one item for sale (one row of the `product` table).
+ * ROLE IN THE PROJECT: holds the name, description, price, stock, category and images of a product, plus the
+ *   validation rules that protect them.
+ * USED BY: the catalogue and product page (visitor, buyer), the cart and checkout (buyer),
+ *   the seller product pages (seller owns and edits it) and admin moderation (admin).
+ */
+
 namespace App\Entity;
 
 use App\Service\Money;
@@ -13,6 +22,11 @@ use Symfony\Component\Uid\Uuid;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
+/**
+ * A product sold by one seller.
+ * The index on (is_active, created_at) makes the "latest active products" queries fast.
+ * HasLifecycleCallbacks lets Doctrine call touch() automatically before each update.
+ */
 #[ORM\Entity(repositoryClass: ProductRepository::class)]
 #[ORM\Index(name: 'idx_product_active_created', columns: ['is_active', 'created_at'])]
 #[ORM\HasLifecycleCallbacks]
@@ -24,6 +38,7 @@ class Product
     /** "NEW" badge for products listed during the last N days. */
     public const NEW_DAYS = 14;
 
+    // Internal auto-increment primary key. Used only for joins, never shown in a URL.
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -66,6 +81,8 @@ class Product
     #[Assert\LessThanOrEqual(Money::MAX_PRICE, message: 'The original price cannot exceed 300 000 DT.')]
     private ?string $compareAtPrice = null;
 
+    // Number of units that can still be sold.
+    // SECURITY: validation - never negative and never absurdly large.
     #[ORM\Column]
     #[Assert\NotNull]
     #[Assert\PositiveOrZero]
@@ -80,12 +97,14 @@ class Product
     // Not initialised until the seller picks one (the validator reports an uninitialised property as null).
     private Category $category;
 
+    // The pictures of the product (max 4), sorted by position. Deleting the product also deletes its image rows.
     /** @var Collection<int, ProductImage> */
     #[ORM\OneToMany(targetEntity: ProductImage::class, mappedBy: 'product', cascade: ['persist', 'remove'], orphanRemoval: true)]
     #[ORM\OrderBy(['position' => 'ASC'])]
     #[Assert\Count(max: self::MAX_IMAGES, maxMessage: 'A product can have at most {{ limit }} images.')]
     private Collection $images;
 
+    // false = hidden from the catalogue (the seller paused it, or an admin deactivated it).
     #[ORM\Column(options: ['default' => true])]
     private bool $isActive = true;
 
@@ -94,15 +113,24 @@ class Product
     #[ORM\Column(type: Types::DECIMAL, precision: 3, scale: 2, options: ['default' => '0.00'])]
     private string $ratingAverage = '0.00';
 
+    // Number of reviews (kept here for the same reason as ratingAverage).
     #[ORM\Column(options: ['default' => 0])]
     private int $ratingCount = 0;
 
+    // Creation date and date of the last change.
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $updatedAt;
 
+    /**
+     * Creates a product that belongs to $seller.
+     * SECURITY: mass assignment / IDOR - the owner is given once here by the controller (the logged-in seller).
+     * There is no setSeller() method, so a form can never change the owner.
+     *
+     * @param User $seller the logged-in seller
+     */
     public function __construct(User $seller)
     {
         $this->uuid = Uuid::v4();
@@ -112,6 +140,11 @@ class Product
         $this->updatedAt = $this->createdAt;
     }
 
+    /**
+     * Extra validation rule. The Symfony Validator calls it together with the attribute constraints above.
+     *
+     * @param ExecutionContextInterface $context where the error message is added
+     */
     #[Assert\Callback]
     public function validateCompareAtPrice(ExecutionContextInterface $context): void
     {
@@ -123,11 +156,14 @@ class Product
         }
     }
 
+    /** Doctrine calls this just before every UPDATE: it refreshes the "last change" date. */
     #[ORM\PreUpdate]
     public function touch(): void
     {
         $this->updatedAt = new \DateTimeImmutable();
     }
+
+    // ----- Getters and setters. Setters accept null (empty form field); the validator reports the error later. -----
 
     public function getId(): ?int
     {
@@ -144,6 +180,7 @@ class Product
         return $this->seller;
     }
 
+    /** Shortcut: the public shop of the seller (can be null). */
     public function getShop(): ?Shop
     {
         return $this->seller->getShop();
@@ -178,6 +215,7 @@ class Product
         return $this->price;
     }
 
+    /** The price stays a string like "35.500": money is never stored in a float (rounding errors). */
     public function setPrice(?string $price): static
     {
         $this->price = (string) $price;
@@ -190,6 +228,7 @@ class Product
         return $this->compareAtPrice;
     }
 
+    /** Sets the "was" price. An empty field means "no sale". */
     public function setCompareAtPrice(?string $compareAtPrice): static
     {
         $this->compareAtPrice = null === $compareAtPrice || '' === $compareAtPrice ? null : $compareAtPrice;
@@ -197,11 +236,13 @@ class Product
         return $this;
     }
 
+    /** True when a higher "was" price exists, so the sale badge is shown. bccomp() compares decimals exactly. */
     public function isOnSale(): bool
     {
         return null !== $this->compareAtPrice && bccomp($this->compareAtPrice, $this->price, Money::SCALE) > 0;
     }
 
+    /** Discount in percent for the badge. Display only, so a float is fine here. */
     public function getDiscountPercent(): int
     {
         if (!$this->isOnSale()) {
@@ -211,6 +252,7 @@ class Product
         return (int) round((1 - (float) $this->price / (float) $this->compareAtPrice) * 100);
     }
 
+    /** True when the product was listed less than NEW_DAYS days ago ("NEW" badge). */
     public function isNew(): bool
     {
         return $this->createdAt > new \DateTimeImmutable(sprintf('-%d days', self::NEW_DAYS));
@@ -229,10 +271,13 @@ class Product
     }
 
     /**
+     * SECURITY: price tampering / overselling - refuses a quantity bigger than the stock, so two buyers cannot
+     * buy the same last unit and the stock can never become negative.
      * Only called inside the checkout transaction, on a row locked with PESSIMISTIC_WRITE.
      */
     public function decreaseStock(int $quantity): void
     {
+        // Refuse zero, negative or too-large quantities.
         if ($quantity < 1 || $quantity > $this->stock) {
             throw new \DomainException('Insufficient stock.');
         }
@@ -250,6 +295,7 @@ class Product
         $this->stock += $quantity;
     }
 
+    /** Returns the category, or null while none is chosen yet (new product form). */
     public function getCategory(): ?Category
     {
         return $this->category ?? null;
@@ -265,6 +311,7 @@ class Product
         return $this;
     }
 
+    /** Category name for display ("Other" when missing). */
     public function getCategoryLabel(): string
     {
         return $this->getCategory()?->getName() ?? 'Other';
@@ -276,11 +323,20 @@ class Product
         return $this->images;
     }
 
+    /** True while one more image can be added (fewer than MAX_IMAGES). */
     public function canAddImage(): bool
     {
         return $this->images->count() < self::MAX_IMAGES;
     }
 
+    /**
+     * Attaches an already stored image to the product.
+     * SECURITY: file upload - the limit of 4 images is checked here too, not only in the form.
+     *
+     * @param string $filename random name returned by ImageStorage
+     *
+     * @return ProductImage the new image row
+     */
     public function addImage(string $filename): ProductImage
     {
         if (!$this->canAddImage()) {
@@ -292,6 +348,7 @@ class Product
         return $image;
     }
 
+    /** Removes an image, then renumbers the remaining ones 0, 1, 2... */
     public function removeImage(ProductImage $image): void
     {
         $this->images->removeElement($image);
@@ -301,6 +358,7 @@ class Product
         }
     }
 
+    /** File name of the first image (the cover), or null when the product has no image. */
     public function getMainImageFilename(): ?string
     {
         $first = $this->images->first();
@@ -330,6 +388,10 @@ class Product
         return $this->ratingCount;
     }
 
+    /**
+     * Saves the rating summary. Called by ProductRatingUpdater after a review is added, changed or removed.
+     * The average is forced between 0 and 5.
+     */
     public function setRatingSummary(float $average, int $count): void
     {
         $this->ratingAverage = number_format(max(0, min(5, $average)), 2, '.', '');

@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * FILE: src/Repository/ProductRepository.php
+ * WHAT: all the database queries about products (search, best sellers, similar products, seller and admin lists).
+ * ROLE IN THE PROJECT: the catalogue search lives here. It is the best file to show the SQL injection defence.
+ * USED BY: CatalogController, HomeController, ShopController (everyone), Seller\ProductController and
+ *   Seller\DashboardController (seller), Admin\ModerationController (admin).
+ */
+
 namespace App\Repository;
 
 use App\Dto\ProductSearchCriteria;
@@ -23,12 +31,16 @@ class ProductRepository extends ServiceEntityRepository
     /** Order statuses that count as a sale (best sellers, sales counts). */
     public const SOLD = [Order::STATUS_PAID, Order::STATUS_SHIPPED, Order::STATUS_DELIVERED];
 
+    /** Tells Doctrine that this repository works on the Product entity. */
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, Product::class);
     }
 
     /**
+     * All the products of one seller (active or hidden), newest first, with category and images.
+     * SECURITY: IDOR - filtered on the seller, so a seller only lists their own products.
+     *
      * @return list<Product>
      */
     public function findBySeller(User $seller): array
@@ -42,6 +54,10 @@ class ProductRepository extends ServiceEntityRepository
             ->getResult());
     }
 
+    /**
+     * Finds a product by the UUID found in the URL, or null.
+     * SECURITY: SQL injection - findOneBy() sends the value as a bound parameter.
+     */
     public function findOneByUuid(string $uuid): ?Product
     {
         return $this->findOneBy(['uuid' => $uuid]);
@@ -50,16 +66,23 @@ class ProductRepository extends ServiceEntityRepository
     /**
      * Public catalogue search. Only active products.
      *
+     * @param ProductSearchCriteria $c        the filters of the search form, already validated
+     * @param Category|null         $category limit to one category
+     * @param User|null             $seller   limit to one seller (shop page)
+     *
+     *
      * @return Paginator<Product>
      */
     public function search(ProductSearchCriteria $c, ?Category $category = null, ?User $seller = null): Paginator
     {
+        // Base query: product + seller + category + images in one query; hidden products are excluded.
         $qb = $this->createQueryBuilder('p')
             ->innerJoin('p.seller', 's')->addSelect('s')
             ->innerJoin('p.category', 'c')->addSelect('c')
             ->leftJoin('p.images', 'img')->addSelect('img')
             ->andWhere('p.isActive = true');
 
+        // Each filter below is added only when the visitor used it.
         if ('' !== $c->query) {
             // SECURITY (rule 1): the text is a bound parameter. LIKE wildcards (% and _) typed by the user are
             // escaped too, so "%" can't be used to dump everything or build slow patterns.
@@ -72,6 +95,7 @@ class ProductRepository extends ServiceEntityRepository
         if (null !== $seller) {
             $qb->andWhere('p.seller = :seller')->setParameter('seller', $seller);
         }
+        // Price, rating and stock filters: always ":name" placeholders, the value is sent separately.
         if (null !== $c->minPrice) {
             $qb->andWhere('p.price >= :min')->setParameter('min', $c->minPrice);
         }
@@ -84,6 +108,7 @@ class ProductRepository extends ServiceEntityRepository
         if ($c->inStock) {
             $qb->andWhere('p.stock > 0');
         }
+        // "Deals" filter: products with a "was" price higher than the current price.
         if ($c->deals) {
             $qb->andWhere('p.compareAtPrice IS NOT NULL AND p.compareAtPrice > p.price');
         }
@@ -91,9 +116,11 @@ class ProductRepository extends ServiceEntityRepository
         // SECURITY (rule 1): ORDER BY comes from a fixed whitelist (ProductSearchCriteria::SORTS), never from input.
         [$field, $direction] = $c->orderBy();
         $qb->orderBy($field, $direction)->addOrderBy('p.id', 'DESC')->addOrderBy('img.position', 'ASC')
+            // Pagination: skip the previous pages and read one page only.
             ->setFirstResult(($c->page - 1) * ProductSearchCriteria::PER_PAGE)
             ->setMaxResults(ProductSearchCriteria::PER_PAGE);
 
+        // Paginator also counts the total number of results (needed to draw the page links).
         return new Paginator($qb->getQuery(), fetchJoinCollection: true);
     }
 
@@ -109,6 +136,7 @@ class ProductRepository extends ServiceEntityRepository
             ->andWhere('p.isActive = true')
             ->getQuery()->getSingleResult();
 
+        // 0 for both when the catalogue is empty.
         return ['min' => (float) ($row['min'] ?? 0), 'max' => (float) ($row['max'] ?? 0)];
     }
 
@@ -119,6 +147,7 @@ class ProductRepository extends ServiceEntityRepository
      */
     public function findBestSellers(int $limit = 8): array
     {
+        // Step 1: ids of the most sold active products (sum of the quantities of sold order lines).
         $rows = $this->getEntityManager()->createQueryBuilder()
             ->select('IDENTITY(i.product) AS pid, SUM(i.quantity) AS units')
             ->from(OrderItem::class, 'i')
@@ -130,6 +159,7 @@ class ProductRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()->getArrayResult();
 
+        // Step 2: load these products, keeping the "most sold first" order.
         $ids = array_map(static fn (array $r) => (int) $r['pid'], $rows);
         $products = $this->findActiveByIds($ids);
 
@@ -162,15 +192,18 @@ class ProductRepository extends ServiceEntityRepository
         if ([] === $ids) {
             return [];
         }
+        // Load the products in one query...
         $found = $this->createQueryBuilder('p')
             ->andWhere('p.id IN (:ids)')->andWhere('p.isActive = true')
             ->setParameter('ids', $ids)
             ->getQuery()->getResult();
+        // ...index them by id...
         $byId = [];
         foreach ($found as $p) {
             $byId[$p->getId()] = $p;
         }
 
+        // ...and return them in the same order as $ids (missing or hidden ones are dropped).
         return array_values(array_filter(array_map(static fn (int $id) => $byId[$id] ?? null, $ids)));
     }
 
@@ -181,12 +214,14 @@ class ProductRepository extends ServiceEntityRepository
      */
     public function findSimilar(Product $product, int $limit = 4): array
     {
+        // First try: other active products of the same category, best rated first.
         $result = $this->createQueryBuilder('p')
             ->andWhere('p.isActive = true')->andWhere('p != :self')->andWhere('p.category = :cat')
             ->setParameter('self', $product)->setParameter('cat', $product->getCategory())
             ->orderBy('p.ratingAverage', 'DESC')->setMaxResults($limit)
             ->getQuery()->getResult();
 
+        // Not enough? Complete with recent products of other categories.
         if (count($result) < $limit) {
             $more = $this->createQueryBuilder('p')
                 ->andWhere('p.isActive = true')->andWhere('p != :self')->andWhere('p.category != :cat')
@@ -200,6 +235,8 @@ class ProductRepository extends ServiceEntityRepository
     }
 
     /**
+     * The newest active products (home page "New arrivals").
+     *
      * @return list<Product>
      */
     public function findLatestActive(int $limit = 8): array
@@ -213,6 +250,8 @@ class ProductRepository extends ServiceEntityRepository
     }
 
     /**
+     * Active products in stock that have a "was" price (home page "Deals").
+     *
      * @return list<Product>
      */
     public function findDeals(int $limit = 4): array
@@ -225,11 +264,13 @@ class ProductRepository extends ServiceEntityRepository
             ->getQuery()->getResult());
     }
 
+    /** Number of active products of the whole site. */
     public function countActive(): int
     {
         return (int) $this->createQueryBuilder('p')->select('COUNT(p.id)')->andWhere('p.isActive = true')->getQuery()->getSingleScalarResult();
     }
 
+    /** Number of active products of one seller. */
     public function countActiveBySeller(User $seller): int
     {
         return (int) $this->createQueryBuilder('p')
@@ -240,6 +281,8 @@ class ProductRepository extends ServiceEntityRepository
     }
 
     /**
+     * Active products of $seller with fewer than $threshold units left (seller dashboard alert).
+     *
      * @return list<Product>
      */
     public function findLowStock(User $seller, int $threshold = 5): array
@@ -252,6 +295,13 @@ class ProductRepository extends ServiceEntityRepository
     }
 
     /**
+     *
+     * @param string|null   $search   part of a product name or seller email
+     * @param string|null   $state    "active", "hidden" or null for both
+     * @param Category|null $category limit to one category
+     * @param User|null     $seller   limit to one seller
+     *
+     * @return QueryBuilder the query, not executed yet (the caller adds the pagination)
      * Admin moderation list (all products, active or not).
      */
     public function createAdminQueryBuilder(?string $search, ?string $state, ?Category $category = null, ?User $seller = null): QueryBuilder
@@ -260,10 +310,12 @@ class ProductRepository extends ServiceEntityRepository
             ->innerJoin('p.seller', 's')->addSelect('s')
             ->innerJoin('p.category', 'c')->addSelect('c')
             ->orderBy('p.createdAt', 'DESC');
+        // SECURITY: SQL injection - bound parameter; the % and _ typed by the admin are escaped (addcslashes).
         if (null !== $search && '' !== $search) {
             $qb->andWhere('(p.name LIKE :q OR s.email LIKE :q)')
                 ->setParameter('q', '%'.addcslashes($search, '%_\\').'%');
         }
+        // SECURITY: validation - only the two known values are accepted; anything else means "no filter".
         if ('active' === $state || 'hidden' === $state) {
             $qb->andWhere('p.isActive = :active')->setParameter('active', 'active' === $state);
         }
@@ -289,6 +341,7 @@ class ProductRepository extends ServiceEntityRepository
         if ([] === $products) {
             return [];
         }
+        // Sum of the quantities sold per product, in one GROUP BY query.
         $rows = $this->getEntityManager()->createQueryBuilder()
             ->select('IDENTITY(i.product) AS pid, SUM(i.quantity) AS units')
             ->from(OrderItem::class, 'i')
@@ -297,6 +350,7 @@ class ProductRepository extends ServiceEntityRepository
             ->groupBy('i.product')
             ->getQuery()->getArrayResult();
 
+        // Turn the rows into an array [product id => units sold].
         $counts = [];
         foreach ($rows as $r) {
             $counts[(int) $r['pid']] = (int) $r['units'];
@@ -314,6 +368,7 @@ class ProductRepository extends ServiceEntityRepository
      */
     public function preloadImages(array $products): array
     {
+        // The result is not used directly: Doctrine fills the images of the product objects already in memory.
         if ([] !== $products) {
             $this->createQueryBuilder('p')
                 ->select('p', 'img')

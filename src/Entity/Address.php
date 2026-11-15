@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * FILE: src/Entity/Address.php
+ * WHAT: the Address entity = one saved shipping address (one row of the `address` table).
+ * ROLE IN THE PROJECT: lets a buyer keep up to 5 addresses and pick one at checkout.
+ * USED BY: Buyer\AddressController (buyer address book), CheckoutController (address step), AddressVoter.
+ */
+
 namespace App\Entity;
 
 use App\Repository\AddressRepository;
@@ -18,6 +25,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Entity(repositoryClass: AddressRepository::class)]
 class Address
 {
+    // A buyer can save at most 5 addresses.
     public const MAX_PER_USER = 5;
 
     /** Supported shipping countries (ISO 3166-1 alpha-2). Whitelist (rule 15). */
@@ -27,32 +35,40 @@ class Address
         'MA' => 'Morocco', 'TN' => 'Tunisia', 'DZ' => 'Algeria', 'CA' => 'Canada', 'US' => 'United States',
     ];
 
+    // Allowed characters for free-text fields: letters, digits, spaces and basic punctuation.
+    // SECURITY: validation - characters like < > " are refused, so no HTML or script can be stored here.
     private const TEXT = '/^[\p{L}\p{N} .,\'\/#°()-]+$/u';
 
+    // Internal auto-increment primary key (never in URLs).
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
 
+    // SECURITY: IDOR - random UUID used in URLs instead of the id, so addresses cannot be guessed one by one.
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $uuid;
 
+    // Owner of the address. CASCADE: the addresses are deleted with the account.
     #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private User $user;
 
+    // Short label chosen by the buyer ("Home", "Office").
     #[ORM\Column(length: 40)]
     #[Assert\NotBlank]
     #[Assert\Length(max: 40)]
     #[Assert\Regex(pattern: self::TEXT, message: 'Please use letters, numbers and basic punctuation only.')]
     private string $label = 'Home';
 
+    // Name of the person who receives the parcel (letters, spaces, dots, apostrophes, dashes).
     #[ORM\Column(length: 100)]
     #[Assert\NotBlank]
     #[Assert\Length(min: 2, max: 100)]
     #[Assert\Regex(pattern: "/^[\\p{L}][\\p{L} .'-]*$/u", message: 'Please enter a valid name.')]
     private string $fullName = '';
 
+    // Street address, line 1 (required) and line 2 (optional).
     #[ORM\Column(length: 120)]
     #[Assert\NotBlank]
     #[Assert\Length(min: 3, max: 120)]
@@ -64,32 +80,43 @@ class Address
     #[Assert\Regex(pattern: self::TEXT, message: 'Please use letters, numbers and basic punctuation only.')]
     private ?string $line2 = null;
 
+    // Postal code: 3 to 12 letters, digits, spaces or dashes.
     #[ORM\Column(length: 12)]
     #[Assert\NotBlank]
     #[Assert\Regex(pattern: '/^[A-Za-z0-9 -]{3,12}$/', message: 'Please enter a valid postal code.')]
     private string $postalCode = '';
 
+    // City name (letters only, with spaces, dots, apostrophes, dashes).
     #[ORM\Column(length: 80)]
     #[Assert\NotBlank]
     #[Assert\Length(min: 2, max: 80)]
     #[Assert\Regex(pattern: "/^[\\p{L}][\\p{L} .'-]*$/u", message: 'Please enter a valid city.')]
     private string $city = '';
 
+    // SECURITY: validation - the country must be one of the codes in COUNTRIES (whitelist), nothing else.
     #[ORM\Column(length: 2)]
     #[Assert\NotBlank]
     #[Assert\Choice(callback: [self::class, 'countryCodes'], message: 'We do not ship to this country yet.')]
     private string $country = 'FR';
 
+    // Optional phone number for the delivery.
     #[ORM\Column(length: 20, nullable: true)]
     #[Assert\Regex(pattern: '/^\+?[0-9 ]{6,20}$/', message: 'Please enter a valid phone number.')]
     private ?string $phone = null;
 
+    // True for the address preselected at checkout (one per buyer).
     #[ORM\Column(options: ['default' => false])]
     private bool $isDefault = false;
 
+    // When the address was created.
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
+    /**
+     * Creates an address for $user. The owner is fixed here and can never be changed later.
+     *
+     * @param User $user the logged-in buyer
+     */
     public function __construct(User $user)
     {
         $this->uuid = Uuid::v4();
@@ -97,11 +124,14 @@ class Address
         $this->createdAt = new \DateTimeImmutable();
     }
 
+    // Returns the list of allowed country codes. Used by the Choice constraint on $country.
     /** @return list<string> */
     public static function countryCodes(): array
     {
         return array_keys(self::COUNTRIES);
     }
+
+    // ----- Getters and setters. Setters only clean the text (trim); the validator checks it afterwards. -----
 
     public function getId(): ?int
     {
@@ -172,6 +202,7 @@ class Address
         return $this->postalCode;
     }
 
+    /** Postal codes are stored in upper case. */
     public function setPostalCode(?string $postalCode): static
     {
         $this->postalCode = strtoupper(trim((string) $postalCode));
@@ -196,6 +227,7 @@ class Address
         return $this->country;
     }
 
+    /** Full country name for display ("TN" becomes "Tunisia"). */
     public function getCountryName(): string
     {
         return self::COUNTRIES[$this->country] ?? $this->country;
