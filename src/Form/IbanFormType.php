@@ -26,8 +26,8 @@ class IbanFormType extends AbstractType
     /**
      * Declares the two fields: the IBAN text and a "remove" checkbox.
      *
-     * @param FormBuilderInterface $builder object used to add fields
-     * @param array                $options options of the form (not used here)
+     * @param FormBuilderInterface<IbanDto|null> $builder object used to add fields
+     * @param array<string, mixed> $options options of the form (not used here)
      */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {

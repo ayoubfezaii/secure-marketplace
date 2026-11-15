@@ -45,8 +45,8 @@ class ProductFormType extends AbstractType
      * Declares the fields of the form.
      * The "data-preview-*" and "data-action" attributes connect inputs to the live preview (assets/controllers/preview_controller.js).
      *
-     * @param FormBuilderInterface $builder object used to add fields
-     * @param array                $options options of the form; $options['data'] is the product being edited
+     * @param FormBuilderInterface<Product|null> $builder object used to add fields
+     * @param array<string, mixed> $options options of the form; $options['data'] is the product being edited
      */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {

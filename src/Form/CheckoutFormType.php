@@ -34,8 +34,8 @@ class CheckoutFormType extends AbstractType
     /**
      * Declares the fields of the form.
      *
-     * @param FormBuilderInterface $builder object used to add fields
-     * @param array                $options options of the form (not used here)
+     * @param FormBuilderInterface<PaymentDto|null> $builder object used to add fields
+     * @param array<string, mixed> $options options of the form (not used here)
      */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {

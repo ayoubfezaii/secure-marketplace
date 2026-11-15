@@ -31,8 +31,8 @@ class AddressFormType extends AbstractType
      * Declares the fields of the form. Each add() = one input; the first argument is the property of Address it fills.
      * The "maxlength" attributes help the user in the browser; the real limits are the constraints on the entity.
      *
-     * @param FormBuilderInterface $builder object used to add fields
-     * @param array                $options options of the form (not used here)
+     * @param FormBuilderInterface<Address|null> $builder object used to add fields
+     * @param array<string, mixed> $options options of the form (not used here)
      */
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
